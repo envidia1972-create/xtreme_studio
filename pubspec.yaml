@@ -1,0 +1,30 @@
+name: xtreme_studio
+description: "Xtreme Studio - Consola de emision multi-emisora para radio (Icecast 2, Shoutcast v1/v2)."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.9.0
+
+# Solo dependencias de Dart puro: no se requieren plugins nativos, de modo que
+# el proyecto compila sin acceso a red para resolver paquetes ni para compilar
+# codigo C++ de terceros.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Cifrado de credenciales (DPAPI en Windows) por FFI.
+  ffi: ^2.1.0
+  win32: ^5.5.0
+
+  # Identificadores unicos para los perfiles de emisora.
+  uuid: ^4.6.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

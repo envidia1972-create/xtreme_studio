@@ -1,0 +1,53 @@
+# Archivos generados por el build de Flutter
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.idea/
+
+# Cache de pub copiada dentro del proyecto para poder resolver dependencias
+# sin acceso a internet. No se versiona.
+.pubcache/
+
+# Directorios temporales usados al ejecutar las verificaciones
+.tmp_appdata/
+.tmp_localappdata/
+.tmp_out/
+
+# Binarios descargados (no versionar; ver README)
+tools/*.exe
+tools/*.zip
+tools/choco/
+
+# Salidas del sistema
+*.log
+
+
+# --- Secretos y credenciales: NUNCA versionar (agregado por DSH) ---
+.env
+.env.*
+!*.env.example
+*.jks
+*.keystore
+android/key.properties
+**/google-services.json
+**/GoogleService-Info.plist
+**/serviceAccountKey*.json
+**/*adminsdk*.json
+.vercel/
+.firebase/
+
+# --- Artefactos de build y caches (agregado por DSH) ---
+node_modules/
+.npm-cache/
+.pubcache/
+.pub-cache/
+.dart_tool/
+build/
+.gradle/
+*.apk
+*.aab
+*.pdb
+# --- Agregado por DSH: salida temporal de las verificaciones ---
+.tmp_out.txt
