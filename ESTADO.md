@@ -4,9 +4,10 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 14 (correcciones tras la prueba con Zeno.fm)**. Última
-verificación: **335 comprobaciones automáticas en verde en este equipo**, en
-nueve suites. La interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
+Fecha del corte: **ronda 15 (build Windows en CI)**. Última verificación:
+**335 comprobaciones automáticas en verde en Linux** y **172 en Windows**
+(`verify_core`), con el `.exe` compilado y arrancado en GitHub Actions. La
+interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
 PulseAudio/PipeWire y emitió contra un servidor Icecast simulado.
 
 Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
@@ -22,7 +23,7 @@ Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
 | Gestor de emisoras (crear, editar, duplicar, borrar) | Verificado |
 | Importar y exportar perfiles (sin contraseña en claro) | Verificado |
 | Icecast 2 + Shoutcast v1/v2 (handshake propio, sin ffmpeg) | Verificado, incluido servidor simulado |
-| Credenciales DPAPI en Windows | Verificado por código; **no ejecutado en Windows en esta ronda** |
+| Credenciales DPAPI en Windows | Verificado en Windows (GitHub Actions, `verify_core`) |
 | Credenciales con permisos `0600` en Linux/macOS | Verificado y usado por la app en Linux |
 | "Probar conexión" con diagnóstico por código HTTP | Verificado |
 | Captura y codificación MP3 por FFmpeg | **Verificada con audio real en Linux** |
@@ -42,7 +43,7 @@ Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
 | **Detección de dispositivos ALSA** | Parseo y comandos verificados; captura real con PCM `null` |
 | **Selección automática pulse/alsa** | Verificada con las combinaciones posibles |
 | **Códec MP3 / AAC-LC / AAC+** | MP3 y AAC-LC verificados con audio real; AAC+ requiere FFmpeg con `libfdk_aac` |
-| Runner y captura de Windows | Código verificado; **no ejecutado en Windows** |
+| Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
 
@@ -206,10 +207,11 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 
 ## Qué sigue bloqueado
 
-1. **El ejecutable de Windows no se ha compilado en esta ronda.** El código de
-   `dshow` se verifica con pruebas de argumentos y parseo, pero falta ejecutar
-   `tool\build_windows.ps1` en un equipo Windows con Visual Studio y FFmpeg
-   real.
+1. **El audio real en Windows no se ha probado.** El `.exe` compila y arranca
+   en GitHub Actions (run `40232577146`), y `verify_core` pasa 172
+   comprobaciones en Windows, pero el runner no tiene micrófono. Falta abrir la
+   app en una PC Windows con el micrófono/consola real y probar dshow, vúmetro,
+   ganancia y emisión.
 2. **La captura real por ALSA no se ha probado contra hardware.** Se verificó
    con el PCM `null` de ALSA (silencio/datos del plugin, no audio de una
    tarjeta). En este equipo el audio lo administra PipeWire y falta el plugin
@@ -228,6 +230,16 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 5. **No se ha emitido contra la radio real del usuario (Zeno.fm).** Sigue en
    pie el aviso de la sección siguiente. Solo se hizo la sonda de metadatos con
    el mismo título, para no desplazar al DJ ni cambiar la programación.
+
+### Build verificado en GitHub Actions
+
+- Run: `40232577146` (workflow `Windows build`, `windows-latest`).
+- Flutter 3.47.8, MSVC/CMake/Windows SDK, FFmpeg GPL win64 descargado por el
+  workflow.
+- `verify_core`: **172 comprobaciones en verde**.
+- `flutter build windows --release`: `xtreme_studio.exe` generado en 56,7 s.
+- Arranque comprobado por el script: `[ok] La aplicacion arranco correctamente`.
+- Artifact: `xtreme_studio-windows-x64` (14 archivos, 79,5 MB con FFmpeg).
 
 ### Pasos para la prueba final en Windows
 
@@ -253,7 +265,8 @@ dart run tool\verify_engine.dart
 ```
 
 Si no hay una PC Windows, `.github/workflows/windows.yml` compila en GitHub
-Actions y publica la carpeta `Release` como artifact.
+Actions y publica la carpeta `Release` como artifact. Ese camino ya se ejecutó
+con éxito en el run `40232577146`.
 
 Salida esperada: `build\windows\x64\runner\Release\xtreme_studio.exe`, con
 `ffmpeg.exe`, la licencia y la documentación copiadas al lado.

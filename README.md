@@ -11,9 +11,9 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 > siempre activo. La interfaz Flutter corre con runner Linux y verifica
 > vumetros, metadatos por la API de Icecast, grabacion, reconexion y apagado.
 > Los caminos de Windows (dshow) estan cubiertos por las pruebas de argumentos
-> y deteccion; ALSA se probo con captura real sobre el PCM `null`.
-> Falta compilar el `.exe` en un equipo Windows con Visual Studio (ver
-> *ESTADO.md*).
+> y deteccion; el `.exe` ya se **compilo y arranco** en GitHub Actions
+> (`windows-latest`, Flutter 3.47.8 + MSVC). Falta probar el audio real con un
+> microfono Windows. ALSA se probo con captura real sobre el PCM `null`.
 >
 > **Si retomas este proyecto, lee `ESTADO.md`**: ahi esta el punto exacto donde
 > se detuvo el trabajo y que queda pendiente.
@@ -51,7 +51,7 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | Interfaz Flutter con runner **Linux** | Verificada en este equipo |
 | Captura real por **PulseAudio/PipeWire** | Verificada de punta a punta |
 | Captura por **ALSA** | Captura real verificada con el PCM `null`; falta hardware/microfono ALSA |
-| Interfaz Flutter en Windows | Pendiente de ejecutar en Windows |
+| Interfaz Flutter en Windows | Compilada y arrancada en GitHub Actions; audio real pendiente |
 | Soundboard, notificaciones push, panel web | Pendiente (fases siguientes) |
 
 ## Asi se ve en Linux
@@ -254,11 +254,16 @@ dentro de esa carpeta, que es la que se entrega a otra emisora.
 
 ### Windows sin una PC Windows (GitHub Actions)
 
-El repositorio incluye `.github/workflows/windows.yml`. Al hacer push, en
-**Actions → Windows build → Run workflow** GitHub compila en `windows-latest` y
-deja la carpeta `Release` como artifact descargable. El workflow descarga
-FFmpeg, ejecuta `check_toolchain.ps1` y `build_windows.ps1` y publica
-`xtreme_studio-windows-x64`. Es la via practica si no hay Visual Studio a mano.
+El repositorio incluye `.github/workflows/windows.yml`. En **Actions → Windows
+build → Run workflow** GitHub compila en `windows-latest` y deja la carpeta
+`Release` como artifact descargable. El workflow descarga FFmpeg, ejecuta
+`check_toolchain.ps1`, corre `verify_core` en Windows y compila con
+`build_windows.ps1`.
+
+**Ya verificado:** run `40232577146` termino en verde; el `.exe` se genero,
+`verify_core` paso **172 comprobaciones** y el arranque de la app se comprobo
+con `[ok] La aplicacion arranco correctamente`. El artifact es
+`xtreme_studio-windows-x64` (incluye `ffmpeg.exe`).
 
 ### FFmpeg
 
