@@ -252,6 +252,73 @@ build\windows\x64\runner\Release\xtreme_studio.exe
 Tambien copia `ffmpeg.exe`, su licencia, el `README.md` y `THIRD_PARTY.md`
 dentro de esa carpeta, que es la que se entrega a otra emisora.
 
+### Windows bloquea el .exe descargado
+
+El `.exe` no esta firmado. Windows y Chrome suelen bloquear archivos descargados
+de internet o que contienen un `ffmpeg.exe` estatico. No es un fallo del build.
+
+1. **Verifica el ZIP** (tamano 79.548.621 bytes, SHA-256
+   `400e631326a1d3720f3e1e7b1b7c24b4ea92c7d4e1599e1ee3abefb712187381`).
+   Si Chrome lo corto, volve a bajarlo con `gh run download` o elegi
+   *Conservar* en las descargas de Chrome.
+2. **Desbloquealo ANTES de extraer**:
+
+   ```powershell
+   Unblock-File .\xtreme_studio-windows-x64.zip
+   Expand-Archive .\xtreme_studio-windows-x64.zip -DestinationPath C:\XtremeStudio -Force
+   Get-ChildItem C:\XtremeStudio -Recurse | Unblock-File
+   ```
+
+3. **Ejecutalo desde una carpeta local** (`C:\XtremeStudio`), no desde
+   Descargas, OneDrive, una red o dentro del ZIP.
+4. Si Defender lo puso en cuarentena: *Seguridad de Windows → Proteccion
+   antivirus → Historial de proteccion → Permitir*. Como el binario no esta
+   firmado, podes agregar una exclusion **solo para esa carpeta**:
+
+   ```powershell
+   Add-MpPreference -ExclusionPath 'C:\XtremeStudio'
+   ```
+
+   No desactives Defender globalmente.
+5. Para saber si el problema es FFmpeg: renombra `ffmpeg.exe` a
+   `ffmpeg.exe.bak` y ejecuta `xtreme_studio.exe`. Si la app abre, el bloqueo
+   era el FFmpeg estatico; instala FFmpeg con `winget install Gyan.FFmpeg` y
+   apunta la ruta en Ajustes. Si sigue sin abrir, el bloqueo es del `.exe`
+   (SmartScreen o Smart App Control).
+6. **Smart App Control** (Windows 11): *Seguridad de Windows → Control de
+   aplicaciones y navegador → Smart App Control*. Si esta activado, bloquea
+   aplicaciones sin reputacion. Desactivarlo es una decision del usuario y
+   Microsoft advierte que no se puede volver a activar sin reinstalar.
+7. Si el mensaje es "no tienes permisos suficientes", ejecuta desde PowerShell
+   y guarda el texto exacto:
+
+   ```powershell
+   Get-AuthenticodeSignature .\xtreme_studio.exe | Format-List *
+   Get-MpThreatDetection | Sort-Object InitialDetectionTime -Descending | Select-Object -First 5
+   (Get-Acl .\xtreme_studio.exe).Access | Format-Table IdentityReference,FileSystemRights,AccessControlType
+   ```
+
+### Traer los ultimos cambios a una laptop Windows
+
+El artifact de Actions ya incluye los ultimos cambios de codigo. Si compilas
+localmente, actualiza primero:
+
+```powershell
+git fetch origin
+git status
+git pull --ff-only origin master
+git log -1 --oneline
+# Debe ser 6893ac2 (o 2640fdf si aun no tenes el commit de documentacion)
+flutter pub get
+powershell -ExecutionPolicy Bypass -File tool\check_toolchain.ps1
+powershell -ExecutionPolicy Bypass -File tool\build_windows.ps1
+```
+
+Si hay cambios locales sin commitear, guardalos antes con
+`git stash push -u`, hace `git pull` y recuperalos con `git stash pop`.
+Ejecuta el `xtreme_studio.exe` que queda en
+`build\windows\x64\runner\Release`, no una copia vieja.
+
 ### Windows sin una PC Windows (GitHub Actions)
 
 El repositorio incluye `.github/workflows/windows.yml`. En **Actions → Windows
