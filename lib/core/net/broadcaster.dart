@@ -48,8 +48,7 @@ class Broadcaster {
   bool get isConnected =>
       (_icecast?.isConnected ?? false) || (_shoutcast?.isConnected ?? false);
 
-  int get bytesSent =>
-      _icecast?.bytesSent ?? _shoutcast?.bytesSent ?? 0;
+  int get bytesSent => _icecast?.bytesSent ?? _shoutcast?.bytesSent ?? 0;
 
   /// Conecta segun el protocolo del perfil.
   Future<void> connect() async {
@@ -61,9 +60,13 @@ class Broadcaster {
         username: profile.username,
         password: profile.password,
         useTls: profile.useTls,
+        allowBadCertificate: profile.allowBadCertificate,
         iceName: profile.stationName,
         iceGenre: profile.genre,
         iceDescription: profile.description,
+        contentType: profile.audio.codec.mimeType,
+        adminUsername: profile.adminUsername,
+        adminPassword: profile.adminPassword,
       );
       await client.connect();
       _icecast = client;
@@ -85,9 +88,14 @@ class Broadcaster {
         bitrateKbps: profile.audio.bitrateKbps,
         sampleRate: profile.audio.sampleRate,
         channels: profile.audio.channels,
+        contentType: profile.audio.codec.mimeType,
       );
       await client.connect();
       _shoutcast = client;
+      _lostSub?.cancel();
+      _lostSub = client.onConnectionLost.listen((_) {
+        if (!_connectionLost.isClosed) _connectionLost.add(null);
+      });
     }
   }
 
@@ -96,12 +104,30 @@ class Broadcaster {
     _shoutcast?.send(audio);
   }
 
-  /// Cambia el "suena ahora". En Icecast va insertado en el flujo; en
-  /// Shoutcast va por peticion HTTP al panel.
+  /// Vuelca lo pendiente al sistema operativo.
+  ///
+  /// Lo usa el motor periodicamente: si el servidor dejo de leer o la red se
+  /// corto en silencio, el `flush` no completa y el cliente avisa de la caida
+  /// para reconectar. Es la unica forma de detectar una conexion "zombi",
+  /// porque un socket TCP puede seguir abierto sin entregar un solo byte.
+  Future<void> flush() async {
+    final icecast = _icecast;
+    if (icecast != null) {
+      await icecast.flush();
+      return;
+    }
+    await _shoutcast?.flush();
+  }
+
+  /// Cambia el "suena ahora".
+  ///
+  /// En Icecast y en Shoutcast se hace con una peticion HTTP aparte
+  /// (`/admin/metadata` o `/admin.cgi`); nunca se insertan bytes de texto en el
+  /// flujo de audio. Devuelve `true` solo si el servidor lo acepto.
   Future<bool> setMetadata(String song) async {
-    if (_icecast != null) {
-      _icecast!.setMetadata(song);
-      return true;
+    final icecast = _icecast;
+    if (icecast != null) {
+      return icecast.setMetadata(song);
     }
     final sc = _shoutcast;
     if (sc == null) return false;
@@ -119,8 +145,13 @@ class Broadcaster {
 
   /// Libera tambien el canal de avisos.
   Future<void> dispose() async {
-    await close();
-    await _connectionLost.close();
+    await _lostSub?.cancel();
+    _lostSub = null;
+    await _icecast?.dispose();
+    await _shoutcast?.dispose();
+    _icecast = null;
+    _shoutcast = null;
+    if (!_connectionLost.isClosed) await _connectionLost.close();
   }
 
   /// Cierra la fuente con la peticion de borrado (Icecast) para liberar el
@@ -161,7 +192,7 @@ Future<ConnectionTestResult> testConnection(ServerProfile profile) async {
     await broadcaster.connect();
     details.add('Handshake aceptado por el servidor');
     if (profile.protocol == ServerProtocol.icecast2) {
-      details.add('Soporta metadatos en vivo (icy-metaint)');
+      details.add('Actualiza el titulo por /admin/metadata (Icecast)');
     } else if (broadcaster._shoutcast?.metadataSupported == true) {
       details.add('Servidor OK2: acepta actualizacion de titulo');
     }
@@ -189,7 +220,8 @@ Future<ConnectionTestResult> testConnection(ServerProfile profile) async {
       if (detected.isCertain && detected.protocol != profile.protocol) {
         return ConnectionTestResult(
           ok: false,
-          message: 'El puerto ${profile.effectivePort} es '
+          message:
+              'El puerto ${profile.effectivePort} es '
               '${detected.protocol.shortLabel}, no '
               '${profile.protocol.shortLabel}. Cambia el tipo de servidor en el '
               'perfil.',

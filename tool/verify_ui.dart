@@ -657,6 +657,7 @@ void _checkWidgetContract() {
       'profiles',
       'activeProfile',
       'store',
+      'devices',
       'onChanged',
       'onMessage',
     ],

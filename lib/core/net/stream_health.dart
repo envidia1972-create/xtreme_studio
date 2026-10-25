@@ -130,6 +130,12 @@ class StreamHealthMonitor {
     }
 
     final client = _client ?? (_client = HttpClient()..connectionTimeout = timeout);
+    // El monitor pregunta lo mismo que un oyente; si la emisora usa un
+    // certificado autofirmado, rechazarlo daria una falsa alarma de "sin
+    // senal" justo cuando el DJ acaba de habilitarlo en el perfil.
+    if (profile.allowBadCertificate) {
+      client.badCertificateCallback = (_, _, _) => true;
+    }
 
     try {
       final request = await client.getUrl(url).timeout(timeout);
@@ -148,9 +154,13 @@ class StreamHealthMonitor {
           response.headers.value(HttpHeaders.contentTypeHeader) ?? '';
 
       // Se cierra de inmediato: no interesa el cuerpo. Sin esto la conexion
-      // seguiria recibiendo audio indefinidamente.
+      // seguiria recibiendo audio indefinidamente. El limite de tiempo evita
+      // que un servidor que no completa el desligue deje colgada la comprobacion.
       try {
-        await response.detachSocket().then((s) => s.destroy());
+        await response
+            .detachSocket()
+            .timeout(timeout, onTimeout: () => throw TimeoutException('detach'))
+            .then((s) => s.destroy());
       } catch (_) {
         // Si no se puede desligar el socket, se cancela la suscripcion.
         unawaited(response.drain<void>().catchError((_) {}));

@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:xtreme_studio/core/audio/broadcast_engine.dart';
+import 'package:xtreme_studio/core/audio/ffmpeg_capture.dart';
 import 'package:xtreme_studio/core/server_profile.dart';
 
 int _passed = 0;
@@ -27,7 +28,9 @@ void check(bool ok, String description, {String? detail}) {
     stdout.writeln('  [ok]   $description');
   } else {
     _failures.add(description);
-    stdout.writeln('  [FALLA] $description${detail != null ? ' -> $detail' : ''}');
+    stdout.writeln(
+      '  [FALLA] $description${detail != null ? ' -> $detail' : ''}',
+    );
   }
 }
 
@@ -57,6 +60,8 @@ class FakeIcecastServer {
   final List<Socket> _sockets = [];
   final List<int> audio = [];
   String request = '';
+  final List<String> requests = [];
+  final List<String> metadataRequests = [];
   int connections = 0;
 
   int get port => _server!.port;
@@ -72,6 +77,9 @@ class FakeIcecastServer {
     _server!.listen((socket) {
       connections++;
       _sockets.add(socket);
+      // El test cierra conexiones a proposito: sin observar `done`, el EPIPE
+      // del servidor simulado aparece como error no capturado.
+      unawaited(socket.done.catchError((Object _) {}));
       final buffer = <int>[];
       var headersDone = false;
 
@@ -79,10 +87,31 @@ class FakeIcecastServer {
         (data) {
           if (!headersDone) {
             buffer.addAll(data);
-            if (latin1.decode(buffer, allowInvalid: true).contains('\r\n\r\n')) {
-              request = latin1.decode(buffer, allowInvalid: true);
+            if (latin1
+                .decode(buffer, allowInvalid: true)
+                .contains('\r\n\r\n')) {
+              final headers = latin1.decode(buffer, allowInvalid: true);
+              requests.add(headers);
+              final firstLine = headers.split('\r\n').first;
               headersDone = true;
-              socket.write('HTTP/1.1 100 Continue\r\n\r\n');
+              try {
+                if (firstLine.startsWith('PUT ') ||
+                    firstLine.startsWith('SOURCE ')) {
+                  request = headers;
+                  socket.write('HTTP/1.1 100 Continue\r\n\r\n');
+                } else {
+                  // Peticion de metadatos (/admin/metadata) o mode=delete.
+                  metadataRequests.add(firstLine);
+                  socket.write(
+                    'HTTP/1.1 200 OK\r\n'
+                    'Content-Length: 0\r\n'
+                    'Connection: close\r\n\r\n',
+                  );
+                  socket.close();
+                }
+              } catch (_) {
+                // El test pudo cortar la conexion justo ahora.
+              }
             }
           } else {
             audio.addAll(data);
@@ -112,15 +141,30 @@ class FakeIcecastServer {
 }
 
 Future<void> main() async {
+  await runZonedGuarded(_run, (error, stack) {
+    stderr.writeln('ERROR NO CAPTURADO: $error');
+    stderr.writeln(stack);
+    exit(3);
+  });
+}
+
+Future<void> _run() async {
   stdout.writeln('Prueba de integracion del motor de emision');
   stdout.writeln('(FFmpeg falso + servidor Icecast simulado)');
 
-  final fakeFfmpeg = File('tools${Platform.pathSeparator}fake_ffmpeg.exe');
+  final fakeName = Platform.isWindows ? 'fake_ffmpeg.exe' : 'fake_ffmpeg';
+  final fakeFfmpeg = File('tools${Platform.pathSeparator}$fakeName');
   if (!fakeFfmpeg.existsSync()) {
     stdout.writeln('');
-    stdout.writeln('FALTA tools/fake_ffmpeg.exe.');
+    stdout.writeln('FALTA tools/$fakeName.');
     stdout.writeln('Compilalo con:');
-    stdout.writeln(r'  cmd /c ""C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" && cl /nologo /O2 /Fe:tools\fake_ffmpeg.exe tool\fake_ffmpeg.c"');
+    if (Platform.isWindows) {
+      stdout.writeln(
+        r'  cmd /c ""C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\VC\Auxiliary\Build\vcvars64.bat" && cl /nologo /O2 /Fe:tools\fake_ffmpeg.exe tool\fake_ffmpeg.c"',
+      );
+    } else {
+      stdout.writeln('  cc -O2 -o tools/fake_ffmpeg tool/fake_ffmpeg.c');
+    }
     exit(1);
   }
 
@@ -128,14 +172,18 @@ Future<void> main() async {
   // no puede ejecutarse y conviene decirlo en lugar de fallar en cascada.
   try {
     final probe = await Process.start(fakeFfmpeg.absolute.path, const []);
-    await probe.kill();
+    probe.kill();
   } catch (e) {
     stdout.writeln('');
     stdout.writeln('No se puede lanzar procesos en este entorno:');
     stdout.writeln('  $e');
     stdout.writeln('');
-    stdout.writeln('Esta prueba necesita ejecutar FFmpeg, asi que debe correrse en');
-    stdout.writeln('una terminal normal (no dentro de un entorno restringido).');
+    stdout.writeln(
+      'Esta prueba necesita ejecutar FFmpeg, asi que debe correrse en',
+    );
+    stdout.writeln(
+      'una terminal normal (no dentro de un entorno restringido).',
+    );
     exit(2);
   }
 
@@ -163,14 +211,22 @@ Future<void> main() async {
     ),
   );
   profile.inputDeviceId = 'Microfono Falso';
-  profile.recordLocally = true;
-  profile.recordDirectory = recordDir.path;
 
   // El falso FFmpeg escribe sus argumentos en este archivo (ver fake_ffmpeg.c).
+  //
+  // El capturador se fija de forma explicita: el doble de FFmpeg no implementa
+  // `-devices`, asi que la autodeteccion no tendria de donde elegir. En la app
+  // real el motor consulta la build de FFmpeg (ver `verify_core`).
+  final backend = CaptureBackend.forPlatform();
   final engine = BroadcastEngine(
     profile: profile,
     ffmpegPath: fakeFfmpeg.absolute.path,
     deviceName: 'Microfono Falso',
+    captureBackend: backend,
+    // La app pasa la grabacion desde Ajustes (no desde el perfil): se prueba
+    // exactamente esa ruta.
+    recordLocally: true,
+    recordDirectory: recordDir.path,
     environment: {'FAKEFFMPEG_ARGS_FILE': argsFile.path},
   );
 
@@ -187,8 +243,11 @@ Future<void> main() async {
     final live = await engine.goLive();
     check(live, 'el motor entra al aire');
     check(
-      await waitFor(() => server.connections >= 1,
-          timeout: const Duration(seconds: 5), what: 'la conexion del servidor'),
+      await waitFor(
+        () => server.connections >= 1,
+        timeout: const Duration(seconds: 5),
+        what: 'la conexion del servidor',
+      ),
       'el servidor recibio la conexion',
     );
     check(
@@ -203,20 +262,38 @@ Future<void> main() async {
 
     // ------------------------------------------------------- argumentos ffmpeg
     section('Argumentos con los que se invoco a FFmpeg');
-    final gotArgs = await waitFor(() => argsFile.existsSync(),
-        timeout: const Duration(seconds: 5), what: 'el archivo de argumentos');
+    final gotArgs = await waitFor(
+      () => argsFile.existsSync(),
+      timeout: const Duration(seconds: 5),
+      what: 'el archivo de argumentos',
+    );
     check(gotArgs, 'FFmpeg fue invocado');
     if (argsFile.existsSync()) {
       final args = argsFile
           .readAsLinesSync()
           .where((l) => l.isNotEmpty)
           .toList();
-      check(args.contains('dshow'), 'se captura por dshow');
       check(
-        args.any((a) => a.startsWith('audio=')),
-        'se pasa un dispositivo de entrada',
-        detail: args.firstWhere((a) => a.startsWith('audio='), orElse: () => ''),
+        args.contains(backend.ffmpegName),
+        'se captura por el backend de la plataforma (${backend.ffmpegName})',
       );
+      if (backend == CaptureBackend.dshow) {
+        check(
+          args.any((a) => a.startsWith('audio=')),
+          'se pasa un dispositivo de entrada (dshow)',
+          detail: args.firstWhere(
+            (a) => a.startsWith('audio='),
+            orElse: () => '',
+          ),
+        );
+      } else {
+        final inputIndex = args.indexOf('-i');
+        check(
+          inputIndex >= 0 && args[inputIndex + 1] == 'Microfono Falso',
+          'se pasa el nombre de la fuente de audio (${backend.ffmpegName})',
+          detail: inputIndex >= 0 ? args[inputIndex + 1] : 'sin -i',
+        );
+      }
       check(args.contains('libmp3lame'), 'se codifica en MP3');
       final bitrateIndex = args.indexOf('-b:a');
       check(
@@ -226,8 +303,11 @@ Future<void> main() async {
       check(args.contains('pipe:1'), 'el MP3 se entrega por stdout');
       check(args.contains('pipe:2'), 'los niveles se entregan por stderr');
       final mapCount = args.where((a) => a == '-map').length;
-      check(mapCount == 2, 'las dos salidas mapean el audio explicitamente',
-          detail: 'mapeos: $mapCount');
+      check(
+        mapCount == 2,
+        'las dos salidas mapean el audio explicitamente',
+        detail: 'mapeos: $mapCount',
+      );
     }
 
     // ------------------------------------------------------------ envio real
@@ -237,10 +317,15 @@ Future<void> main() async {
       timeout: const Duration(seconds: 10),
       what: 'recibir audio en el servidor',
     );
-    check(sentBytes, 'el audio llega al servidor',
-        detail: 'recibidos ${server.audio.length} bytes');
     check(
-      server.audio.length > 4 && server.audio[0] == 0xFF && server.audio[1] == 0xFB,
+      sentBytes,
+      'el audio llega al servidor',
+      detail: 'recibidos ${server.audio.length} bytes',
+    );
+    check(
+      server.audio.length > 4 &&
+          server.audio[0] == 0xFF &&
+          server.audio[1] == 0xFB,
       'el flujo empieza con cabecera MP3 valida',
       detail: 'primeros bytes: ${server.audio.take(4).toList()}',
     );
@@ -250,8 +335,11 @@ Future<void> main() async {
       timeout: const Duration(seconds: 10),
       what: 'que el vumetro mida nivel',
     );
-    check(meterOk, 'el vumetro mide la senal de entrada',
-        detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS');
+    check(
+      meterOk,
+      'el vumetro mide la senal de entrada',
+      detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
     check(
       (engine.snapshot.peakDb - (-6.0)).abs() < 2.0,
       'el nivel medido corresponde a la onda de -6 dBFS (±2)',
@@ -261,20 +349,26 @@ Future<void> main() async {
 
     // ------------------------------------------------------------- metadatos
     section('Metadatos (suena ahora)');
-    await engine.setTrack('Los Fabulosos - Prueba');
-    final metaOk = await waitFor(
-      () => latin1
-          .decode(server.audio, allowInvalid: true)
-          .contains('StreamTitle='),
+    final metaOk = await engine.setTrack('Los Fabulosos - Prueba');
+    check(metaOk, 'el servidor acepta el titulo por /admin/metadata');
+    final adminOk = await waitFor(
+      () => server.metadataRequests.any(
+        (r) =>
+            r.contains('/admin/metadata') &&
+            r.contains('mode=updinfo') &&
+            r.contains('Los'),
+      ),
       timeout: const Duration(seconds: 10),
-      what: 'que el titulo llegue al servidor',
+      what: 'que llegue la peticion de metadatos',
     );
-    check(metaOk, 'el titulo viaja en el flujo de metadatos');
     check(
-      latin1
-          .decode(server.audio, allowInvalid: true)
-          .contains('Los Fabulosos - Prueba'),
-      'el titulo llega integro',
+      adminOk,
+      'el titulo se envia por HTTP aparte (no dentro del audio)',
+      detail: server.metadataRequests.join(' | '),
+    );
+    check(
+      !latin1.decode(server.audio, allowInvalid: true).contains('StreamTitle'),
+      'el flujo de audio NO contiene bloques de metadatos',
     );
 
     // ---------------------------------------------------------- grabacion local
@@ -292,8 +386,11 @@ Future<void> main() async {
       final files = recordDir.listSync().whereType<File>().toList();
       if (files.isNotEmpty) {
         final f = files.first;
-        check(f.path.endsWith('.mp3'), 'la grabacion es un MP3',
-            detail: f.uri.pathSegments.last);
+        check(
+          f.path.endsWith('.mp3'),
+          'la grabacion es un MP3',
+          detail: f.uri.pathSegments.last,
+        );
         // La grabacion debe ser identica al audio que reciben los oyentes.
         check(
           f.lengthSync() > 0 &&
@@ -314,9 +411,11 @@ Future<void> main() async {
       timeout: const Duration(seconds: 8),
       what: 'que el motor detecte la caida',
     );
-    check(reconnecting,
-        'el motor detecta que se corto la conexion y pasa a RECONECTANDO',
-        detail: 'estado actual: ${engine.snapshot.state.label}');
+    check(
+      reconnecting,
+      'el motor detecta que se corto la conexion y pasa a RECONECTANDO',
+      detail: 'estado actual: ${engine.snapshot.state.label}',
+    );
     check(
       states.contains(BroadcastState.reconnecting),
       'el cambio de estado se notifica a la interfaz',
@@ -329,11 +428,16 @@ Future<void> main() async {
       timeout: const Duration(seconds: 25),
       what: 'que se reconecte solo',
     );
-    check(recovered, 'el motor se reconecta solo, sin intervencion del DJ',
-        detail: 'estado actual: ${engine.snapshot.state.label}');
-    check(server.connections >= 2,
-        'hubo una segunda conexion al servidor',
-        detail: 'conexiones: ${server.connections}');
+    check(
+      recovered,
+      'el motor se reconecta solo, sin intervencion del DJ',
+      detail: 'estado actual: ${engine.snapshot.state.label}',
+    );
+    check(
+      server.connections >= 2,
+      'hubo una segunda conexion al servidor',
+      detail: 'conexiones: ${server.connections}',
+    );
 
     // Y debe volver a llegar audio por la conexion nueva.
     final resumed = await waitFor(
@@ -341,8 +445,11 @@ Future<void> main() async {
       timeout: const Duration(seconds: 10),
       what: 'que se reanude el envio de audio',
     );
-    check(resumed, 'el audio se reanuda tras reconectar',
-        detail: 'antes $bytesAntes, ahora ${server.audio.length}');
+    check(
+      resumed,
+      'el audio se reanuda tras reconectar',
+      detail: 'antes $bytesAntes, ahora ${server.audio.length}',
+    );
 
     // ------------------------------------------- captura sigue viva al reconectar
     check(
@@ -353,8 +460,10 @@ Future<void> main() async {
     // ------------------------------------------------------------------ apagado
     section('Salida del aire');
     await engine.goOffAir();
-    check(engine.snapshot.state == BroadcastState.idle,
-        'el estado vuelve a FUERA DEL AIRE');
+    check(
+      engine.snapshot.state == BroadcastState.idle,
+      'el estado vuelve a FUERA DEL AIRE',
+    );
     check(
       await waitFor(
         () => logMessages.any((m) => m.contains('Fuera del aire')),
@@ -371,8 +480,11 @@ Future<void> main() async {
       timeout: const Duration(seconds: 5),
       what: 'que termine el proceso de captura',
     );
-    check(captureStopped, 'el proceso de captura termino (no queda huerfano)',
-        detail: 'codigo de salida: ${engine.captureExitCode}');
+    check(
+      captureStopped,
+      'el proceso de captura termino (no queda huerfano)',
+      detail: 'codigo de salida: ${engine.captureExitCode}',
+    );
 
     // -------------------------------------- fallo de captura con diagnostico
     // Caso central para el DJ: FFmpeg muere y hay que decirle POR QUE. El
@@ -408,6 +520,7 @@ Future<void> main() async {
       profile: failureProfile,
       ffmpegPath: fakeFfmpeg.absolute.path,
       deviceName: 'Microfono Falso',
+      captureBackend: backend,
       environment: {
         'FAKEFFMPEG_ARGS_FILE': argsFile.path,
         // La captura normal se detiene sola a los 800 ms...
@@ -422,14 +535,24 @@ Future<void> main() async {
     check(wentLive, 'el motor entra al aire antes de fallar la captura');
 
     // Esperar a que la captura muera y el motor explique el motivo.
+    //
+    // Ojo: el motor primero avisa "captura detenida" y despues completa el
+    // diagnostico. Hay que esperar el mensaje final, no el primero, o la prueba
+    // se adelanta y lee el texto generico (esto ocurria de forma intermitente).
     final explained = await waitFor(
-      () => failureEngine.snapshot.state == BroadcastState.stopped &&
-          (failureEngine.snapshot.lastError ?? '').isNotEmpty,
+      () =>
+          failureEngine.snapshot.state == BroadcastState.stopped &&
+          (failureEngine.snapshot.lastError ?? '').contains(
+            'No se encontro el dispositivo',
+          ),
       timeout: const Duration(seconds: 30),
       what: 'que el motor explique el fallo',
     );
-    check(explained, 'el motor detecta la muerte de la captura',
-        detail: 'estado: ${failureEngine.snapshot.state.label}');
+    check(
+      explained,
+      'el motor detecta la muerte de la captura',
+      detail: 'estado: ${failureEngine.snapshot.state.label}',
+    );
 
     final error = failureEngine.snapshot.lastError ?? '';
     check(
@@ -455,7 +578,9 @@ Future<void> main() async {
     await failureServer.stop();
 
     stdout.writeln('');
-    stdout.writeln('Estados recorridos: ${states.map((s) => s.label).join(' -> ')}');
+    stdout.writeln(
+      'Estados recorridos: ${states.map((s) => s.label).join(' -> ')}',
+    );
   } finally {
     await engine.dispose();
     await server.stop();

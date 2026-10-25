@@ -15,9 +15,15 @@
 //   FAKEFFMPEG_ARGS_FILE   archivo donde escribir los argumentos (uno por linea)
 //   FAKEFFMPEG_DURATION_MS cuanto tiempo emitir si nadie lo detiene (0 = infinito)
 
+#ifdef _WIN32
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
+#define XS_SLEEP_MS(ms) Sleep(ms)
+#else
+#include <unistd.h>
+#define XS_SLEEP_MS(ms) usleep((useconds_t)((ms) * 1000))
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -65,8 +71,10 @@ static void write_pcm(unsigned char *buf, int bytes, unsigned int counter) {
 
 int main(int argc, char **argv) {
     // Salida binaria y sin buffer: el motor en Dart debe recibir los datos ya.
+#ifdef _WIN32
     _setmode(_fileno(stdout), _O_BINARY);
     _setmode(_fileno(stderr), _O_BINARY);
+#endif
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
@@ -103,7 +111,7 @@ int main(int argc, char **argv) {
     // y un bloque de PCM de 10 ms.
     const int mp3Bytes = 320;
     const int pcmBytes = 160;
-    const DWORD stepMs = 20;
+    const unsigned int stepMs = 20;
 
     for (;;) {
         write_mp3(mp3, mp3Bytes, mp3Counter);
@@ -121,7 +129,7 @@ int main(int argc, char **argv) {
         }
         fflush(stderr);
 
-        Sleep(stepMs);
+        XS_SLEEP_MS(stepMs);
         elapsedMs += stepMs;
 
         if (durationMs > 0 && elapsedMs >= (unsigned long long)durationMs) {

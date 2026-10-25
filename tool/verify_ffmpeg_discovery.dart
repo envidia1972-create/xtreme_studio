@@ -21,7 +21,9 @@ void check(bool ok, String description, {String? detail}) {
     stdout.writeln('  [ok]   $description');
   } else {
     _failures.add(description);
-    stdout.writeln('  [FALLA] $description${detail != null ? ' -> $detail' : ''}');
+    stdout.writeln(
+      '  [FALLA] $description${detail != null ? ' -> $detail' : ''}',
+    );
   }
 }
 
@@ -34,12 +36,13 @@ Future<void> main() async {
   stdout.writeln('Verificacion del descubrimiento de FFmpeg');
 
   final toolsDir = Directory('tools');
-  final probePath =
-      '${toolsDir.path}${Platform.pathSeparator}ffmpeg.exe';
+  final exeName = Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg';
+  final probePath = '${toolsDir.path}${Platform.pathSeparator}$exeName';
   final probe = File(probePath);
-  // Se crea un archivo vacio: a la busqueda solo le importa que exista.
+  // Si el proyecto ya trae FFmpeg (el caso normal en Linux, donde se descarga
+  // para probar la captura real), NO se toca. Solo se crea un archivo vacio si
+  // no existe: a la busqueda le importa que exista, no su contenido.
   final existed = probe.existsSync();
-  final saved = existed ? probe.readAsBytesSync() : null;
   if (!existed) {
     toolsDir.createSync(recursive: true);
     probe.writeAsStringSync('');
@@ -58,11 +61,11 @@ Future<void> main() async {
 
     // 2) Ruta inexistente indicada por el usuario: no debe romper nada.
     final bogus = await ProfileStore.findFfmpeg(
-      '${Directory.systemTemp.path}${Platform.pathSeparator}no-existe-ffmpeg.exe',
+      '${Directory.systemTemp.path}${Platform.pathSeparator}no-existe-$exeName',
     );
     check(
       bogus !=
-          '${Directory.systemTemp.path}${Platform.pathSeparator}no-existe-ffmpeg.exe',
+          '${Directory.systemTemp.path}${Platform.pathSeparator}no-existe-$exeName',
       'una ruta invalida se descarta y se sigue buscando',
       detail: bogus.isEmpty ? '(no encontrado, correcto)' : bogus,
     );
@@ -72,7 +75,7 @@ Future<void> main() async {
     final auto = await ProfileStore.findFfmpeg('');
     check(
       auto.isNotEmpty,
-      'la autodeteccion encuentra FFmpeg en tools\\',
+      'la autodeteccion encuentra FFmpeg en tools/',
       detail: auto.isEmpty ? 'no lo encontro' : auto,
     );
     check(
@@ -94,21 +97,27 @@ Future<void> main() async {
       detail: emptyPreferred.isEmpty ? 'devolvio vacio' : emptyPreferred,
     );
 
-    // 5) El caso de la app YA COMPILADA: vive en
-    //    build\windows\x64\runner\Release\, cinco niveles dentro del proyecto,
-    //    mientras que FFmpeg esta en tools\ en la raiz. Si la busqueda no sube
-    //    por los directorios padre, el DJ tendria que copiar ffmpeg.exe a mano.
+    // 5) El caso de la app YA COMPILADA: vive dentro de build/, varios niveles
+    //    por debajo del proyecto, mientras que FFmpeg esta en tools/ en la
+    //    raiz. Si la busqueda no sube por los directorios padre, el DJ tendria
+    //    que copiar FFmpeg a mano.
     section('Ejecucion desde la carpeta compilada');
-    final releaseDir = Directory(
-      'build${Platform.pathSeparator}windows${Platform.pathSeparator}x64'
-      '${Platform.pathSeparator}runner${Platform.pathSeparator}Release',
-    );
+    final buildExisted = Directory('build').existsSync();
+    final releaseDir = Platform.isWindows
+        ? Directory(
+            'build${Platform.pathSeparator}windows${Platform.pathSeparator}x64'
+            '${Platform.pathSeparator}runner${Platform.pathSeparator}Release',
+          )
+        : Directory(
+            'build${Platform.pathSeparator}linux${Platform.pathSeparator}x64'
+            '${Platform.pathSeparator}release${Platform.pathSeparator}bundle',
+          );
     releaseDir.createSync(recursive: true);
 
-    final upward = ProfileStore.debugSearchUpwards(releaseDir, 'ffmpeg.exe');
+    final upward = ProfileStore.debugSearchUpwards(releaseDir, exeName);
     check(
       upward.isNotEmpty,
-      'subiendo desde build\\...\\Release se encuentra tools\\ffmpeg.exe',
+      'subiendo desde la carpeta compilada se encuentra tools/$exeName',
       detail: upward.isEmpty ? 'no lo encontro' : upward,
     );
     check(
@@ -122,34 +131,55 @@ Future<void> main() async {
       detail: upward,
     );
 
-    // Se limpia lo que creo esta comprobacion.
-    try {
-      Directory('build').deleteSync(recursive: true);
-    } catch (_) {}
+    // Se limpia solo la carpeta build si la creo esta comprobacion: si ya
+    // existia (por ejemplo, tras compilar la app) no se toca.
+    if (!buildExisted) {
+      try {
+        Directory('build').deleteSync(recursive: true);
+      } catch (_) {}
+    }
 
     section('Comando de captura generado');
 
+    final backend = CaptureBackend.forPlatform();
     final args = CaptureArgs(
       deviceName: 'Micrófono (Realtek(R) Audio)',
       bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
       gainDb: 2.5,
+      backend: backend,
     );
     final preview = args.preview();
 
-    check(preview.startsWith('ffmpeg.exe '), 'el comando empieza con el ejecutable');
-    // El nombre del dispositivo va citado junto con el prefijo `audio=`, que es
-    // como lo espera el capturador dshow de FFmpeg.
     check(
-      preview.contains('"audio=Micrófono (Realtek(R) Audio)"'),
+      preview.startsWith(Platform.isWindows ? 'ffmpeg.exe ' : 'ffmpeg '),
+      'el comando empieza con el ejecutable de la plataforma',
+      detail: preview.split(' ').first,
+    );
+    check(
+      preview.contains('"Micrófono (Realtek(R) Audio)"'),
       'cita el argumento del dispositivo (tiene espacios y parentesis)',
       detail: preview.split(' ').take(12).join(' '),
     );
-    check(
-      preview.contains('-f dshow') && preview.contains('-audio_buffer_size'),
-      'indica el capturador de Windows y el tamano de buffer',
-    );
+    if (backend == CaptureBackend.dshow) {
+      // En Windows el nombre va junto con el prefijo `audio=`, que es como lo
+      // espera el capturador dshow de FFmpeg.
+      check(
+        preview.contains('"audio=Micrófono (Realtek(R) Audio)"'),
+        'dshow recibe el prefijo audio=',
+      );
+      check(
+        preview.contains('-f dshow') && preview.contains('-audio_buffer_size'),
+        'indica el capturador de Windows y el tamano de buffer',
+      );
+    } else {
+      check(
+        preview.contains('-f ${backend.ffmpegName}') &&
+            !preview.contains('dshow'),
+        'Linux usa el capturador ${backend.ffmpegName}, sin dshow',
+      );
+    }
     check(
       preview.contains('pipe:1') && preview.contains('pipe:2'),
       'las dos salidas van a las tuberias correctas',
@@ -183,16 +213,30 @@ Future<void> main() async {
       explainFfmpegError('').isNotEmpty,
       'un error vacio tambien produce un mensaje util',
     );
+    check(
+      explainFfmpegError(
+        "Unknown input format: 'pulse'",
+        backend: CaptureBackend.pulse,
+      ).contains('no incluye soporte'),
+      'una build sin PulseAudio se explica',
+    );
+    check(
+      explainFfmpegError(
+        'PulseAudio server connection failure: Connection refused',
+        backend: CaptureBackend.pulse,
+      ).contains('No se pudo conectar'),
+      'un servidor PulseAudio caido se explica',
+    );
   } finally {
     // Se restaura el estado original: el archivo de prueba era solo para la
     // comprobacion de autodeteccion.
     if (!existed && probe.existsSync()) {
       probe.deleteSync();
-    } else if (existed && saved != null) {
-      probe.writeAsBytesSync(saved);
     }
     stdout.writeln('');
-    stdout.writeln('(archivo de prueba de FFmpeg eliminado: ${!probe.existsSync()})');
+    stdout.writeln(
+      '(archivo de prueba de FFmpeg eliminado: ${!probe.existsSync()})',
+    );
   }
 
   stdout.writeln('');

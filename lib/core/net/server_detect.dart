@@ -61,6 +61,7 @@ Future<ServerDetection> detectServer({
   required int port,
   required ServerProtocol expected,
   bool useTls = false,
+  bool allowBadCertificate = false,
   Duration timeout = const Duration(seconds: 8),
 }) async {
   if (host.trim().isEmpty) {
@@ -74,6 +75,11 @@ Future<ServerDetection> detectServer({
   HttpClient? client;
   try {
     client = HttpClient()..connectionTimeout = timeout;
+    // Un certificado autofirmado no debe impedir detectar el tipo de servidor
+    // si el DJ ya decidio confiar en el para esta emisora.
+    if (useTls && allowBadCertificate) {
+      client.badCertificateCallback = (_, _, _) => true;
+    }
 
     // 1. `/status-json.xsl` es la firma de Icecast y AzuraCast.
     final icecast = await _tryGet(

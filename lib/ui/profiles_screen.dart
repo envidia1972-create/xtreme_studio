@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/audio/ffmpeg_capture.dart' show InputDevice;
 import '../core/net/broadcaster.dart';
 import '../core/net/server_detect.dart';
 import '../core/profile_store.dart';
@@ -19,14 +22,26 @@ class ProfilesScreen extends StatefulWidget {
     required this.store,
     required this.onChanged,
     required this.onMessage,
+    this.devices = const [],
+    this.availableCodecs = const {AudioCodec.mp3},
   });
 
   final List<ServerProfile> profiles;
   final ServerProfile? activeProfile;
   final ProfileStore store;
-  final Future<void> Function(List<ServerProfile> profiles, ServerProfile? active)
-      onChanged;
+  final Future<void> Function(
+    List<ServerProfile> profiles,
+    ServerProfile? active,
+  )
+  onChanged;
   final void Function(String message, {bool isError}) onMessage;
+
+  /// Microfonos detectados, para asignar uno distinto a cada emisora.
+  final List<InputDevice> devices;
+
+  /// Codecs que el FFmpeg instalado puede codificar. AAC+ solo aparece si la
+  /// build trae `libfdk_aac`; ofrecerlo sin soporte seria una promesa falsa.
+  final Set<AudioCodec> availableCodecs;
 
   @override
   State<ProfilesScreen> createState() => _ProfilesScreenState();
@@ -36,17 +51,21 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
   String? _testingId;
   ConnectionTestResult? _lastTest;
 
-  Future<void> _saveProfile(ServerProfile profile) async {
-    final problems = profile.validate();
+  Future<bool> _saveProfile(
+    ServerProfile profile, {
+    bool requirePassword = true,
+    bool silent = false,
+  }) async {
+    final problems = profile.validate(requirePassword: requirePassword);
     if (problems.isNotEmpty) {
       widget.onMessage(problems.first, isError: true);
-      return;
+      return false;
     }
     try {
       await widget.store.save(profile);
     } catch (e) {
       widget.onMessage('No se pudo guardar: $e', isError: true);
-      return;
+      return false;
     }
 
     final list = [...widget.profiles];
@@ -56,9 +75,17 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     } else {
       list.add(profile);
     }
-    final active = widget.activeProfile ?? profile;
+    // Si se edito la emisora activa hay que reemplazarla por la version nueva:
+    // conservar la instancia vieja hacia que los cambios no se aplicaran hasta
+    // volver a seleccionarla o reiniciar la app.
+    final active = switch (widget.activeProfile) {
+      null => profile,
+      final current when current.id == profile.id => profile,
+      final current => current,
+    };
     await widget.onChanged(list, active);
-    widget.onMessage('Emisora guardada');
+    if (!silent) widget.onMessage('Emisora guardada');
+    return true;
   }
 
   Future<void> _delete(ServerProfile profile) async {
@@ -114,10 +141,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
       _testingId = null;
       _lastTest = result;
     });
-    widget.onMessage(
-      result.message,
-      isError: !result.ok,
-    );
+    widget.onMessage(result.message, isError: !result.ok);
   }
 
   Future<void> _export(ServerProfile profile) async {
@@ -181,12 +205,24 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     try {
       final profile = await widget.store.importProfile(content);
       profile.id = ProfileStore.newId();
-      await _saveProfile(profile);
-      widget.onMessage(
-        'Emisora importada. No olvides escribir su contrasena.',
+      // La exportacion no incluye la contrasena a proposito: se guarda el resto
+      // del perfil y se le pide al DJ que la escriba. Si se exigiera aqui, la
+      // importacion fallaria siempre.
+      final saved = await _saveProfile(
+        profile,
+        requirePassword: false,
+        silent: true,
       );
+      if (saved) {
+        widget.onMessage(
+          'Emisora importada. No olvides escribir su contrasena.',
+        );
+      }
     } catch (e) {
-      widget.onMessage('El contenido no es un perfil valido: $e', isError: true);
+      widget.onMessage(
+        'El contenido no es un perfil valido: $e',
+        isError: true,
+      );
     }
   }
 
@@ -194,7 +230,12 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
     final result = await showDialog<ServerProfile>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => _ProfileEditorDialog(existing: existing, store: widget.store),
+      builder: (ctx) => _ProfileEditorDialog(
+        existing: existing,
+        store: widget.store,
+        devices: widget.devices,
+        availableCodecs: widget.availableCodecs,
+      ),
     );
     if (result != null) {
       await _saveProfile(result);
@@ -210,18 +251,25 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
         children: [
           Row(
             children: [
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Mis emisoras',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
-                    'Servidores donde podes transmitir. Las contrasenas se '
-                    'guardan cifradas en este equipo.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                    widget.store.secrets.isSecure
+                        ? 'Servidores donde podes transmitir. Las contrasenas se '
+                              'guardan cifradas en este equipo.'
+                        : 'Servidores donde podes transmitir. En este sistema las '
+                              'contrasenas se guardan en un archivo privado del '
+                              'usuario (permisos 0600), sin cifrado adicional.',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12.5,
+                    ),
                   ),
                 ],
               ),
@@ -256,8 +304,7 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
                         profile: p,
                         isActive: widget.activeProfile?.id == p.id,
                         testing: _testingId == p.id,
-                        onActivate: () =>
-                            widget.onChanged(widget.profiles, p),
+                        onActivate: () => widget.onChanged(widget.profiles, p),
                         onEdit: () => _openEditor(existing: p),
                         onDuplicate: () => _duplicate(p),
                         onTest: () => _test(p),
@@ -362,6 +409,7 @@ class _ProfileTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
+                  '${profile.audio.codec.label} · '
                   '${profile.audio.bitrateKbps} kbps · '
                   '${profile.audio.sampleRate / 1000} kHz · '
                   '${profile.audio.channels == 1 ? "mono" : "estereo"} · '
@@ -375,10 +423,7 @@ class _ProfileTile extends StatelessWidget {
             ),
           ),
           if (!isActive)
-            OutlinedButton(
-              onPressed: onActivate,
-              child: const Text('Usar'),
-            ),
+            OutlinedButton(onPressed: onActivate, child: const Text('Usar')),
           const SizedBox(width: 8),
           IconButton(
             tooltip: 'Probar conexion',
@@ -476,7 +521,10 @@ class _TestResultCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   result.message,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                 ),
               ),
             ],
@@ -503,10 +551,17 @@ class _TestResultCard extends StatelessWidget {
 
 /// Formulario de alta y edicion de una emisora.
 class _ProfileEditorDialog extends StatefulWidget {
-  const _ProfileEditorDialog({required this.existing, required this.store});
+  const _ProfileEditorDialog({
+    required this.existing,
+    required this.store,
+    this.devices = const [],
+    this.availableCodecs = const {AudioCodec.mp3},
+  });
 
   final ServerProfile? existing;
   final ProfileStore store;
+  final List<InputDevice> devices;
+  final Set<AudioCodec> availableCodecs;
 
   @override
   State<_ProfileEditorDialog> createState() => _ProfileEditorDialogState();
@@ -526,10 +581,14 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
   late TextEditingController _genre;
 
   late ServerProtocol _protocol;
+  late AudioCodec _codec;
   late int _bitrate;
   late int _sampleRate;
   late int _channels;
   bool _useTls = false;
+  bool _allowBadCertificate = false;
+  bool _autoReconnect = true;
+  String _inputDeviceId = '';
   bool _showPassword = false;
 
   /// `true` mientras se consulta al servidor que tipo es.
@@ -549,10 +608,24 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
     _stationName = TextEditingController(text: e?.stationName ?? '');
     _genre = TextEditingController(text: e?.genre ?? '');
     _protocol = e?.protocol ?? ServerProtocol.icecast2;
+    final codecs = widget.availableCodecs.isEmpty
+        ? const {AudioCodec.mp3}
+        : widget.availableCodecs;
+    _codec = e != null && codecs.contains(e.audio.codec)
+        ? e.audio.codec
+        : AudioCodec.mp3;
     _bitrate = e?.audio.bitrateKbps ?? 128;
+    if (!_codec.bitrateOptions.contains(_bitrate)) {
+      _bitrate = _codec.bitrateOptions.contains(128)
+          ? 128
+          : _codec.bitrateOptions.first;
+    }
     _sampleRate = e?.audio.sampleRate ?? 44100;
     _channels = e?.audio.channels ?? 2;
     _useTls = e?.useTls ?? false;
+    _allowBadCertificate = e?.allowBadCertificate ?? false;
+    _autoReconnect = e?.autoReconnect ?? true;
+    _inputDeviceId = e?.inputDeviceId ?? '';
   }
 
   @override
@@ -604,17 +677,21 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
       password: _password.text,
       protocol: _protocol,
       useTls: _useTls,
+      // Sin TLS no hay certificado que aceptar: no se guarda una excepcion
+      // de seguridad que ya no aplica.
+      allowBadCertificate: _useTls && _allowBadCertificate,
       publicUrl: _publicUrl.text.trim(),
       stationName: _stationName.text.trim(),
       genre: _genre.text.trim(),
       description: existing?.description ?? '',
       audio: AudioSettings(
+        codec: _codec,
         bitrateKbps: _bitrate,
         sampleRate: _sampleRate,
         channels: _channels,
       ),
-      inputDeviceId: existing?.inputDeviceId ?? '',
-      autoReconnect: existing?.autoReconnect ?? true,
+      inputDeviceId: _inputDeviceId,
+      autoReconnect: _autoReconnect,
       recordLocally: existing?.recordLocally ?? false,
       recordDirectory: existing?.recordDirectory ?? '',
       adminUsername: existing?.adminUsername ?? '',
@@ -691,7 +768,9 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                       flex: 2,
                       child: DropdownButtonFormField<ServerProtocol>(
                         initialValue: _protocol,
-                        decoration: const InputDecoration(labelText: 'Tipo de servidor'),
+                        decoration: const InputDecoration(
+                          labelText: 'Tipo de servidor',
+                        ),
                         dropdownColor: AppColors.surfaceAlt,
                         items: [
                           for (final p in ServerProtocol.values)
@@ -783,22 +862,35 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                                 setState(() => _showPassword = !_showPassword),
                           ),
                         ),
-                        validator: (v) =>
-                            (v == null || v.isEmpty) ? 'Falta la contrasena' : null,
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Falta la contrasena'
+                            : null,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.lock_outline, size: 14, color: AppColors.textMuted),
+                    const Icon(
+                      Icons.lock_outline,
+                      size: 14,
+                      color: AppColors.textMuted,
+                    ),
                     SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        'Se guarda cifrada con la proteccion de tu usuario de '
-                        'Windows: otro equipo no puede leerla.',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+                        Platform.isWindows
+                            ? 'Se guarda cifrada con la proteccion de tu '
+                                  'usuario de Windows: otro equipo no puede '
+                                  'leerla.'
+                            : 'Se guarda en un archivo privado con permisos '
+                                  '0600 (solo tu usuario). Linux no tiene DPAPI: '
+                                  'igual que BUTT, no hay cifrado adicional.',
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11.5,
+                        ),
                       ),
                     ),
                   ],
@@ -808,16 +900,42 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                 Row(
                   children: [
                     Expanded(
+                      child: DropdownButtonFormField<AudioCodec>(
+                        initialValue: _codec,
+                        decoration: const InputDecoration(
+                          labelText: 'Codec del stream',
+                        ),
+                        dropdownColor: AppColors.surfaceAlt,
+                        items: [
+                          for (final c in AudioCodec.values)
+                            if ((widget.availableCodecs.isEmpty
+                                    ? const {AudioCodec.mp3}
+                                    : widget.availableCodecs)
+                                .contains(c))
+                              DropdownMenuItem(value: c, child: Text(c.label)),
+                        ],
+                        onChanged: (v) {
+                          if (v == null) return;
+                          setState(() {
+                            _codec = v;
+                            if (!v.bitrateOptions.contains(_bitrate)) {
+                              _bitrate = v.bitrateOptions.contains(128)
+                                  ? 128
+                                  : v.bitrateOptions.first;
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
                       child: DropdownButtonFormField<int>(
                         initialValue: _bitrate,
                         decoration: const InputDecoration(labelText: 'Bitrate'),
                         dropdownColor: AppColors.surfaceAlt,
                         items: [
-                          for (final b in AudioSettings.bitrateOptions)
-                            DropdownMenuItem(
-                              value: b,
-                              child: Text('$b kbps'),
-                            ),
+                          for (final b in _codec.bitrateOptions)
+                            DropdownMenuItem(value: b, child: Text('$b kbps')),
                         ],
                         onChanged: (v) => setState(() => _bitrate = v ?? 128),
                       ),
@@ -826,7 +944,9 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     Expanded(
                       child: DropdownButtonFormField<int>(
                         initialValue: _sampleRate,
-                        decoration: const InputDecoration(labelText: 'Frecuencia'),
+                        decoration: const InputDecoration(
+                          labelText: 'Frecuencia',
+                        ),
                         dropdownColor: AppColors.surfaceAlt,
                         items: [
                           for (final r in AudioSettings.sampleRateOptions)
@@ -835,7 +955,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                               child: Text('${r / 1000} kHz'),
                             ),
                         ],
-                        onChanged: (v) => setState(() => _sampleRate = v ?? 44100),
+                        onChanged: (v) =>
+                            setState(() => _sampleRate = v ?? 44100),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -853,13 +974,96 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     ),
                   ],
                 ),
+                if (!widget.availableCodecs.contains(_codec))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Este FFmpeg no trae el encoder elegido. Se puede guardar '
+                      'el perfil, pero no saldra al aire hasta instalar una '
+                      'build que lo incluya (AAC+ necesita libfdk_aac).',
+                      style: TextStyle(
+                        color: AppColors.warning,
+                        fontSize: 11.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  )
+                else if (!widget.availableCodecs.contains(AudioCodec.aacPlus))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      'AAC+ necesita un FFmpeg con libfdk_aac. MP3 y AAC-LC '
+                      'estan disponibles. La grabacion usa el mismo codec y '
+                      'bitrate que el stream.',
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 18),
+                _sectionTitle('Emision'),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _autoReconnect,
+                  onChanged: (v) => setState(() => _autoReconnect = v),
+                  title: const Text(
+                    'Reconectar automaticamente',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  subtitle: const Text(
+                    'Si se corta internet, la app vuelve a entrar al aire sola '
+                    'sin reiniciar el microfono.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String>(
+                  initialValue: _inputDeviceId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Microfono de esta emisora',
+                    helperText:
+                        'Vacio = se usa el dispositivo elegido en Ajustes.',
+                  ),
+                  dropdownColor: AppColors.surfaceAlt,
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Usar el de Ajustes'),
+                    ),
+                    for (final d in widget.devices)
+                      DropdownMenuItem(
+                        value: d.id,
+                        child: Text(d.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    // Un microfono guardado que ya no esta conectado se conserva
+                    // visible: al elegir otro se reemplaza, y borrarlo sin
+                    // querer haria perder la configuracion buena.
+                    if (_inputDeviceId.isNotEmpty &&
+                        !widget.devices.any((d) => d.id == _inputDeviceId))
+                      DropdownMenuItem(
+                        value: _inputDeviceId,
+                        child: Text(
+                          '$_inputDeviceId (no disponible ahora)',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _inputDeviceId = v ?? ''),
+                ),
                 const SizedBox(height: 18),
                 _sectionTitle('Para tus oyentes (opcional)'),
                 _field(
                   _publicUrl,
                   'URL de escucha',
                   hint: 'https://miradio.com/en-vivo',
-                  helper: 'Se muestra en la pantalla de emision para compartirla.',
+                  helper:
+                      'Se muestra en la pantalla de emision para compartirla.',
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -872,9 +1076,7 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: _field(_genre, 'Genero', hint: 'Variado'),
-                    ),
+                    Expanded(child: _field(_genre, 'Genero', hint: 'Variado')),
                   ],
                 ),
                 if (_protocol == ServerProtocol.icecast2) ...[
@@ -889,9 +1091,32 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     ),
                     subtitle: const Text(
                       'Solo si tu hosting lo pide expresamente.',
-                      style: TextStyle(fontSize: 11.5, color: AppColors.textMuted),
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ),
+                  if (_useTls)
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _allowBadCertificate,
+                      onChanged: (v) =>
+                          setState(() => _allowBadCertificate = v),
+                      title: const Text(
+                        'Aceptar certificado autofirmado',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      subtitle: const Text(
+                        'Activalo solo si tu emisora usa un certificado propio. '
+                        'Al aceptarlo no se puede verificar que el servidor sea '
+                        'realmente el tuyo.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
                 ],
               ],
             ),
@@ -966,6 +1191,7 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
       port: port,
       expected: _protocol,
       useTls: _useTls,
+      allowBadCertificate: _allowBadCertificate,
     );
     if (!mounted) return;
     setState(() => _detecting = false);
@@ -1032,17 +1258,17 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
   }
 
   Widget _sectionTitle(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(
-          text.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.1,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      );
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Text(
+      text.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.1,
+        color: AppColors.textSecondary,
+      ),
+    ),
+  );
 
   Widget _field(
     TextEditingController controller,

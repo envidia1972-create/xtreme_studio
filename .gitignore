@@ -17,8 +17,16 @@ build/
 
 # Binarios descargados (no versionar; ver README)
 tools/*.exe
+tools/ffmpeg
+tools/ffprobe
+tools/fake_ffmpeg
 tools/*.zip
+tools/*.tar.*
 tools/choco/
+
+# SDK de Flutter y FFmpeg locales para trabajar en Linux sin tocar el SDK
+# compartido de solo lectura (ver tool/build_linux.sh)
+.tooling/
 
 # Salidas del sistema
 *.log
@@ -51,3 +59,6 @@ build/
 *.pdb
 # --- Agregado por DSH: salida temporal de las verificaciones ---
 .tmp_out.txt
+
+# Salida de error temporal de una sesion anterior
+.tmp_err.txt

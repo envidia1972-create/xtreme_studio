@@ -3,8 +3,10 @@
 ///
 /// Implementado en Dart puro, no delegado a ffmpeg, por tres razones:
 ///
-/// 1. **Metadatos en vivo**: insertamos los bloques `icy-metaint` en el propio
-///    flujo de bytes, asi el "suena ahora" cambia al instante sin reconectar.
+/// 1. **Metadatos en vivo**: se actualizan con una peticion HTTP aparte a
+///    `/admin/metadata` (el mecanismo de ICY que usan Icecast y Zeno.fm). No se
+///    insertan bytes de texto dentro del audio: el servidor los interpretaria
+///    como MP3/AAC y se oirian como ruido de fondo.
 /// 2. **Reconexion sin cortar el audio**: si se cae la red solo se rehace el
 ///    socket; la captura y la codificacion siguen intactas.
 /// 3. **Diagnostico real**: vemos el codigo HTTP del servidor y podemos decirle
@@ -19,18 +21,26 @@ import 'dart:typed_data';
 
 /// Forma de abrir la conexion TCP. Inyectable para poder probar sin red.
 typedef SocketConnector =
-    Future<Socket> Function(String host, int port, {bool useTls});
+    Future<Socket> Function(
+      String host,
+      int port, {
+      bool useTls,
+      bool allowBadCertificate,
+    });
 
 Future<Socket> defaultSocketConnector(
   String host,
   int port, {
   bool useTls = false,
+  bool allowBadCertificate = false,
 }) async {
   if (useTls) {
     return SecureSocket.connect(
       host,
       port,
-      onBadCertificate: (_) => false,
+      // Solo se acepta un certificado invalido si el DJ lo activo para esta
+      // emisora. Es habitual en radios pequenas con certificado autofirmado.
+      onBadCertificate: allowBadCertificate ? (_) => true : (_) => false,
       timeout: const Duration(seconds: 15),
     );
   }
@@ -65,11 +75,14 @@ class IcecastClient {
     required this.username,
     required this.password,
     this.useTls = false,
-    this.metadataInterval = 8192,
+    this.allowBadCertificate = false,
     this.userAgent = 'XtremeStudio/0.1',
     this.iceName = '',
     this.iceGenre = '',
     this.iceDescription = '',
+    this.contentType = 'audio/mpeg',
+    this.adminUsername = '',
+    this.adminPassword = '',
     SocketConnector? connector,
   }) : _connect = connector ?? defaultSocketConnector;
 
@@ -80,20 +93,29 @@ class IcecastClient {
   final String password;
   final bool useTls;
 
-  /// Cada cuantos bytes de audio se intercala un bloque de metadatos.
-  /// 8192 es el valor estandar y el que entienden todos los reproductores.
-  final int metadataInterval;
+  /// Acepta certificados TLS invalidos (autofirmados) para esta emisora.
+  final bool allowBadCertificate;
+
+  /// Tipo MIME del flujo (`audio/mpeg` para MP3, `audio/aac`/`audio/aacp`
+  /// para AAC). El servidor lo usa para publicar el mount correctamente.
+  final String contentType;
 
   final String userAgent;
   final String iceName;
   final String iceGenre;
   final String iceDescription;
 
+  /// Credenciales del panel de administracion (opcionales).
+  ///
+  /// Icecast acepta las credenciales de la fuente para actualizar el titulo de
+  /// su propio mount. Si el hosting exige las de administracion, se intentan
+  /// como respaldo.
+  final String adminUsername;
+  final String adminPassword;
+
   final SocketConnector _connect;
 
   Socket? _socket;
-  Uint8List? _pendingMetadata;
-  int _bytesSinceMetadata = 0;
   bool _connected = false;
   bool _socketClosed = false;
   StreamSubscription<List<int>>? _socketSub;
@@ -121,15 +143,13 @@ class IcecastClient {
       ..write('Host: $host:$port\r\n')
       ..write('Authorization: Basic ${_basicAuth(username, password)}\r\n')
       ..write('User-Agent: $userAgent\r\n')
-      ..write('Content-Type: audio/mpeg\r\n')
+      ..write('Content-Type: $contentType\r\n')
       ..write('Expect: 100-continue\r\n');
 
-    if (metadataInterval > 0) {
-      b.write('icy-metaint: $metadataInterval\r\n');
-    }
     if (iceName.isNotEmpty) b.write('ice-name: $iceName\r\n');
     if (iceGenre.isNotEmpty) b.write('ice-genre: $iceGenre\r\n');
-    if (iceDescription.isNotEmpty) b.write('ice-description: $iceDescription\r\n');
+    if (iceDescription.isNotEmpty)
+      b.write('ice-description: $iceDescription\r\n');
     if (username.isNotEmpty) b.write('ice-public: 1\r\n');
     b.write('Connection: keep-alive\r\n\r\n');
     return b.toString();
@@ -147,7 +167,23 @@ class IcecastClient {
 
     Socket socket;
     try {
-      socket = await _connect(host, port, useTls: useTls);
+      socket = await _connect(
+        host,
+        port,
+        useTls: useTls,
+        allowBadCertificate: allowBadCertificate,
+      );
+    } on HandshakeException catch (e) {
+      throw IcecastException(
+        'El certificado HTTPS de $host:$port no es valido '
+        '(${e.message}). Si tu emisora usa un certificado propio, activa '
+        '"Aceptar certificado autofirmado" en el perfil.',
+      );
+    } on TlsException catch (e) {
+      throw IcecastException(
+        'No se pudo establecer la conexion cifrada con $host:$port: '
+        '${e.message}. Revisa que el servidor soporte HTTPS en ese puerto.',
+      );
     } on SocketException catch (e) {
       throw IcecastException(
         'No se pudo conectar a $host:$port. Revisa el host y el puerto. '
@@ -157,6 +193,14 @@ class IcecastClient {
 
     socket.setOption(SocketOption.tcpNoDelay, true);
     _socket = socket;
+    // Los errores de escritura (EPIPE) se entregan tambien por `done`, no solo
+    // por el flujo de lectura. Sin observarlo, Dart los trata como error no
+    // capturado y cierra la app en plena emision.
+    unawaited(
+      socket.done.catchError((Object _) {
+        _onSocketDown();
+      }),
+    );
 
     try {
       socket.write(buildPutRequest());
@@ -166,18 +210,8 @@ class IcecastClient {
       final status = response.statusCode;
 
       // 100 Continue: el servidor acepto las credenciales y espera audio.
-      if (status == 100) {
+      if (status == 100 || status == 200 || status == 201) {
         _connected = true;
-        _bytesSinceMetadata = 0;
-        _bytesSent = 0;
-        _pendingMetadata = null;
-        _socketClosed = false;
-        return;
-      }
-
-      if (status == 200 || status == 201) {
-        _connected = true;
-        _bytesSinceMetadata = 0;
         _bytesSent = 0;
         _socketClosed = false;
         return;
@@ -204,74 +238,139 @@ class IcecastClient {
     _ => 'El servidor respondio con un error',
   };
 
-  /// Envia un bloque de audio MP3 ya codificado.
+  /// Envia un bloque de audio ya codificado, sin tocarlo.
   ///
-  /// El entrelazado de Icecast funciona asi: se envian exactamente
-  /// `metadataInterval` bytes de audio y **justo despues** va un bloque de
-  /// metadatos, cuyo primer byte indica su longitud (0 = "sin cambios").
-  ///
-  /// Dos errores tipicos que aqui se evitan a proposito:
-  /// 1. Emitir un bloque de metadatos **antes** del primer bloque de audio:
-  ///    desincroniza a los reproductores.
-  /// 2. Emitir un bloque vacio y ademas el bloque con el titulo nuevo: el
-  ///    entrelazado se dobla y el audio se desplaza.
+  /// El flujo debe llegar al servidor tal cual: insertar bloques de metadatos
+  /// aqui (el viejo `icy-metaint`) hacia que Icecast los tratara como audio y
+  /// produjera ruido. El titulo va por [setMetadata], en otra conexion.
   void send(Uint8List audio) {
     final socket = _socket;
     if (socket == null || !_connected || audio.isEmpty) return;
 
-    if (metadataInterval <= 0) {
+    // `Socket.add` puede lanzar de forma sincrona si el sistema ya detecto que
+    // la conexion se corto (EPIPE). Sin este try/catch, esa excepcion sube por
+    // el flujo de audio y tumba la app en plena emision.
+    try {
       socket.add(audio);
       _bytesSent += audio.length;
-      return;
+    } catch (_) {
+      _onSocketDown();
     }
+  }
 
-    var offset = 0;
-    while (offset < audio.length) {
-      final room = metadataInterval - _bytesSinceMetadata;
-      final remaining = audio.length - offset;
-      final take = remaining < room ? remaining : room;
+  /// Fuerza la salida de lo pendiente y detecta una red estancada.
+  ///
+  /// `Socket.add` solo copia al buffer interno: si el servidor deja de leer o
+  /// la red se corta en silencio, los bytes se acumulan en memoria y la app
+  /// sigue mostrando "AL AIRE" sin que nadie reciba audio. `flush` completa
+  /// solo cuando el sistema acepta los datos; si no completa en [timeout], se
+  /// da la conexion por perdida para que el motor reconecte.
+  Future<void> flush({Duration timeout = const Duration(seconds: 5)}) async {
+    final socket = _socket;
+    if (socket == null || !_connected) return;
+    try {
+      await socket.flush().timeout(timeout);
+    } catch (_) {
+      _onSocketDown();
+    }
+  }
 
-      socket.add(Uint8List.sublistView(audio, offset, offset + take));
-      _bytesSent += take;
-      offset += take;
-      _bytesSinceMetadata += take;
+  /// Cambia el "suena ahora" en Icecast.
+  ///
+  /// Icecast 2 no acepta metadatos intercalados en el flujo de la fuente: el
+  /// titulo se actualiza con una peticion aparte
+  /// `/admin/metadata?mount=...&mode=updinfo&song=...`. Las credenciales del
+  /// mount (las mismas de la fuente) sirven para su propio mount; si el
+  /// hosting exige las de administracion, se usan como respaldo.
+  ///
+  /// Devuelve `true` solo si el servidor respondio 2xx. Asi la interfaz puede
+  /// avisar cuando Zeno.fm (u otro hosting) rechaza el cambio.
+  Future<bool> setMetadata(String song, {String? artist, String? title}) async {
+    final value =
+        (artist != null &&
+            artist.isNotEmpty &&
+            title != null &&
+            title.isNotEmpty)
+        ? '$artist - $title'
+        : song;
+    if (value.trim().isEmpty) return false;
 
-      // Solo en un limite exacto se publica un bloque de metadatos, y nunca
-      // se emite uno vacio si hay un titulo esperando.
-      if (_bytesSinceMetadata >= metadataInterval) {
-        final pending = _pendingMetadata;
-        socket.add(pending ?? _emptyMetadataBlock);
-        _pendingMetadata = null;
-        _bytesSinceMetadata = 0;
+    if (await _sendMetadataRequest(value, username, password)) return true;
+    if (adminUsername.isNotEmpty && adminPassword.isNotEmpty) {
+      return _sendMetadataRequest(value, adminUsername, adminPassword);
+    }
+    return false;
+  }
+
+  Future<bool> _sendMetadataRequest(
+    String value,
+    String user,
+    String pass,
+  ) async {
+    Socket? socket;
+    try {
+      socket = await _connect(
+        host,
+        port,
+        useTls: useTls,
+        allowBadCertificate: allowBadCertificate,
+      );
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      final query = Uri(
+        queryParameters: {'mount': mount, 'mode': 'updinfo', 'song': value},
+      ).query;
+      socket.write(
+        'GET /admin/metadata?$query HTTP/1.0\r\n'
+        'Host: $host:$port\r\n'
+        'Authorization: Basic ${_basicAuth(user, pass)}\r\n'
+        'User-Agent: $userAgent\r\n'
+        'Connection: close\r\n\r\n',
+      );
+      await socket.flush().timeout(const Duration(seconds: 8));
+      final status = await _readStatusCode(
+        socket,
+      ).timeout(const Duration(seconds: 8));
+      return status >= 200 && status < 300;
+    } catch (_) {
+      return false;
+    } finally {
+      try {
+        socket?.destroy();
+      } catch (_) {}
+    }
+  }
+
+  /// Lee solo la linea de estado de la respuesta HTTP.
+  Future<int> _readStatusCode(Socket socket) {
+    final completer = Completer<int>();
+    StreamSubscription<List<int>>? sub;
+    final buffer = <int>[];
+
+    void finish() {
+      final text = latin1.decode(buffer, allowInvalid: true);
+      final match = RegExp(r'^HTTP/\d\.\d\s+(\d{3})').firstMatch(text);
+      if (!completer.isCompleted) {
+        completer.complete(match != null ? int.parse(match.group(1)!) : 0);
       }
+      unawaited(sub?.cancel());
     }
+
+    sub = socket.listen(
+      (data) {
+        buffer.addAll(data);
+        final text = latin1.decode(buffer, allowInvalid: true);
+        if (text.contains('\r\n') || buffer.length > 8192) finish();
+      },
+      onError: (_) {
+        if (!completer.isCompleted) completer.complete(0);
+      },
+      onDone: () {
+        if (!completer.isCompleted) finish();
+      },
+      cancelOnError: false,
+    );
+    return completer.future;
   }
-
-  /// Programa un cambio de "suena ahora". Se aplica en el proximo limite.
-  void setMetadata(String song, {String? artist, String? title}) {
-    String value;
-    if (artist != null && title != null && artist.isNotEmpty && title.isNotEmpty) {
-      value = '$artist - $title';
-    } else {
-      value = song;
-    }
-    // Icecast 2 espera: StreamTitle='...';
-    final payload = "StreamTitle='${value.replaceAll("'", '')}';";
-    final bytes = utf8.encode(payload);
-
-    // El bloque de metadatos es una longitud en multiplos de 16 + los datos.
-    var blocks = (bytes.length / 16).ceil();
-    // Sin signo de 8 bits: un titulo enorme se corta en vez de corromper el flujo.
-    if (blocks > 255) {
-      blocks = 255;
-    }
-    final padded = Uint8List(1 + blocks * 16);
-    padded[0] = blocks;
-    padded.setRange(1, 1 + bytes.length.clamp(0, blocks * 16), bytes);
-    _pendingMetadata = padded;
-  }
-
-  static final Uint8List _emptyMetadataBlock = Uint8List(1);
 
   /// Lee la respuesta HTTP **y** deja la conexion vigilada.
   ///
@@ -374,15 +473,14 @@ class IcecastClient {
     _socketSub = null;
     final socket = _socket;
     _socket = null;
-    _pendingMetadata = null;
     if (socket != null) {
       try {
-        await socket.flush();
+        await socket.flush().timeout(const Duration(seconds: 2));
       } catch (_) {
         // El socket ya podia estar muerto; no es un error del usuario.
       }
       try {
-        await socket.close();
+        await socket.close().timeout(const Duration(seconds: 2));
       } catch (_) {
         // Idem.
       }
@@ -404,7 +502,13 @@ class IcecastClient {
   /// ocupada hasta que expira por timeout, y el proximo DJ no puede entrar.
   Future<void> disconnectSource() async {
     try {
-      final socket = await _connect(host, port, useTls: useTls);
+      final socket = await _connect(
+        host,
+        port,
+        useTls: useTls,
+        allowBadCertificate: allowBadCertificate,
+      );
+      unawaited(socket.done.catchError((Object _) {}));
       socket.write(
         'GET $mount?mode=delete HTTP/1.1\r\n'
         'Host: $host:$port\r\n'

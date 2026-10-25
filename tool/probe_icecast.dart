@@ -4,17 +4,26 @@
 // No envia audio: usa `Expect: 100-continue` para que el servidor responda
 // SOLO al handshake. Asi no interrumpe a ninguna emision que este al aire.
 //
-// Uso: dart run tool/probe_icecast.dart
+// Uso:
+//   XTREME_PROBE_HOST=stream.ejemplo.fm \
+//   XTREME_PROBE_MOUNT=/mi-mount \
+//   XTREME_PROBE_USER=source \
+//   XTREME_PROBE_PASS=... \
+//   dart run tool/probe_icecast.dart
+//
+// La contrasena se lee del entorno a proposito: este archivo se versiona y no
+// puede llevar credenciales reales. Sin XTREME_PROBE_PASS solo se prueban los
+// handshakes con clave incorrecta.
 
 import 'dart:async';
 import 'dart:io';
 
 import 'package:xtreme_studio/core/net/icecast_client.dart';
 
-const host = 'stream.zeno.fm';
-const mount = '/5tmrzbywtzzuv';
-const goodUser = 'source';
-const goodPass = 'vffVssdL';
+final host = Platform.environment['XTREME_PROBE_HOST'] ?? 'stream.zeno.fm';
+final mount = Platform.environment['XTREME_PROBE_MOUNT'] ?? '/stream';
+final goodUser = Platform.environment['XTREME_PROBE_USER'] ?? 'source';
+final goodPass = Platform.environment['XTREME_PROBE_PASS'] ?? '';
 
 class Attempt {
   Attempt(this.label, this.host, this.port, this.mount, this.user, this.pass);
@@ -34,7 +43,6 @@ Future<void> tryAttempt(Attempt a) async {
     mount: a.mount,
     username: a.user,
     password: a.pass,
-    metadataInterval: 8192,
     iceName: 'Xtreme Studio Probe',
   );
   try {
@@ -70,19 +78,26 @@ Future<void> main() async {
   }
   stdout.writeln('');
 
-  // 2) Probar el handshake con credenciales invalidas y validas.
+  // 2) Probar el handshake con credenciales invalidas y, si se paso la clave
+  // por el entorno, tambien con las validas.
   final attempts = <Attempt>[
     Attempt('A. /source en :8000 con clave MALA', host, 8000, '$mount/source',
         goodUser, 'clave-incorrecta'),
     Attempt('B. $mount en :8000 con clave MALA', host, 8000, mount, goodUser,
         'clave-incorrecta'),
-    Attempt('C. /source en :8000 con clave BUENA', host, 8000, '$mount/source',
-        goodUser, goodPass),
-    Attempt('D. $mount en :8000 con clave BUENA', host, 8000, mount, goodUser,
-        goodPass),
-    Attempt('E. $mount en :80 con clave BUENA', host, 80, mount, goodUser,
-        goodPass),
+    if (goodPass.isNotEmpty) ...[
+      Attempt('C. /source en :8000 con clave BUENA', host, 8000,
+          '$mount/source', goodUser, goodPass),
+      Attempt('D. $mount en :8000 con clave BUENA', host, 8000, mount, goodUser,
+          goodPass),
+      Attempt('E. $mount en :80 con clave BUENA', host, 80, mount, goodUser,
+          goodPass),
+    ],
   ];
+  if (goodPass.isEmpty) {
+    stdout.writeln('(sin XTREME_PROBE_PASS: se omiten las pruebas con clave '
+        'valida)\n');
+  }
 
   for (final a in attempts) {
     await tryAttempt(a);

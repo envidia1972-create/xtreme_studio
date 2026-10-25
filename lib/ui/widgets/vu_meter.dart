@@ -14,6 +14,7 @@ class VuMeter extends StatelessWidget {
     super.key,
     required this.peakDb,
     required this.rmsDb,
+    this.holdDb,
   });
 
   /// Pico instantaneo en dBFS (-60 a 0).
@@ -21,6 +22,9 @@ class VuMeter extends StatelessWidget {
 
   /// Nivel promedio percibido.
   final double rmsDb;
+
+  /// Pico retenido para la lectura numerica. Si es `null`, se usa [peakDb].
+  final double? holdDb;
 
   /// Rango visible del vumetro.
   static const double floorDb = -48;
@@ -54,12 +58,17 @@ class VuMeter extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              '${peakDb <= floorDb ? "-∞" : peakDb.toStringAsFixed(1)} dBFS pico',
-              style: AppTheme.mono.copyWith(
-                fontSize: 11,
-                color: _colorFor(peakDb),
-              ),
+            Builder(
+              builder: (context) {
+                final shown = holdDb ?? peakDb;
+                return Text(
+                  '${shown <= floorDb ? "-∞" : shown.toStringAsFixed(1)} dBFS pico',
+                  style: AppTheme.mono.copyWith(
+                    fontSize: 11,
+                    color: _colorFor(shown),
+                  ),
+                );
+              },
             ),
             Text(
               'RMS ${rmsDb <= floorDb ? "-∞" : rmsDb.toStringAsFixed(1)}',

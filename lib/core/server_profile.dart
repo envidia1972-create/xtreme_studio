@@ -41,38 +41,103 @@ extension ServerProtocolInfo on ServerProtocol {
   }
 }
 
+/// Codec de salida del streaming (y de la grabacion).
+enum AudioCodec {
+  mp3(
+    id: 'mp3',
+    label: 'MP3',
+    mimeType: 'audio/mpeg',
+    fileExtension: 'mp3',
+    encoder: 'libmp3lame',
+    bitrateOptions: [64, 96, 128, 160, 192, 256, 320],
+  ),
+  aac(
+    id: 'aac',
+    label: 'AAC-LC',
+    mimeType: 'audio/aac',
+    fileExtension: 'aac',
+    encoder: 'aac',
+    bitrateOptions: [48, 64, 96, 128, 160, 192, 256],
+  ),
+  aacPlus(
+    id: 'aac_plus',
+    label: 'AAC+ (HE-AAC)',
+    mimeType: 'audio/aacp',
+    fileExtension: 'aac',
+    encoder: 'libfdk_aac',
+    bitrateOptions: [24, 32, 48, 64, 80, 96, 128],
+  );
+
+  const AudioCodec({
+    required this.id,
+    required this.label,
+    required this.mimeType,
+    required this.fileExtension,
+    required this.encoder,
+    required this.bitrateOptions,
+  });
+
+  final String id;
+  final String label;
+  final String mimeType;
+  final String fileExtension;
+
+  /// Nombre del encoder de FFmpeg que hay que comprobar/declarar.
+  final String encoder;
+  final List<int> bitrateOptions;
+
+  static AudioCodec fromId(String? value) {
+    for (final codec in AudioCodec.values) {
+      if (codec.id == value) return codec;
+    }
+    return AudioCodec.mp3;
+  }
+
+  bool get isAac => this != AudioCodec.mp3;
+}
+
 /// Configuracion de audio del perfil.
 class AudioSettings {
   const AudioSettings({
+    this.codec = AudioCodec.mp3,
     this.bitrateKbps = 128,
     this.sampleRate = 44100,
     this.channels = 2,
   });
 
-  /// 64 / 96 / 128 / 160 / 192 kbps.
+  final AudioCodec codec;
+
+  /// Tasa de bits del streaming y de la grabacion, en kbps.
   final int bitrateKbps;
   final int sampleRate;
 
   /// 1 = mono, 2 = estereo.
   final int channels;
 
-  static const List<int> bitrateOptions = [64, 96, 128, 160, 192];
+  static const List<int> bitrateOptions = [64, 96, 128, 160, 192, 256, 320];
   static const List<int> sampleRateOptions = [22050, 32000, 44100, 48000];
 
-  AudioSettings copyWith({int? bitrateKbps, int? sampleRate, int? channels}) =>
-      AudioSettings(
-        bitrateKbps: bitrateKbps ?? this.bitrateKbps,
-        sampleRate: sampleRate ?? this.sampleRate,
-        channels: channels ?? this.channels,
-      );
+  AudioSettings copyWith({
+    AudioCodec? codec,
+    int? bitrateKbps,
+    int? sampleRate,
+    int? channels,
+  }) => AudioSettings(
+    codec: codec ?? this.codec,
+    bitrateKbps: bitrateKbps ?? this.bitrateKbps,
+    sampleRate: sampleRate ?? this.sampleRate,
+    channels: channels ?? this.channels,
+  );
 
   Map<String, dynamic> toJson() => {
+    'codec': codec.id,
     'bitrateKbps': bitrateKbps,
     'sampleRate': sampleRate,
     'channels': channels,
   };
 
   factory AudioSettings.fromJson(Map<String, dynamic> json) => AudioSettings(
+    codec: AudioCodec.fromId(json['codec'] as String?),
     bitrateKbps: (json['bitrateKbps'] as num?)?.toInt() ?? 128,
     sampleRate: (json['sampleRate'] as num?)?.toInt() ?? 44100,
     channels: (json['channels'] as num?)?.toInt() ?? 2,
@@ -94,6 +159,7 @@ class ServerProfile {
     this.password = '',
     this.protocol = ServerProtocol.icecast2,
     this.useTls = false,
+    this.allowBadCertificate = false,
     this.publicUrl = '',
     this.stationName = '',
     this.genre = '',
@@ -119,6 +185,15 @@ class ServerProfile {
   ServerProtocol protocol;
   bool useTls;
 
+  /// Acepta certificados TLS que no validan (autofirmados, cadena incompleta).
+  ///
+  /// Muchas emisoras pequenas publican por HTTPS con un certificado
+  /// autofirmado. Rechazarlo impide emitir aunque el DJ confie en ese servidor,
+  /// asi que se permite activarlo **por emisora** y nunca de forma global.
+  /// La interfaz lo advierte: al aceptarlo, un atacante en la red podria
+  /// hacerse pasar por el servidor.
+  bool allowBadCertificate;
+
   /// URL publica de escucha, para el boton "abrir mi radio".
   String publicUrl;
 
@@ -129,8 +204,10 @@ class ServerProfile {
 
   AudioSettings audio;
 
-  /// Identificador del dispositivo de entrada (nombre dshow en Windows).
-  /// Vacio = el primero disponible.
+  /// Identificador del dispositivo de entrada.
+  ///
+  /// Windows: nombre dshow. Linux: fuente de PulseAudio/PipeWire o PCM de ALSA.
+  /// Vacio = el primero disponible (o `default`).
   String inputDeviceId;
 
   /// Ganancia de entrada en dB, para igualar el nivel del microfono.
@@ -190,6 +267,7 @@ class ServerProfile {
       password: password,
       protocol: protocol,
       useTls: useTls,
+      allowBadCertificate: allowBadCertificate,
       publicUrl: publicUrl,
       stationName: stationName,
       genre: genre,
@@ -216,6 +294,7 @@ class ServerProfile {
     'username': username,
     'protocol': protocol.id,
     'useTls': useTls,
+    'allowBadCertificate': allowBadCertificate,
     'publicUrl': publicUrl,
     'stationName': stationName,
     'genre': genre,
@@ -238,6 +317,7 @@ class ServerProfile {
     username: json['username'] as String? ?? 'source',
     protocol: ServerProtocolInfo.fromId(json['protocol'] as String?),
     useTls: json['useTls'] as bool? ?? false,
+    allowBadCertificate: json['allowBadCertificate'] as bool? ?? false,
     publicUrl: json['publicUrl'] as String? ?? '',
     stationName: json['stationName'] as String? ?? '',
     genre: json['genre'] as String? ?? '',
@@ -254,15 +334,33 @@ class ServerProfile {
   );
 
   /// Validacion previa al guardado. Devuelve la lista de problemas; vacia = OK.
-  List<String> validate() {
+  ///
+  /// [requirePassword] se desactiva al importar un perfil exportado: ese archivo
+  /// nunca lleva la contrasena (es deliberado), asi que exigirla haria que la
+  /// importacion fallara siempre. En ese caso se guarda el resto y se le pide al
+  /// DJ que escriba la clave.
+  List<String> validate({bool requirePassword = true}) {
     final problems = <String>[];
-    if (name.trim().isEmpty) problems.add('El nombre del perfil es obligatorio');
+    if (name.trim().isEmpty)
+      problems.add('El nombre del perfil es obligatorio');
     if (host.trim().isEmpty) problems.add('El servidor (host) es obligatorio');
-    if (port <= 0 || port > 65535) problems.add('El puerto debe estar entre 1 y 65535');
+    if (port <= 0 || port > 65535)
+      problems.add('El puerto debe estar entre 1 y 65535');
     if (username.trim().isEmpty) problems.add('El usuario es obligatorio');
-    if (password.isEmpty) problems.add('La contrasena es obligatoria');
-    if (audio.bitrateKbps < 32 || audio.bitrateKbps > 320) {
-      problems.add('El bitrate debe estar entre 32 y 320 kbps');
+    if (requirePassword && password.isEmpty) {
+      problems.add('La contrasena es obligatoria');
+    }
+    if (!audio.codec.bitrateOptions.contains(audio.bitrateKbps)) {
+      problems.add(
+        '${audio.codec.label} admite estos bitrates: '
+        '${audio.codec.bitrateOptions.join(', ')} kbps',
+      );
+    }
+    if (protocol == ServerProtocol.shoutcast1 &&
+        audio.codec != AudioCodec.mp3) {
+      problems.add(
+        'Shoutcast v1 solo transporta MP3. Elegi MP3 o cambia a Shoutcast v2.',
+      );
     }
     if (gainDb < -24 || gainDb > 24) {
       problems.add(

@@ -4,9 +4,11 @@
 /// reproducir en otro equipo: si el audio no sale al aire, hace falta saber que
 /// dispositivo se intento abrir, con que argumentos y que respondio el servidor.
 ///
-/// El registro se guarda en `%APPDATA%\XtremeStudio\registro.log` (Windows), que
-/// es la misma carpeta donde viven los perfiles. Es un archivo de texto que el
-/// DJ puede enviar tal cual.
+/// El registro se guarda junto a los perfiles:
+/// - Windows: `%APPDATA%\XtremeStudio\registro.log`
+/// - Linux/macOS: `~/.xtreme_studio/registro.log`
+///
+/// Es un archivo de texto que el DJ puede enviar tal cual.
 ///
 /// **Privacidad:** nunca se escriben contrasenas. Las lineas que mencionan
 /// credenciales se filtran antes de guardarse.
@@ -83,7 +85,8 @@ class DiagnosticLog {
   void write(String category, String message) {
     try {
       final now = DateTime.now();
-      final stamp = '${now.year}-${_two(now.month)}-${_two(now.day)} '
+      final stamp =
+          '${now.year}-${_two(now.month)}-${_two(now.day)} '
           '${_two(now.hour)}:${_two(now.minute)}:${_two(now.second)}';
       final safe = _redact(message);
       final line = '[$stamp] [$category] $safe';

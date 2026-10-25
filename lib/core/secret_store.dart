@@ -41,9 +41,11 @@ SecretStore createSecretStore({Directory? directory}) {
   if (Platform.isWindows) {
     return DpapiSecretStore();
   }
-  return UnavailableSecretStore(
-    'El cifrado de credenciales con DPAPI solo esta disponible en Windows.',
-  );
+  // En Linux/macOS no existe DPAPI. Se usa un backend honesto: guarda la
+  // contrasena en un archivo aparte con permisos de solo lectura para el
+  // usuario (0600), que es lo mismo que hace BUTT con su buttrc. No se finge
+  // cifrado: `isSecure` devuelve false y la interfaz lo avisa.
+  return PermissionsSecretStore();
 }
 
 /// Backend Windows basado en DPAPI.
@@ -198,4 +200,42 @@ class UnavailableSecretStore implements SecretStore {
 
   @override
   SecretResult unprotect(Uint8List blob) => SecretResult(null, error: reason);
+}
+
+/// Backend para plataformas sin DPAPI (Linux/macOS).
+///
+/// No hay un almacen de claves comun a todas las distribuciones que se pueda
+/// usar sin dependencias nativas, asi que se guarda el secreto marcado y con
+/// permisos 0600. Es el mismo nivel de proteccion que ofrece BUTT, y es honesto
+/// con el usuario: [isSecure] es `false` y la interfaz lo indica.
+///
+/// El prefijo permite distinguir el formato y fallar de forma limpia si el
+/// archivo se manipula.
+class PermissionsSecretStore implements SecretStore {
+  static const String _prefix = 'xtreme-plain-v1:';
+
+  @override
+  bool get isSecure => false;
+
+  @override
+  SecretResult protect(String plain) {
+    if (plain.isEmpty) return const SecretResult(null, error: 'No hay nada que cifrar');
+    final bytes = utf8.encode('$_prefix$plain');
+    return SecretResult(Uint8List.fromList(bytes));
+  }
+
+  @override
+  SecretResult unprotect(Uint8List blob) {
+    if (blob.isEmpty) return const SecretResult(null, error: 'Blob vacio');
+    final text = utf8.decode(blob, allowMalformed: true);
+    if (!text.startsWith(_prefix)) {
+      return const SecretResult(
+        null,
+        error: 'El archivo de credenciales no tiene un formato conocido',
+      );
+    }
+    return SecretResult(
+      Uint8List.fromList(utf8.encode(text.substring(_prefix.length))),
+    );
+  }
 }

@@ -38,19 +38,34 @@ Write-Host ''
 Write-Host '=== Comprobacion del entorno de compilacion ===' -ForegroundColor Cyan
 Write-Host ''
 
-# ---------------------------------------------------------------- Flutter
-$flutter = 'C:\Users\Usuario\flutter\bin\flutter.bat'
-Check (Test-Path $flutter) `
-    "Flutter en $flutter" `
-    "No se encontro Flutter en $flutter"
+$root = Split-Path -Parent $PSScriptRoot
 
-if (Test-Path $flutter) {
-    $snapshot = 'C:\Users\Usuario\flutter\bin\cache\flutter_tools.snapshot'
+# ---------------------------------------------------------------- Flutter
+$flutter = $env:FLUTTER_BIN
+if (-not $flutter) {
+    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
+    if ($flutterCmd) { $flutter = $flutterCmd.Source }
+}
+if (-not $flutter) {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE 'flutter\bin\flutter.bat'),
+        'C:\flutter\bin\flutter.bat',
+        'C:\src\flutter\bin\flutter.bat'
+    )
+    $flutter = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+Check ($flutter -and (Test-Path $flutter)) `
+    "Flutter en $flutter" `
+    'No se encontro Flutter: instalalo, agregalo al PATH o define FLUTTER_BIN'
+
+if ($flutter -and (Test-Path $flutter)) {
+    $flutterRoot = Split-Path -Parent (Split-Path -Parent $flutter)
+    $snapshot = Join-Path $flutterRoot 'bin\cache\flutter_tools.snapshot'
     Check (Test-Path $snapshot) `
         'El tool de Flutter esta construido (snapshot presente)' `
         "Falta $snapshot - ejecuta 'flutter doctor' una vez"
 
-    $versionFile = 'C:\Users\Usuario\flutter\bin\cache\flutter.version.json'
+    $versionFile = Join-Path $flutterRoot 'bin\cache\flutter.version.json'
     if (Test-Path $versionFile) {
         $v = Get-Content $versionFile -Raw | ConvertFrom-Json
         Write-Host "[info]  Flutter $($v.frameworkVersion) / Dart $($v.dartSdkVersion)"
@@ -101,8 +116,8 @@ Check ($sdkVersions.Count -gt 0) `
 
 # -------------------------------------------------------------------- FFmpeg
 $ffmpeg = @(
-    'C:\Desarrollo\xtreme_studio\tools\ffmpeg.exe',
-    'C:\Desarrollo\xtreme_studio\tools\ffmpeg\bin\ffmpeg.exe'
+    (Join-Path $root 'tools\ffmpeg.exe'),
+    (Join-Path $root 'tools\ffmpeg\bin\ffmpeg.exe')
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if (-not $ffmpeg) {
@@ -115,14 +130,14 @@ Warn ($null -ne $ffmpeg) `
     'La app compila igual, pero sin FFmpeg no puede emitir. Descarga una build full/gpl de https://www.gyan.dev/ffmpeg/builds/ y copia ffmpeg.exe a tools\'
 
 # ---------------------------------------------------------- Proyecto Dart
-$root = 'C:\Desarrollo\xtreme_studio'
 Check (Test-Path (Join-Path $root 'pubspec.yaml')) 'pubspec.yaml presente' 'Falta pubspec.yaml'
 Check (Test-Path (Join-Path $root 'windows\CMakeLists.txt')) `
     'Andamiaje de Windows presente' `
     'Falta el andamiaje de Windows (carpeta windows\)'
-Check (Test-Path (Join-Path $root '.dart_tool\package_config.json')) `
+Warn (Test-Path (Join-Path $root '.dart_tool\package_config.json')) `
     'Dependencias resueltas' `
-    'Faltan las dependencias: ejecuta flutter pub get'
+    'Todavia no hay dependencias resueltas' `
+    'No es un problema: build_windows.ps1 ejecuta flutter pub get antes de compilar.'
 
 # ------------------------------------------------------------------ Resumen
 Write-Host ''

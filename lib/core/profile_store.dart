@@ -111,28 +111,58 @@ class ProfileStore {
 
   /// Carga los perfiles con sus contrasenas descifradas.
   ///
-  /// Los perfiles cuya contrasena no se pueda descifrar se devuelven igual,
-  /// con la contrasena vacia, para que el DJ pueda reescribirla en lugar de
-  /// perder la configuracion completa.
+  /// Es tolerante a datos corruptos a proposito: un JSON roto o un perfil con
+  /// un tipo inesperado no puede dejar la app atascada en la pantalla de carga
+  /// ni hacer perder las demas emisoras. Un perfil cuya contrasena no se pueda
+  /// descifrar se devuelve igual, con la contrasena vacia, para que el DJ pueda
+  /// reescribirla sin perder la configuracion.
   Future<List<ServerProfile>> load() async {
-    await ensureDirectories();
-    if (!profilesFile.existsSync()) return [];
-
-    final raw = await profilesFile.readAsString();
-    if (raw.trim().isEmpty) return [];
-
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) return [];
-    final list = (decoded['profiles'] as List?) ?? const [];
-
+    final maps = await _readRawProfiles();
     final result = <ServerProfile>[];
-    for (final item in list) {
-      if (item is! Map) continue;
-      final profile = ServerProfile.fromJson(item.cast<String, dynamic>());
-      profile.password = await _loadSecret(profile.id) ?? '';
-      result.add(profile);
+    for (final map in maps) {
+      try {
+        final profile = ServerProfile.fromJson(map);
+        profile.password = await _loadSecret(profile.id) ?? '';
+        result.add(profile);
+      } catch (_) {
+        // Un perfil invalido se omite; el resto sigue disponible.
+      }
     }
     return result;
+  }
+
+  /// Lee la lista de perfiles tal cual esta en disco, **sin** descifrar nada.
+  Future<List<Map<String, dynamic>>> _readRawProfiles() async {
+    await ensureDirectories();
+    if (!profilesFile.existsSync()) return [];
+    try {
+      final raw = await profilesFile.readAsString();
+      if (raw.trim().isEmpty) return [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return [];
+      final list = decoded['profiles'];
+      if (list is! List) return [];
+      return [
+        for (final item in list)
+          if (item is Map) item.cast<String, dynamic>(),
+      ];
+    } on FormatException {
+      await _quarantineCorruptProfiles();
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Aparta un `profiles.json` corrupto en lugar de sobrescribirlo en silencio.
+  Future<void> _quarantineCorruptProfiles() async {
+    try {
+      final backup = File('${profilesFile.path}.corrupt');
+      if (backup.existsSync()) await backup.delete();
+      await profilesFile.rename(backup.path);
+    } catch (_) {
+      // Si ni siquiera se puede mover, se sigue con la lista vacia.
+    }
   }
 
   Future<String?> _loadSecret(String profileId) async {
@@ -149,16 +179,20 @@ class ProfileStore {
   }
 
   /// Guarda (crea o reemplaza) un perfil y su secreto.
+  ///
+  /// No se vuelcan todos los perfiles leyendo y descifrando sus secretos: se
+  /// trabaja sobre el JSON en disco. Asi guardar una emisora no puede borrar la
+  /// contrasena de otra cuyo descifrado fallara.
   Future<void> save(ServerProfile profile) async {
     await ensureDirectories();
-    final profiles = await load();
-    final index = profiles.indexWhere((p) => p.id == profile.id);
+    final maps = await _readRawProfiles();
+    final index = maps.indexWhere((m) => m['id'] == profile.id);
     if (index >= 0) {
-      profiles[index] = profile;
+      maps[index] = profile.toJson();
     } else {
-      profiles.add(profile);
+      maps.add(profile.toJson());
     }
-    await _writeProfiles(profiles);
+    await _writeProfiles(maps);
     await _saveSecret(profile.id, profile.password);
   }
 
@@ -174,22 +208,31 @@ class ProfileStore {
       throw StateError('No se pudo cifrar la contrasena: ${r.error}');
     }
     await file.writeAsBytes(r.data!, flush: true);
+    // En Linux/macOS el secreto queda protegido solo por los permisos del
+    // archivo: 0600 para que ningun otro usuario de la maquina pueda leerlo.
+    if (!Platform.isWindows) {
+      try {
+        await Process.run('chmod', ['600', file.path]);
+      } catch (_) {
+        // Sin chmod se sigue funcionando; el backend ya se declara no cifrado.
+      }
+    }
   }
 
-  Future<void> _writeProfiles(List<ServerProfile> profiles) async {
+  Future<void> _writeProfiles(List<Map<String, dynamic>> profiles) async {
     await ensureDirectories();
     final payload = const JsonEncoder.withIndent('  ').convert({
       'version': 1,
-      'profiles': profiles.map((p) => p.toJson()).toList(),
+      'profiles': profiles,
     });
     await profilesFile.writeAsString(payload, flush: true);
   }
 
   /// Elimina un perfil y su secreto.
   Future<void> delete(String profileId) async {
-    final profiles = await load();
-    profiles.removeWhere((p) => p.id == profileId);
-    await _writeProfiles(profiles);
+    final maps = await _readRawProfiles();
+    maps.removeWhere((m) => m['id'] == profileId);
+    await _writeProfiles(maps);
     final file = _secretFile(profileId);
     if (file.existsSync()) await file.delete();
   }
@@ -223,14 +266,24 @@ class ProfileStore {
   /// ambos tienen la misma contrasena, sin revelarla.
   String exportProfile(ServerProfile profile, {bool includePassword = false}) {
     final json = profile.toJson();
-    if (includePassword && secrets.isSecure) {
-      final r = secrets.protect(profile.password);
-      if (r.ok) {
-        json['passwordProtected'] = base64Encode(r.data!);
-        json['passwordProtectedBy'] = 'dpapi';
+
+    // La contrasena NUNCA se escribe en claro, ni siquiera cuando se pide
+    // incluirla: el texto exportado se comparte por chat, correo o portapapeles
+    // y quedaria a la vista. Solo se incluye el blob protegido por el sistema
+    // (DPAPI), que no sirve fuera de esta maquina y este usuario.
+    json['password'] = '';
+    if (includePassword) {
+      if (secrets.isSecure) {
+        final r = secrets.protect(profile.password);
+        if (r.ok) {
+          json['passwordProtected'] = base64Encode(r.data!);
+          json['passwordProtectedBy'] = 'dpapi';
+        }
+      } else {
+        // Sin cifrado real no hay forma segura de transportar la clave.
+        json['passwordOmitted'] = true;
       }
     }
-    json['password'] = includePassword ? profile.password : '';
     json['exportedBy'] = 'XtremeStudio/0.1';
     return const JsonEncoder.withIndent('  ').convert(json);
   }

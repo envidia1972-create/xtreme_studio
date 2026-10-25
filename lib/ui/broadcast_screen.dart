@@ -109,7 +109,8 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
           ],
           if (!widget.ffmpegReady) ...[
             const _ErrorBanner(
-              message: 'No se encontro FFmpeg. Sin el no se puede capturar ni '
+              message:
+                  'No se encontro FFmpeg. Sin el no se puede capturar ni '
                   'codificar el audio: indica su ruta en Ajustes.',
             ),
             const SizedBox(height: 14),
@@ -230,7 +231,6 @@ class _BroadcastScreenState extends State<BroadcastScreen> {
   }
 }
 
-
 class _EmptyState extends StatelessWidget {
   const _EmptyState({required this.onOpenProfiles});
 
@@ -292,7 +292,8 @@ class _LivePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOnAir = snapshot.state == BroadcastState.live ||
+    final isOnAir =
+        snapshot.state == BroadcastState.live ||
         snapshot.state == BroadcastState.reconnecting ||
         snapshot.state == BroadcastState.starting;
 
@@ -385,7 +386,11 @@ class _LivePanel extends StatelessWidget {
           ),
           SizedBox(height: compact ? 12 : 20),
           // Vumetros.
-          VuMeter(peakDb: snapshot.peakDb, rmsDb: snapshot.rmsDb),
+          VuMeter(
+            peakDb: snapshot.peakDb,
+            holdDb: snapshot.peakHoldDb,
+            rmsDb: snapshot.rmsDb,
+          ),
           SizedBox(height: compact ? 12 : 20),
           SizedBox(
             width: double.infinity,
@@ -393,8 +398,9 @@ class _LivePanel extends StatelessWidget {
             child: FilledButton(
               onPressed: busy ? null : () => onToggle(),
               style: FilledButton.styleFrom(
-                backgroundColor:
-                    isOnAir ? AppColors.onAirDark : AppColors.onAir,
+                backgroundColor: isOnAir
+                    ? AppColors.onAirDark
+                    : AppColors.onAir,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -482,24 +488,21 @@ class _TrackPanel extends StatelessWidget {
               SizedBox(
                 height: 50,
                 child: FilledButton.icon(
-                  onPressed: live
-                      ? () {
-                          final v = controller.text.trim();
-                          if (v.isNotEmpty) onSend(v);
-                        }
-                      : null,
+                  onPressed: () {
+                    final v = controller.text.trim();
+                    if (v.isNotEmpty) onSend(v);
+                  },
                   icon: const Icon(Icons.publish, size: 18),
                   label: const Text('ACTUALIZAR'),
                 ),
               ),
             ],
           ),
-          if (currentTrack.isNotEmpty) ...[
+          if (currentTrack.isNotEmpty && live) ...[
             const SizedBox(height: 10),
             Row(
               children: [
-                const Icon(Icons.check_circle,
-                    size: 15, color: AppColors.live),
+                const Icon(Icons.check_circle, size: 15, color: AppColors.live),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -598,8 +601,12 @@ class _StatusCard extends StatelessWidget {
             const SizedBox(height: 8),
             _SignalRow(check: signalCheck),
           ],
-          if (snapshot.recordingPath != null)
-            _Row('Grabando', snapshot.recordingPath!.split(RegExp(r'[\\/]')).last),
+          if (snapshot.recordingPath != null &&
+              snapshot.recordingPath!.isNotEmpty)
+            _Row(
+              'Grabando',
+              snapshot.recordingPath!.split(RegExp(r'[\\/]')).last,
+            ),
           if (profile.publicUrl.isNotEmpty) ...[
             const Divider(height: 26),
             const Text(
@@ -695,18 +702,10 @@ class _Row extends StatelessWidget {
             width: 92,
             child: Text(
               label,
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-              ),
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
             ),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontSize: 12.5),
-            ),
-          ),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 12.5))),
         ],
       ),
     );
@@ -800,7 +799,11 @@ class _GainPanelState extends State<_GainPanel> {
           const Text(
             'Ajusta el nivel del microfono: cada equipo y cada locutor necesitan '
             'uno distinto. Se guarda en el perfil.',
-            style: TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.35),
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 11,
+              height: 1.35,
+            ),
           ),
           if (widget.live)
             const Padding(

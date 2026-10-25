@@ -58,6 +58,7 @@ class BroadcastSnapshot {
     required this.peakDb,
     required this.rmsDb,
     required this.secondsOnAir,
+    this.peakHoldDb = -60,
     required this.bytesSent,
     required this.reconnectAttempt,
     this.currentTrack = '',
@@ -68,6 +69,10 @@ class BroadcastSnapshot {
   final BroadcastState state;
   final double peakDb;
   final double rmsDb;
+
+  /// Pico retenido para la lectura numerica (estable, sin parpadeo).
+  final double peakHoldDb;
+
   final int secondsOnAir;
   final int bytesSent;
   final int reconnectAttempt;
@@ -88,6 +93,7 @@ class BroadcastSnapshot {
     BroadcastState? state,
     double? peakDb,
     double? rmsDb,
+    double? peakHoldDb,
     int? secondsOnAir,
     int? bytesSent,
     int? reconnectAttempt,
@@ -99,6 +105,7 @@ class BroadcastSnapshot {
     state: state ?? this.state,
     peakDb: peakDb ?? this.peakDb,
     rmsDb: rmsDb ?? this.rmsDb,
+    peakHoldDb: peakHoldDb ?? this.peakHoldDb,
     secondsOnAir: secondsOnAir ?? this.secondsOnAir,
     bytesSent: bytesSent ?? this.bytesSent,
     reconnectAttempt: reconnectAttempt ?? this.reconnectAttempt,
@@ -131,6 +138,9 @@ class BroadcastEngine {
     required this.ffmpegPath,
     this.gainDb = 0.0,
     this.deviceName = '',
+    this.recordLocally,
+    this.recordDirectory,
+    this.captureBackend,
     Map<String, String>? environment,
   }) : environment = environment ?? const {};
 
@@ -138,6 +148,25 @@ class BroadcastEngine {
   String ffmpegPath;
   double gainDb;
   String deviceName;
+
+  /// Capturador de audio elegido por la interfaz (`dshow`, `pulse` o `alsa`).
+  ///
+  /// Si es `null`, el motor consulta la build de FFmpeg y el servidor de audio
+  /// disponible antes de capturar. La interfaz lo pasa para que la lista de
+  /// dispositivos y el comando que se muestra en Ajustes coincidan con lo que
+  /// realmente se va a ejecutar.
+  CaptureBackend? captureBackend;
+  CaptureBackend? _effectiveBackend;
+
+  /// Grabacion local. Si se deja en `null` se usa la del perfil (compatibilidad
+  /// con versiones anteriores); la app pasa aqui los ajustes globales, que son
+  /// los que el DJ edita en Ajustes.
+  bool? recordLocally;
+  String? recordDirectory;
+
+  bool get _shouldRecord =>
+      (recordLocally ?? profile.recordLocally) &&
+      (recordDirectory ?? profile.recordDirectory).isNotEmpty;
 
   /// Variables de entorno extra para el proceso de captura.
   ///
@@ -191,6 +220,8 @@ class BroadcastEngine {
   int _reconnectAttempt = 0;
   int _secondsOnAir = 0;
   int _bytesSent = 0;
+  int _ticksSinceFlush = 0;
+  bool _flushInFlight = false;
   int? _lastCaptureExitCode;
   final List<String> _ffmpegErrors = [];
 
@@ -210,6 +241,7 @@ class BroadcastEngine {
       state: _state,
       peakDb: _meter.peakDb,
       rmsDb: _meter.rmsDb,
+      peakHoldDb: _meter.peakHoldDb,
       secondsOnAir: _secondsOnAir,
       bytesSent: _bytesSent,
       reconnectAttempt: _reconnectAttempt,
@@ -247,20 +279,36 @@ class BroadcastEngine {
       'salir al aire: emisora="${profile.name}" '
           'destino=${profile.host}:${profile.effectivePort} '
           'dispositivo="${deviceName.isEmpty ? "(por defecto)" : deviceName}" '
-          'ffmpeg="$ffmpegPath"',
+          'ffmpeg="$ffmpegPath" '
+          'capturador=${captureBackend?.ffmpegName ?? "auto"}',
     );
 
     if (ffmpegPath.isEmpty || !File(ffmpegPath).existsSync()) {
       _setState(
         BroadcastState.stopped,
-        error: 'No se encontro FFmpeg. Indica la ruta del ejecutable en Ajustes.',
+        error:
+            'No se encontro FFmpeg. Indica la ruta del ejecutable en Ajustes.',
       );
       _log('error', 'FFmpeg no encontrado en "$ffmpegPath"');
       return false;
     }
 
+    // Se decide el capturador ANTES de conectar: si FFmpeg no trae ni pulse ni
+    // alsa, conviene saberlo ya, con un mensaje claro, y no despues de haber
+    // ocupado el mount de la radio.
+    _effectiveBackend =
+        captureBackend ?? await FfmpegLocator(ffmpegPath).resolveBackend();
+    DiagnosticLog.instance?.write(
+      'audio',
+      'capturador elegido: ${_effectiveBackend!.label}',
+    );
+
     final ok = await _connectAndStart(force: force);
     if (!ok) return false;
+
+    // El DJ pudo pulsar "salir" mientras se conectaba. En ese caso no se puede
+    // arrancar el reloj ni dejar el estado en "AL AIRE": ya no hay socket.
+    if (_stopping) return false;
 
     _startTicker();
     return true;
@@ -292,7 +340,17 @@ class BroadcastEngine {
       );
       await broadcaster.connect();
       DiagnosticLog.instance?.write('red', 'conexion aceptada por el servidor');
+      // Si el DJ cancelo mientras se negociaba la conexion, se suelta el socket
+      // ya mismo. Sin esto la emision podia empezar despues de pulsar "salir".
+      if (_stopping) {
+        await broadcaster.dispose();
+        return false;
+      }
     } on IcecastException catch (e) {
+      if (_stopping) {
+        await broadcaster.dispose();
+        return false;
+      }
       _lastConnectStatusCode = e.statusCode;
       DiagnosticLog.instance?.write(
         'red',
@@ -311,12 +369,17 @@ class BroadcastEngine {
         broadcaster = Broadcaster(profile);
         try {
           await broadcaster.connect();
+          if (_stopping) {
+            await broadcaster.dispose();
+            return false;
+          }
           _log('ok', 'Mount liberado: se entra al aire por la fuerza');
         } on IcecastException catch (retryError) {
           _broadcaster = null;
           _setState(
             BroadcastState.stopped,
-            error: 'El mount sigue ocupado despues de intentar liberarlo. '
+            error:
+                'El mount sigue ocupado despues de intentar liberarlo. '
                 'Puede que otro DJ lo este usando ahora mismo. '
                 '(${retryError.message})',
           );
@@ -339,6 +402,10 @@ class BroadcastEngine {
         return false;
       }
     } catch (e) {
+      if (_stopping) {
+        await broadcaster.dispose();
+        return false;
+      }
       _lastConnectStatusCode = null;
       _setState(BroadcastState.stopped, error: 'Error al conectar: $e');
       _log('error', 'Error al conectar: $e');
@@ -354,15 +421,18 @@ class BroadcastEngine {
     // Dart no lanza error al escribir en un socket ya cerrado.
     await _lostSub?.cancel();
     _lostSub = broadcaster.onConnectionLost.listen((_) {
-      notifyConnectionLost('el servidor cerro la conexion');
+      notifyConnectionLost('el servidor dejo de responder o cerro la conexion');
     });
 
     // 2. Arrancar la captura una sola vez.
     if (_capture == null) {
+      if (_stopping) {
+        await _teardownBroadcaster();
+        return false;
+      }
       final started = await _startCapture();
       if (!started) {
-        await broadcaster.close();
-        _broadcaster = null;
+        await _teardownBroadcaster();
         return false;
       }
     }
@@ -378,8 +448,10 @@ class BroadcastEngine {
       bitrateKbps: profile.audio.bitrateKbps,
       sampleRate: profile.audio.sampleRate,
       channels: profile.audio.channels,
+      codec: profile.audio.codec,
       gainDb: gainDb,
       metering: true,
+      backend: _effectiveBackend,
     );
 
     try {
@@ -390,11 +462,23 @@ class BroadcastEngine {
       );
       _capture = capture;
 
+      // La conexion pudo cancelarse mientras FFmpeg arrancaba: se cierra el
+      // proceso para no dejar el microfono ocupado sin emision.
+      if (_stopping) {
+        await capture.stop();
+        _capture = null;
+        return false;
+      }
+
       // La linea de comandos completa permite reproducir el fallo a mano: es el
       // dato que mas veces hace falta y el mas dificil de adivinar.
-      DiagnosticLog.instance?.write('ffmpeg', 'proceso iniciado, pid=${capture.pid}');
+      DiagnosticLog.instance?.write(
+        'ffmpeg',
+        'proceso iniciado, pid=${capture.pid}',
+      );
       DiagnosticLog.instance?.write('ffmpeg', 'comando: ${args.preview()}');
     } on ProcessException catch (e) {
+      if (_stopping) return false;
       DiagnosticLog.instance?.write(
         'ffmpeg',
         'no se pudo iniciar el proceso: ${e.message} (ruta: $ffmpegPath)',
@@ -408,32 +492,30 @@ class BroadcastEngine {
     }
 
     // Audio -> servidor (+ grabacion local si esta activa).
-    _audioSub = _capture!.audio.listen(
-      (chunk) {
-        _lastAudioAt = DateTime.now();
+    _audioSub = _capture!.audio.listen((chunk) {
+      _lastAudioAt = DateTime.now();
+      try {
         _broadcaster?.send(chunk);
         _bytesSent += chunk.length;
         _recordingSink?.add(chunk);
-      },
-      onError: (Object e) => _log('warn', 'Error leyendo audio: $e'),
-    );
+      } catch (e) {
+        _log('warn', 'Error enviando audio: $e');
+      }
+    }, onError: (Object e) => _log('warn', 'Error leyendo audio: $e'));
 
     // PCM -> vumetros, y texto -> diagnostico.
     //
     // FFmpeg escribe las dos cosas por la misma salida de error, asi que hay
     // que separarlas: los mensajes de texto no son muestras de audio (harian
     // saltar el vumetro) y son justamente lo que explica un fallo real.
-    _meterSub = _capture!.meter.listen(
-      (data) {
-        if (looksLikeText(data)) {
-          _recordFfmpegMessage(data);
-          return;
-        }
-        _meter.feed(data);
-        _emit();
-      },
-      onError: (_) {},
-    );
+    _meterSub = _capture!.meter.listen((data) {
+      if (looksLikeText(data)) {
+        _recordFfmpegMessage(data);
+        return;
+      }
+      _meter.feed(data);
+      _emit();
+    }, onError: (_) {});
 
     // Si FFmpeg muere (microfono desconectado, driver que falla) hay que
     // decirlo, no dejar la pantalla diciendo "AL AIRE" en falso.
@@ -459,11 +541,16 @@ class BroadcastEngine {
       'la captura termino con codigo $code. Mensajes: '
           '${recorded.isEmpty ? "(ninguno)" : recorded.replaceAll("\n", " | ")}',
     );
-    var hint = explainFfmpegError(recorded);
+    var hint = explainFfmpegError(recorded, backend: _effectiveBackend);
     var usedDiagnosis = false;
 
-    final looksUseful = recorded.trim().isNotEmpty &&
-        !hint.contains('sin explicar el motivo');
+    // Solo se salta el diagnostico si el mensaje de FFmpeg se pudo traducir a
+    // una causa concreta. Un volcado sin interpretar ("FFmpeg reporto: ...")
+    // no le dice al DJ que hacer, asi que vale la pena reintentar la apertura.
+    final looksUseful =
+        recorded.trim().isNotEmpty &&
+        !hint.contains('sin explicar el motivo') &&
+        !hint.startsWith('FFmpeg reporto:');
 
     if (!looksUseful) {
       _log('info', 'Averiguando por que se detuvo la captura...');
@@ -474,13 +561,18 @@ class BroadcastEngine {
           bitrateKbps: profile.audio.bitrateKbps,
           sampleRate: profile.audio.sampleRate,
           channels: profile.audio.channels,
+          codec: profile.audio.codec,
           gainDb: gainDb,
           metering: false,
+          backend: _effectiveBackend,
         ),
         environment: environment,
       );
       if (lines.isNotEmpty) {
-        final diagnosis = explainFfmpegError(lines.join('\n'));
+        final diagnosis = explainFfmpegError(
+          lines.join('\n'),
+          backend: _effectiveBackend,
+        );
         if (!diagnosis.contains('sin explicar el motivo')) {
           hint = diagnosis;
           usedDiagnosis = true;
@@ -498,24 +590,50 @@ class BroadcastEngine {
       _log('info', 'Diagnostico obtenido al reabrir el dispositivo');
     }
 
+    // No queda audio que enviar: se corta el reloj y se suelta el socket. Si se
+    // dejara abierto, el servidor seguiria mostrando el mount ocupado y el
+    // proximo intento de salir al aire recibiria un 403.
+    _ticker?.cancel();
+    _ticker = null;
     await _teardownCapture();
+    await _teardownBroadcaster();
   }
 
   void _startRecording() {
-    if (!profile.recordLocally || profile.recordDirectory.isEmpty) return;
+    if (!_shouldRecord) return;
+    // Si ya hay una grabacion abierta (por ejemplo tras reiniciar la captura
+    // para cambiar la ganancia) se sigue escribiendo en el mismo archivo: un
+    // ajuste de volumen no debe partir la grabacion en trozos.
+    if (_recordingSink != null) return;
+    final dirPath = recordDirectory ?? profile.recordDirectory;
     try {
-      final dir = Directory(profile.recordDirectory);
+      final dir = Directory(dirPath);
       if (!dir.existsSync()) dir.create(recursive: true);
       final now = DateTime.now();
       final name =
           'xtreme_${now.year}${_two(now.month)}${_two(now.day)}_'
-          '${_two(now.hour)}${_two(now.minute)}${_two(now.second)}.mp3';
+          '${_two(now.hour)}${_two(now.minute)}${_two(now.second)}.'
+          '${profile.audio.codec.fileExtension}';
       final file = File('${dir.path}${Platform.pathSeparator}$name');
       _recordingSink = file.openWrite();
       _snapshot = _snapshot.copyWith(recordingPath: file.path);
       _log('info', 'Grabando en ${file.path}');
     } catch (e) {
       _log('warn', 'No se pudo iniciar la grabacion local: $e');
+    }
+  }
+
+  /// Cierra el archivo de grabacion (si habia uno).
+  Future<void> _closeRecording() async {
+    final sink = _recordingSink;
+    _recordingSink = null;
+    _snapshot = _snapshot.copyWith(recordingPath: '');
+    if (sink == null) return;
+    try {
+      await sink.flush();
+      await sink.close();
+    } catch (_) {
+      // Un fallo al cerrar no debe impedir salir del aire.
     }
   }
 
@@ -553,24 +671,57 @@ class BroadcastEngine {
           _log('warn', 'No llega audio del dispositivo de entrada');
           _lastAudioAt = DateTime.now();
         }
+
+        // Cada 5 s se comprueba que el socket siga drenando. Un servidor que
+        // deja de leer, o una red caida sin FIN/RST, mantiene el socket
+        // "abierto" y al DJ en AL AIRE aunque nadie reciba audio. El flush
+        // tiene su propio timeout y avisa de la caida (ver Broadcaster.flush).
+        _ticksSinceFlush++;
+        if (_ticksSinceFlush >= 5) {
+          _ticksSinceFlush = 0;
+          unawaited(_watchConnectionHealth());
+        }
+      } else {
+        _ticksSinceFlush = 0;
       }
       _emit();
     });
   }
 
+  /// Comprueba que lo enviado llega al sistema operativo.
+  ///
+  /// Se evita solapar comprobaciones: si un flush tarda mas de lo normal, el
+  /// ticker no debe encadenar otro cada segundo.
+  Future<void> _watchConnectionHealth() async {
+    if (_flushInFlight) return;
+    _flushInFlight = true;
+    try {
+      await _broadcaster?.flush();
+    } catch (e) {
+      _log('warn', 'No se pudo comprobar la conexion: $e');
+    } finally {
+      _flushInFlight = false;
+    }
+  }
+
   /// Actualiza la cancion que suena. No bloquea la emision si el servidor
   /// rechaza el cambio.
-  Future<void> setTrack(String track) async {
+  Future<bool> setTrack(String track) async {
     _snapshot = _snapshot.copyWith(currentTrack: track);
     _emit();
     final b = _broadcaster;
-    if (b == null) return;
+    if (b == null) return false;
     final ok = await b.setMetadata(track);
     if (!ok) {
-      _log('warn', 'El servidor no acepto el cambio de titulo');
+      _log(
+        'warn',
+        'El servidor no acepto el cambio de titulo. Revisa que el hosting '
+            'permita /admin/metadata con estas credenciales.',
+      );
     } else {
-      _log('info', "Suena ahora: $track");
+      _log('info', 'Suena ahora: $track');
     }
+    return ok;
   }
 
   /// Cambia la ganancia en caliente. Se aplica reiniciando solo la cadena de
@@ -586,25 +737,35 @@ class BroadcastEngine {
   }
 
   Future<void> _restartCapture() async {
-    await _teardownCapture();
+    // La grabacion local no se corta al reiniciar la captura (p. ej. al mover
+    // la ganancia): se cierra solo al salir del aire o si la captura falla.
+    await _teardownCapture(keepRecording: true);
     if (_broadcaster == null) return;
     await _startCapture();
   }
 
-  /// Cierra la captura y el socket tras una caida sin reconexion.
-  ///
-  /// Se hace aparte porque `_teardownCapture` no toca el socket y aqui tambien
-  /// hay que soltarlo: si no, quedaria una conexion medio muerta contra el
-  /// servidor.
-  Future<void> _teardownCaptureFromReconnectFailure() async {
-    await _teardownCapture();
+  /// Suelta el socket y el aviso de caida, sin recargar la captura.
+  Future<void> _teardownBroadcaster({bool releaseMount = false}) async {
     await _lostSub?.cancel();
     _lostSub = null;
-    await _broadcaster?.close();
+    final broadcaster = _broadcaster;
     _broadcaster = null;
+    if (broadcaster == null) return;
+    if (releaseMount) {
+      try {
+        await broadcaster.releaseMount().timeout(const Duration(seconds: 6));
+      } catch (_) {
+        // El servidor soltara la fuente por timeout igual.
+      }
+    }
+    try {
+      await broadcaster.dispose().timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // El socket ya podia estar muerto.
+    }
   }
 
-  Future<void> _teardownCapture() async {
+  Future<void> _teardownCapture({bool keepRecording = false}) async {
     await _audioSub?.cancel();
     await _meterSub?.cancel();
     await _exitSub?.cancel();
@@ -619,6 +780,17 @@ class BroadcastEngine {
       _lastCaptureExitCode ??= capture.exitCodeIfFinished;
     }
     _capture = null;
+    if (!keepRecording) await _closeRecording();
+  }
+
+  /// Cierra la captura y el socket tras una caida sin reconexion.
+  ///
+  /// Se hace aparte porque `_teardownCapture` no toca el socket y aqui tambien
+  /// hay que soltarlo: si no, quedaria una conexion medio muerta contra el
+  /// servidor.
+  Future<void> _teardownCaptureFromReconnectFailure() async {
+    await _teardownCapture();
+    await _teardownBroadcaster();
   }
 
   /// Se perdio el socket: reintenta con espera creciente, sin tocar el audio.
@@ -633,11 +805,12 @@ class BroadcastEngine {
       _log(
         'warn',
         'Se perdio la conexion y la reconexion automatica esta desactivada '
-        'para esta emisora. Volve a salir al aire cuando quieras.',
+            'para esta emisora. Volve a salir al aire cuando quieras.',
       );
       _setState(
         BroadcastState.stopped,
-        error: 'Conexion perdida. La reconexion automatica esta desactivada '
+        error:
+            'Conexion perdida. La reconexion automatica esta desactivada '
             'en esta emisora.',
       );
       // Se corta la captura: seguir codificando sin destino solo ocupa el
@@ -666,12 +839,24 @@ class BroadcastEngine {
       final broadcaster = Broadcaster(profile);
       try {
         await broadcaster.connect();
+        if (_stopping) {
+          await broadcaster.dispose();
+          return;
+        }
         await _lostSub?.cancel();
         _lostSub = broadcaster.onConnectionLost.listen((_) {
-          notifyConnectionLost('el servidor cerro la conexion');
+          notifyConnectionLost(
+            'el servidor dejo de responder o cerro la conexion',
+          );
         });
-        await _broadcaster?.close();
+        final previous = _broadcaster;
         _broadcaster = broadcaster;
+        // Cerrar el socket viejo no puede bloquear la reconexion: si el sistema
+        // deja el cierre colgado, el motor quedaria en RECONECTANDO para
+        // siempre aunque el audio ya este saliendo por la conexion nueva.
+        try {
+          await previous?.dispose().timeout(const Duration(seconds: 2));
+        } catch (_) {}
         _reconnectAttempt = 0;
         _setState(BroadcastState.live);
         _log('ok', 'Reconectado: seguimos al aire');
@@ -722,8 +907,9 @@ class BroadcastEngine {
     _log('info', 'Saliendo del aire...');
 
     try {
-      await _shutdown(releaseMount: releaseMount)
-          .timeout(const Duration(seconds: 12));
+      await _shutdown(
+        releaseMount: releaseMount,
+      ).timeout(const Duration(seconds: 12));
     } catch (e) {
       // Aunque la limpieza falle o tarde, el DJ ya esta fuera del aire en la
       // interfaz y puede volver a intentarlo.
@@ -736,33 +922,8 @@ class BroadcastEngine {
 
   /// Cierre ordenado de red, captura y grabacion.
   Future<void> _shutdown({required bool releaseMount}) async {
-    if (releaseMount) {
-      // Se limita el tiempo: si el servidor no responde, no se puede quedar
-      // esperando para siempre.
-      try {
-        await _broadcaster
-            ?.releaseMount()
-            .timeout(const Duration(seconds: 6));
-      } catch (_) {
-        // El servidor soltara la fuente por timeout igual.
-      }
-    }
-
-    await _lostSub?.cancel();
-    _lostSub = null;
-
-    try {
-      await _broadcaster?.close().timeout(const Duration(seconds: 4));
-    } catch (_) {}
-    _broadcaster = null;
-
+    await _teardownBroadcaster(releaseMount: releaseMount);
     await _teardownCapture();
-
-    try {
-      await _recordingSink?.flush();
-      await _recordingSink?.close();
-    } catch (_) {}
-    _recordingSink = null;
   }
 
   Future<void> dispose() async {

@@ -61,7 +61,17 @@ class ShoutcastClient {
   Socket? _socket;
   bool _connected = false;
   bool _metadataSupported = true;
+  bool _socketClosed = false;
   int _bytesSent = 0;
+  StreamSubscription<List<int>>? _socketSub;
+
+  /// Se dispara cuando el servidor corta la conexion a mitad de la emision.
+  ///
+  /// `socket.add()` sobre un socket muerto no lanza error en Dart, asi que sin
+  /// esta vigilancia la app seguiria mostrando "AL AIRE" mientras los oyentes
+  /// escuchan silencio.
+  final _connectionLost = StreamController<void>.broadcast();
+  Stream<void> get onConnectionLost => _connectionLost.stream;
 
   bool get isConnected => _connected;
 
@@ -91,9 +101,11 @@ class ShoutcastClient {
       ..write('icy-br:$bitrateKbps\r\n');
 
     if (version == ShoutcastVersion.v2) {
-      b
-        ..write('content-type:$contentType\r\n')
-        ..write('icy-metaint:8192\r\n');
+      b.write('content-type:$contentType\r\n');
+      // NO se anuncia `icy-metaint`: este cliente no entrelaza bloques de
+      // metadatos dentro del flujo. Declararlo hacia que el servidor (y los
+      // reproductores) esperaran bloques que nunca llegan, desplazando el audio.
+      // El titulo se actualiza por la API de administracion (ver setMetadata).
       // `sid` solo se envia cuando la fuente apunta a un stream concreto.
       if (streamId > 0) b.write('sid:$streamId\r\n');
     }
@@ -118,12 +130,53 @@ class ShoutcastClient {
 
     socket.setOption(SocketOption.tcpNoDelay, true);
     _socket = socket;
+    // Ver comentario en IcecastClient: los EPIPE llegan por `done`.
+    unawaited(socket.done.catchError((Object _) {
+      _onSocketDown();
+    }));
 
     try {
+      _socketClosed = false;
+      final lineCompleter = Completer<String>();
+      final buffer = <int>[];
+
+      // Una sola suscripcion para toda la vida del socket: sirve para leer la
+      // linea del handshake y, despues, para enterarse de que el servidor
+      // cerro la conexion. Un socket de Dart admite un unico `listen`.
+      _socketSub = socket.listen(
+        (data) {
+          if (lineCompleter.isCompleted) return; // Ya al aire: se ignora.
+          buffer.addAll(data);
+          final newline = buffer.indexOf(10);
+          if (newline >= 0) {
+            lineCompleter.complete(
+              latin1.decode(buffer.sublist(0, newline + 1), allowInvalid: true),
+            );
+          }
+        },
+        onError: (Object e) {
+          if (!lineCompleter.isCompleted) {
+            lineCompleter.completeError(IcecastException('Error de red: $e'));
+          } else {
+            _onSocketDown();
+          }
+        },
+        onDone: () {
+          if (!lineCompleter.isCompleted) {
+            lineCompleter.complete(
+              latin1.decode(buffer, allowInvalid: true),
+            );
+          } else {
+            _onSocketDown();
+          }
+        },
+        cancelOnError: false,
+      );
+
       socket.write(buildHandshake());
       await socket.flush();
 
-      final line = await _readLine(socket).timeout(
+      final line = await lineCompleter.future.timeout(
         const Duration(seconds: 15),
         onTimeout: () => throw IcecastException(
           'El servidor no respondio al handshake en 15 s. '
@@ -170,8 +223,29 @@ class ShoutcastClient {
   void send(Uint8List audio) {
     final socket = _socket;
     if (socket == null || !_connected) return;
-    socket.add(audio);
-    _bytesSent += audio.length;
+    // Igual que en Icecast: un error de escritura sincrono no puede tumbar la
+    // app; se trata como conexion perdida para que el motor reconecte.
+    try {
+      socket.add(audio);
+      _bytesSent += audio.length;
+    } catch (_) {
+      _onSocketDown();
+    }
+  }
+
+  /// Fuerza la salida de lo pendiente y detecta una red estancada.
+  ///
+  /// Ver el comentario equivalente en `IcecastClient.flush`: sin esta
+  /// vigilancia, un servidor que deja de leer mantiene la app en "AL AIRE"
+  /// mientras el audio se acumula en memoria.
+  Future<void> flush({Duration timeout = const Duration(seconds: 5)}) async {
+    final socket = _socket;
+    if (socket == null || !_connected) return;
+    try {
+      await socket.flush().timeout(timeout);
+    } catch (_) {
+      _onSocketDown();
+    }
   }
 
   /// Cambia el titulo que suena.
@@ -193,10 +267,14 @@ class ShoutcastClient {
     final adminPort = port + 1;
     try {
       final socket = await _connect(host, adminPort, useTls: false);
+      unawaited(socket.done.catchError((Object _) {}));
       final encodedSong = Uri.encodeComponent(value);
-      final path = sid != null
-          ? '/admin.cgi?mode=updinfo&song=$encodedSong&sid=$sid'
-          : '/admin.cgi?mode=updinfo&song=$encodedSong';
+      // SHOUTcast espera la contrasena como parametro `pass`. En v1 la
+      // autenticacion basica no funciona para `admin.cgi`; en v2 se acepta
+      // `pass` y tambien la cabecera, asi que se envian las dos.
+      final encodedPass = Uri.encodeComponent(password);
+      final path = '/admin.cgi?pass=$encodedPass&mode=updinfo&song=$encodedSong'
+          '${sid != null ? '&sid=$sid' : ''}';
       socket.write(
         'GET $path HTTP/1.0\r\n'
         'Host: $host:$adminPort\r\n'
@@ -213,49 +291,37 @@ class ShoutcastClient {
     }
   }
 
-  Future<String> _readLine(Socket socket) async {
-    final chunks = <int>[];
-    final completer = Completer<String>();
-    late StreamSubscription<List<int>> sub;
-
-    sub = socket.listen(
-      (data) {
-        chunks.addAll(data);
-        if (chunks.contains(10)) {
-          sub.cancel();
-          if (!completer.isCompleted) {
-            completer.complete(latin1.decode(chunks, allowInvalid: true));
-          }
-        }
-      },
-      onError: (Object e) {
-        if (!completer.isCompleted) {
-          completer.completeError(IcecastException('Error de red: $e'));
-        }
-      },
-      onDone: () {
-        if (!completer.isCompleted) {
-          completer.complete(latin1.decode(chunks, allowInvalid: true));
-        }
-      },
-      cancelOnError: false,
-    );
-
-    return completer.future;
+  /// Marca la conexion como caida y avisa una sola vez.
+  void _onSocketDown() {
+    if (_socketClosed) return;
+    _socketClosed = true;
+    if (!_connected) return;
+    _connected = false;
+    if (!_connectionLost.isClosed) _connectionLost.add(null);
   }
 
   Future<void> close() async {
     _connected = false;
+    // Al cerrar nosotros, no debe dispararse el aviso de caida.
+    _socketClosed = true;
+    await _socketSub?.cancel();
+    _socketSub = null;
     final socket = _socket;
     _socket = null;
     if (socket != null) {
       try {
-        await socket.flush();
+        await socket.flush().timeout(const Duration(seconds: 2));
       } catch (_) {}
       try {
-        await socket.close();
+        await socket.close().timeout(const Duration(seconds: 2));
       } catch (_) {}
       socket.destroy();
     }
+  }
+
+  /// Libera los recursos del cliente (incluido el aviso de caida).
+  Future<void> dispose() async {
+    await close();
+    await _connectionLost.close();
   }
 }

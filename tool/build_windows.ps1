@@ -10,7 +10,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$root = 'C:\Desarrollo\xtreme_studio'
+$root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host ''
@@ -18,13 +18,29 @@ Write-Host '=== Xtreme Studio - compilacion para Windows ===' -ForegroundColor C
 Write-Host ''
 
 # ---------------------------------------------------------------- Flutter SDK
-$flutter = 'C:\Users\Usuario\flutter\bin\flutter.bat'
-if (-not (Test-Path $flutter)) {
-    Write-Host 'ERROR: no se encontro Flutter en ' -ForegroundColor Red -NoNewline
-    Write-Host $flutter
-    Write-Host 'Ajusta la ruta en este script o instala Flutter.'
+# No se asume una ruta fija: se usa la variable FLUTTER_BIN, el flutter del
+# PATH o una instalacion tipica. Asi el proyecto funciona en cualquier PC.
+$flutter = $env:FLUTTER_BIN
+if (-not $flutter) {
+    $flutterCmd = Get-Command flutter -ErrorAction SilentlyContinue
+    if ($flutterCmd) { $flutter = $flutterCmd.Source }
+}
+if (-not $flutter) {
+    $candidates = @(
+        (Join-Path $env:USERPROFILE 'flutter\bin\flutter.bat'),
+        'C:\flutter\bin\flutter.bat',
+        'C:\src\flutter\bin\flutter.bat'
+    )
+    $flutter = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+if (-not $flutter -or -not (Test-Path $flutter)) {
+    Write-Host 'ERROR: no se encontro Flutter.' -ForegroundColor Red
+    Write-Host 'Instala Flutter y agregalo al PATH, o define FLUTTER_BIN con la'
+    Write-Host 'ruta completa a flutter.bat.'
     exit 1
 }
+$flutterRoot = Split-Path -Parent (Split-Path -Parent $flutter)
+Write-Host "[ok] Flutter: $flutter" -ForegroundColor Green
 
 # ------------------------------------------------------ Visual Studio C++/CMake
 # No basta con saber que hay C++: el build de Flutter necesita ademas CMake y el
@@ -251,7 +267,7 @@ if (Test-Path $outDir) {
             -Filter 'icudtl.dat' -Recurse -File -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if (-not $icuSrc) {
-            $icuSrc = Get-ChildItem -Path 'C:\Users\Usuario\flutter\bin\cache\artifacts\engine' `
+            $icuSrc = Get-ChildItem -Path (Join-Path $flutterRoot 'bin\cache\artifacts\engine') `
                 -Filter 'icudtl.dat' -Recurse -File -ErrorAction SilentlyContinue |
                 Select-Object -First 1
         }

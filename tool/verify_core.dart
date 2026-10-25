@@ -33,7 +33,9 @@ void check(bool condition, String description, {String? detail}) {
     stdout.writeln('  [ok]   $description');
   } else {
     _failures.add(description);
-    stdout.writeln('  [FALLA] $description${detail != null ? ' -> $detail' : ''}');
+    stdout.writeln(
+      '  [FALLA] $description${detail != null ? ' -> $detail' : ''}',
+    );
   }
 }
 
@@ -58,19 +60,57 @@ class FakeIcecast {
   Future<void> start() async {
     _server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     _server!.listen((socket) {
+      socket.listen((data) {
+        if (!_headerSent) {
+          request += latin1.decode(data, allowInvalid: true);
+          if (request.contains('\r\n\r\n')) {
+            socket.write('HTTP/1.1 $statusCode $reason\r\n\r\n');
+            _headerSent = true;
+          }
+        } else {
+          audio.addAll(data);
+        }
+      }, onError: (_) {});
+    });
+  }
+
+  Future<void> stop() async => _server?.close();
+}
+
+/// Servidor que solo registra la peticion de metadatos y responde un codigo.
+class FakeAdminServer {
+  FakeAdminServer(this.statusCode, this.reason);
+
+  final int statusCode;
+  final String reason;
+  ServerSocket? _server;
+  final List<String> requests = [];
+
+  int get port => _server!.port;
+
+  Future<void> start() async {
+    _server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    _server!.listen((socket) {
+      final buffer = <int>[];
+      var responded = false;
       socket.listen(
         (data) {
-          if (!_headerSent) {
-            request += latin1.decode(data, allowInvalid: true);
-            if (request.contains('\r\n\r\n')) {
-              socket.write('HTTP/1.1 $statusCode $reason\r\n\r\n');
-              _headerSent = true;
-            }
-          } else {
-            audio.addAll(data);
+          if (responded) return;
+          buffer.addAll(data);
+          final text = latin1.decode(buffer, allowInvalid: true);
+          if (text.contains('\r\n\r\n')) {
+            responded = true;
+            requests.add(text);
+            socket.write(
+              'HTTP/1.1 $statusCode $reason\r\n'
+              'Content-Length: 0\r\n'
+              'Connection: close\r\n\r\n',
+            );
+            socket.close();
           }
         },
         onError: (_) {},
+        onDone: () {},
       );
     });
   }
@@ -80,13 +120,18 @@ class FakeIcecast {
 
 Future<void> main() async {
   stdout.writeln('Verificacion del nucleo de Xtreme Studio');
-  stdout.writeln('(ejecuta el codigo real; sin red salvo el servidor simulado)');
+  stdout.writeln(
+    '(ejecuta el codigo real; sin red salvo el servidor simulado)',
+  );
 
   await _peticionIcecast();
   await _conexionIcecast();
   await _erroresHttp();
-  await _metadatosEnFlujo();
+  await _metadatosAdministracion();
   await _shoutcast();
+  await _shoutcastServidor();
+  await _redEstancada();
+  await _tlsAutofirmado();
   await _vumetros();
   await _captura();
   await _cifrado();
@@ -120,12 +165,19 @@ Future<void> _peticionIcecast() async {
   final req = client.buildPutRequest();
 
   check(req.startsWith('PUT /miradio HTTP/1.1'), 'usa PUT al mount correcto');
-  check(req.contains('icy-metaint: 8192'), 'anuncia intervalo de metadatos');
-  check(req.contains('Expect: 100-continue'), 'pide validacion previa de credenciales');
   check(
-    !req.contains('secreto123'),
-    'la contrasena NO viaja en texto plano',
+    !req.contains('icy-metaint'),
+    'NO inserta metadatos dentro del flujo de audio',
   );
+  check(
+    req.contains('Content-Type: audio/mpeg'),
+    'declara el tipo de audio del codec',
+  );
+  check(
+    req.contains('Expect: 100-continue'),
+    'pide validacion previa de credenciales',
+  );
+  check(!req.contains('secreto123'), 'la contrasena NO viaja en texto plano');
   check(
     req.contains(base64Encode(utf8.encode('source:secreto123'))),
     'la contrasena viaja en Basic auth (base64)',
@@ -195,124 +247,99 @@ Future<void> _erroresHttp() async {
     await bad.connect();
     check(false, 'un host inexistente deberia fallar');
   } on IcecastException catch (e) {
-    check(e.message.contains('No se pudo conectar'), 'host inexistente da mensaje claro');
+    check(
+      e.message.contains('No se pudo conectar'),
+      'host inexistente da mensaje claro',
+    );
   }
 }
 
-Future<void> _metadatosEnFlujo() async {
-  section('Metadatos intercalados (lo que ve el oyente)');
-  final fake = FakeIcecast(100, 'Continue');
-  await fake.start();
+Future<void> _metadatosAdministracion() async {
+  section('Metadatos por /admin/metadata (lo que usa Zeno.fm)');
 
+  final fake = FakeAdminServer(200, 'OK');
+  await fake.start();
   final client = IcecastClient(
     host: '127.0.0.1',
     port: fake.port,
-    mount: '/test',
+    mount: '/miradio',
     username: 'source',
-    password: 'p',
-    metadataInterval: 16,
+    password: 'secreto123',
   );
-  await client.connect();
-  client.setMetadata('Artista - Tema');
-  client.send(Uint8List(64)..fillRange(0, 64, 0x41));
-  await client.close();
-  // El socket local puede cerrarse antes de que el servidor procese el ultimo
-  // trozo: se le da un instante para drenar, si no la prueba es una carrera.
-  await Future<void>.delayed(const Duration(milliseconds: 200));
-
-  final text = latin1.decode(fake.audio, allowInvalid: true);
-  check(text.contains('StreamTitle='), 'el titulo va en formato StreamTitle');
-  check(text.contains('Artista - Tema'), 'el titulo llega integro');
-
-  // El flujo se parsea EXACTAMENTE como lo haria un reproductor de Icecast:
-  // se leen 16 bytes de audio y despues 1 byte de longitud (en unidades de 16)
-  // que indica cuantos bytes de metadatos siguen.
-  final parseo = _parsearIcecast(fake.audio, 16);
+  final ok = await client.setMetadata('Artista - Tema');
+  check(ok, 'un 200 del servidor confirma el cambio de titulo');
+  final request = fake.requests.isEmpty ? '' : fake.requests.first;
   check(
-    parseo.audioIntegro,
-    'todos los bloques de audio llegan intactos y en orden',
-    detail: 'bloques verificados: ${parseo.bloquesAudio}',
+    request.startsWith('GET /admin/metadata?'),
+    'la actualizacion va por una peticion HTTP aparte',
+    detail: request.split('\r\n').first,
   );
   check(
-    parseo.audioTotal == 64,
-    'el parser recupera exactamente los 64 bytes de audio enviados',
-    detail: 'recuperados ${parseo.audioTotal}',
+    request.contains('mode=updinfo') &&
+        request.contains('mount=%2Fmiradio') &&
+        request.contains('song=Artista'),
+    'envia mount, mode=updinfo y song codificados',
+    detail: request.split('\r\n').first,
   );
   check(
-    parseo.titulos.contains('Artista - Tema'),
-    'el parser lee el titulo en su posicion correcta',
-    detail: parseo.titulos.toString(),
+    request.contains(base64Encode(utf8.encode('source:secreto123'))),
+    'autentica la actualizacion con las credenciales del mount',
   );
-
   await fake.stop();
 
-  // Sin metadatos, el flujo debe ser exacto.
-  final fake2 = FakeIcecast(100, 'Continue');
-  await fake2.start();
-  final client2 = IcecastClient(
+  // Un servidor que rechaza la actualizacion debe devolver false, no fingir
+  // que el titulo cambio.
+  final denied = FakeAdminServer(401, 'Unauthorized');
+  await denied.start();
+  final deniedClient = IcecastClient(
     host: '127.0.0.1',
-    port: fake2.port,
+    port: denied.port,
+    mount: '/miradio',
+    username: 'source',
+    password: 'mala',
+  );
+  check(
+    !await deniedClient.setMetadata('No debe entrar'),
+    'un 401 se informa como fallo de metadatos',
+  );
+  await denied.stop();
+
+  // El audio no puede llevar ningun byte de texto: los servidores lo
+  // interpretarian como MP3/AAC y se oiria ruido de fondo.
+  final audioServer = FakeIcecast(100, 'Continue');
+  await audioServer.start();
+  final audioClient = IcecastClient(
+    host: '127.0.0.1',
+    port: audioServer.port,
     mount: '/test',
     username: 'source',
     password: 'p',
-    metadataInterval: 0,
   );
-  await client2.connect();
-  client2.send(Uint8List(100)..fillRange(0, 100, 0x42));
-  await client2.close();
+  await audioClient.connect();
+  audioClient.send(Uint8List(100)..fillRange(0, 100, 0x41));
+  await audioClient.close();
   await Future<void>.delayed(const Duration(milliseconds: 200));
   check(
-    fake2.audio.length == 100 && fake2.audio.every((b) => b == 0x42),
-    'con metadatos desactivados el audio pasa sin modificar',
-    detail: 'recibidos ${fake2.audio.length} bytes',
+    audioServer.audio.length == 100 &&
+        audioServer.audio.every((b) => b == 0x41),
+    'el audio viaja intacto, sin bloques de metadatos intercalados',
+    detail: 'recibidos ${audioServer.audio.length} bytes',
   );
-  await fake2.stop();
-}
+  await audioServer.stop();
 
-/// Resultado de parsear un flujo de Icecast.
-class _Parseo {
-  _Parseo(this.audioTotal, this.bloquesAudio, this.audioIntegro, this.titulos);
-
-  final int audioTotal;
-  final int bloquesAudio;
-  final bool audioIntegro;
-  final List<String> titulos;
-}
-
-/// Recorre el flujo igual que un reproductor: `interval` bytes de audio, luego
-/// una longitud (x16) y los metadatos correspondientes, y repite.
-_Parseo _parsearIcecast(List<int> flujo, int interval) {
-  var i = 0;
-  var audioTotal = 0;
-  var bloquesAudio = 0;
-  var integro = true;
-  final titulos = <String>[];
-
-  while (i < flujo.length) {
-    final disponible = flujo.length - i;
-    if (disponible < interval) {
-      // Resto final: audio suelto, sin metadatos detras.
-      audioTotal += disponible;
-      break;
-    }
-    final bloqueOk = flujo.sublist(i, i + interval).every((b) => b == 0x41);
-    if (!bloqueOk) integro = false;
-    bloquesAudio++;
-    audioTotal += interval;
-    i += interval;
-
-    if (i >= flujo.length) break;
-
-    final lenByte = flujo[i];
-    final metaBytes = lenByte * 16;
-    final fin = (i + 1 + metaBytes).clamp(0, flujo.length);
-    final meta = latin1.decode(flujo.sublist(i + 1, fin), allowInvalid: true);
-    final match = RegExp(r"StreamTitle='([^']*)'").firstMatch(meta);
-    if (match != null) titulos.add(match.group(1)!);
-    i += 1 + metaBytes;
-  }
-
-  return _Parseo(audioTotal, bloquesAudio, integro, titulos);
+  // El codec tambien define el Content-Type que se anuncia al servidor.
+  final aacClient = IcecastClient(
+    host: 'radio.ejemplo.com',
+    port: 8000,
+    mount: '/aac',
+    username: 'source',
+    password: 'p',
+    contentType: 'audio/aac',
+  );
+  check(
+    aacClient.buildPutRequest().contains('Content-Type: audio/aac'),
+    'anuncia audio/aac cuando el codec es AAC',
+  );
 }
 
 Future<void> _shoutcast() async {
@@ -339,7 +366,12 @@ Future<void> _shoutcast() async {
   final hs2 = v2.buildHandshake();
   check(hs2.startsWith('dj:clave'), 'v2 usa usuario:password');
   check(hs2.contains('sid:1'), 'v2 envia el sid');
-  check(hs2.contains('icy-metaint:8192'), 'v2 anuncia metadatos');
+  // Este cliente no entrelaza metadatos en el flujo; anunciar `icy-metaint`
+  // haria que el servidor y los reproductores esperen bloques que no llegan.
+  check(
+    !hs2.contains('icy-metaint'),
+    'v2 NO anuncia metadatos en el flujo (se actualizan por la API)',
+  );
 
   // Respuesta OK2.
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -347,7 +379,11 @@ Future<void> _shoutcast() async {
     s.listen((_) {}, onError: (_) {});
     s.write('OK2\r\n');
   });
-  final c = ShoutcastClient(host: '127.0.0.1', port: server.port, password: 'p');
+  final c = ShoutcastClient(
+    host: '127.0.0.1',
+    port: server.port,
+    password: 'p',
+  );
   await c.connect();
   check(c.isConnected, 'OK2 conecta la fuente');
   check(c.metadataSupported, 'OK2 habilita los metadatos');
@@ -361,15 +397,331 @@ Future<void> _shoutcast() async {
     s.listen((_) {}, onError: (_) {});
     s.write('invalid password\r\n');
   });
-  final c2 = ShoutcastClient(host: '127.0.0.1', port: server2.port, password: 'mala');
+  final c2 = ShoutcastClient(
+    host: '127.0.0.1',
+    port: server2.port,
+    password: 'mala',
+  );
   try {
     await c2.connect();
     check(false, 'invalid password deberia fallar');
   } on IcecastException catch (e) {
-    check(e.message.contains('rechazada'), 'la clave invalida se reporta claramente');
+    check(
+      e.message.contains('rechazada'),
+      'la clave invalida se reporta claramente',
+    );
   }
   await sub2.cancel();
   await server2.close();
+}
+
+/// Espera a que se cumpla una condicion, sin bloquear mas de [timeout].
+Future<bool> _waitUntil(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 3),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return true;
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+  return condition();
+}
+
+Future<void> _shoutcastServidor() async {
+  section('Shoutcast contra servidor simulado');
+
+  // ------------------------------------------------- caida a mitad de emision
+  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final clients = <Socket>[];
+  final subs = <StreamSubscription<List<int>>>[];
+  server.listen((socket) {
+    clients.add(socket);
+    // El servidor simulado tambien puede recibir EPIPE al cortar: sin observar
+    // `done`, el test terminaria con un error no capturado.
+    unawaited(socket.done.catchError((Object _) {}));
+    subs.add(socket.listen((_) {}, onError: (_) {}));
+    socket.write('OK2\r\n');
+  });
+
+  final client = ShoutcastClient(
+    host: '127.0.0.1',
+    port: server.port,
+    password: 'clave',
+  );
+  var lost = 0;
+  final lostSub = client.onConnectionLost.listen((_) => lost++);
+  await client.connect();
+  check(client.isConnected, 'OK2 deja la fuente conectada');
+
+  // El servidor cierra la conexion sin aviso HTTP: el cliente debe detectarlo.
+  for (final socket in clients) {
+    socket.destroy();
+  }
+  final detected = await _waitUntil(() => lost > 0);
+  check(detected, 'la caida del servidor se detecta en Shoutcast');
+  check(
+    lost == 1,
+    'el aviso de caida se emite una sola vez',
+    detail: 'eventos: $lost',
+  );
+  check(!client.isConnected, 'el cliente queda marcado como desconectado');
+
+  await lostSub.cancel();
+  await client.dispose();
+  for (final sub in subs) {
+    await sub.cancel();
+  }
+  await server.close();
+
+  // ------------------------------------- metadatos por el panel de Shoutcast
+  final admin = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  var request = '';
+  final adminSubs = <StreamSubscription<List<int>>>[];
+  admin.listen((socket) {
+    unawaited(socket.done.catchError((Object _) {}));
+    adminSubs.add(
+      socket.listen(
+        (data) => request += latin1.decode(data, allowInvalid: true),
+        onError: (_) {},
+      ),
+    );
+  });
+
+  // El puerto de administracion es el de la fuente +1; no hace falta que el
+  // puerto de fuente exista porque `setMetadata` solo usa el de administracion.
+  final metaClient = ShoutcastClient(
+    host: '127.0.0.1',
+    port: admin.port - 1,
+    password: 'clave del dj',
+    username: 'locutor',
+  );
+  final sent = await metaClient.setMetadata('Tema & "prueba"');
+  await _waitUntil(() => request.contains('\r\n\r\n'));
+  check(sent, 'el cambio de titulo se envia al panel');
+  check(
+    request.contains('pass=clave%20del%20dj'),
+    'v1 envia la contrasena en el parametro pass (no solo Basic auth)',
+    detail: request.split('\r\n').first,
+  );
+  check(
+    request.contains('mode=updinfo'),
+    'la peticion usa el modo de actualizacion de Shoutcast',
+  );
+  check(
+    request.contains('song=Tema%20%26%20%22prueba%22'),
+    'el titulo viaja codificado y no rompe la URL',
+  );
+
+  for (final sub in adminSubs) {
+    await sub.cancel();
+  }
+  await admin.close();
+}
+
+Future<void> _redEstancada() async {
+  section('Red estancada (backpressure)');
+
+  final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final sockets = <Socket>[];
+  final subs = <StreamSubscription<List<int>>>[];
+
+  server.listen((socket) {
+    sockets.add(socket);
+    unawaited(socket.done.catchError((Object _) {}));
+    final buffer = <int>[];
+    late StreamSubscription<List<int>> sub;
+    var headersDone = false;
+    sub = socket.listen((data) {
+      if (headersDone) return;
+      buffer.addAll(data);
+      if (latin1.decode(buffer, allowInvalid: true).contains('\r\n\r\n')) {
+        headersDone = true;
+        socket.write('HTTP/1.1 100 Continue\r\n\r\n');
+        // Se deja de leer a proposito: a partir de aqui el servidor se
+        // comporta como una red caida que no cierra el socket.
+        sub.pause();
+      }
+    }, onError: (_) {});
+    subs.add(sub);
+  });
+
+  final client = IcecastClient(
+    host: '127.0.0.1',
+    port: server.port,
+    mount: '/estancado',
+    username: 'source',
+    password: 'p',
+  );
+  await client.connect();
+  var lost = false;
+  final lostSub = client.onConnectionLost.listen((_) => lost = true);
+
+  // Se llena el buffer del sistema. El tamaño de los buffers TCP varia por
+  // sistema (en Linux pueden sumar decenas de MB), asi que se envian 128 MB:
+  // muy por encima de lo que cabe en memoria del nucleo, y suficiente para que
+  // el flush ya no pueda completar mientras el servidor no lea.
+  final chunk = Uint8List(64 * 1024);
+  for (var i = 0; i < 2048; i++) {
+    client.send(chunk);
+  }
+
+  await client.flush(timeout: const Duration(seconds: 1));
+  // El aviso viaja por un StreamController y se entrega en el siguiente turno
+  // del bucle de eventos: hay que esperarlo, no mirarlo en el acto.
+  await _waitUntil(() => lost);
+  check(lost, 'un flush que no completa marca la conexion como perdida');
+  check(
+    !client.isConnected,
+    'la conexion estancada deja de aceptar audio para no crecer sin limite',
+  );
+
+  await lostSub.cancel();
+  await client.dispose();
+  for (final sub in subs) {
+    await sub.cancel();
+  }
+  for (final socket in sockets) {
+    socket.destroy();
+  }
+  await server.close();
+}
+
+// Certificado autofirmado de prueba (CN=localhost, valido 10 años). Se embebe
+// para que la prueba no dependa de que el sistema tenga `openssl` instalado.
+const String _selfSignedCert = '''
+-----BEGIN CERTIFICATE-----
+MIIDCTCCAfGgAwIBAgIUMlUEW7FZVs+SGqFiNvsHj1kj5dIwDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTI2MTAyNTAyMjIzM1oXDTM2MTAy
+MjAyMjIzM1owFDESMBAGA1UEAwwJbG9jYWxob3N0MIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEAnwdQGz3Maak3+J3P+cRyi9rysPwY0ox0rrQxdruvJpHP
+JDcdU1h8a4q+Uha2Z5VrmHeBEFNsEsG0nb7XQwm9YCdJvz4O3K+M2Wem35FRzD1j
+uGK2ixavopkcAd7yMTJkweNenHIswyrXgcmCvHJ/AmER7yK77TTYGvBgBNA/O9C6
+TDWH1TCjkqcZxtDv2LLp8ih8kumz5KO6vtNhxj0Z2YTyOq65HVSBqGBkwrhdtyjS
+qEN3QT+UOOqaGErauYJPS5NyLkDCXefaIjvucAeD3K3JFQ98zR8ZGIh2bgbkNWCU
+tK9a44pf2KHZ0bD32hz/TbBpdojnxf0Z0Rvc0i61wwIDAQABo1MwUTAdBgNVHQ4E
+FgQU5mp6N4EKZHy59aNAuNf7h95k7ogwHwYDVR0jBBgwFoAU5mp6N4EKZHy59aNA
+uNf7h95k7ogwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAbhxb
+5mQ6AiI7gRnGUOjI/c1gn++O04An+WVN4Koz+OndNHEyEAPrgRBUUtfGrQ92+2I2
+jbsPoe8jak8WZu5XChz3HIppFNH12S6Hxt+GacvslZ40YWTJrqGoj6pIgjK0fvfJ
+LmRh/fRrwm+ubQfwK1DeZXcIUzQoV5utiEKsg5uPCXvmpL5GVQDcz+DLxL8olmfw
+QPGTMAF//tAQAVTFo5qWxtXjSWI7HRZAL5QBllau6cXOoFo27VoQtH4nuoLXg0it
+i3PzOwme0ckLI42E+KfS9tKg5hBqe0eiPEUMgLuB5wBF+Zs3LaTsNzfP1qky4aTt
+YOImu05LAKz4MvhiXg==
+-----END CERTIFICATE-----
+''';
+
+const String _selfSignedKey = '''
+-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCfB1AbPcxpqTf4
+nc/5xHKL2vKw/BjSjHSutDF2u68mkc8kNx1TWHxrir5SFrZnlWuYd4EQU2wSwbSd
+vtdDCb1gJ0m/Pg7cr4zZZ6bfkVHMPWO4YraLFq+imRwB3vIxMmTB416ccizDKteB
+yYK8cn8CYRHvIrvtNNga8GAE0D870LpMNYfVMKOSpxnG0O/YsunyKHyS6bPko7q+
+02HGPRnZhPI6rrkdVIGoYGTCuF23KNKoQ3dBP5Q46poYStq5gk9Lk3IuQMJd59oi
+O+5wB4PcrckVD3zNHxkYiHZuBuQ1YJS0r1rjil/YodnRsPfaHP9NsGl2iOfF/RnR
+G9zSLrXDAgMBAAECggEAClVc0LBW0ITU5LxIb9fig5DyFSsEZ+YFjPabgjYW3wA5
+gAZuyuQkjY5h6I6eQqPUbn9RbSCmlJ9un5NvhGUlH5Ld+WXMbG2hztyr3LoiIQ3a
+JXiQmQAb4IpnZf25KhY2styV4L+QhgwKHd5ctucPtrVdB3dv062L31BARP/NJBNF
+UUlhoOjFZ0079dOj8HYCdWMqSJf1+5hXYiafTvppEHBNfVhd20zuU3aYDqpS+gfJ
+OWIDDTY44eH13Ksli2lvwFNZOtiRKCtaC5u72unoxLKDoc4eVA8YZmLvL+zqNiko
+XY9BKNRsQmRh+i4/FXpAujwc9NfGoksBkzjzWbIRHQKBgQDSOPnYUnriNkA5j6OQ
+VDBMacsqDRH8IFQ4UUsm3CP7x5mSgS5fWm/aDyRZ41/cW0TaeXm8XgbkxTbIMezs
+MJbahB41l0/bhTJpgiHGfAK7WaNdjDUj/L1PxstjcFtm4YcKBwROYNLaVW+eZ9QH
+c1GCcmNw/8SbzNwJV7ZyPUu6RwKBgQDBqHylH45kJe3omRGNzNTq7+AP9btt2hzk
+1jEvm1WPhCVjpzwrAwTHUMz6iR4ntME82qSNhG7+YHHrSm2Mg4KyJA8ocHrGhT0L
+72CNkZ/egfEPz1KhD8ckkza+HepclyBbDeAG8eUNp3eVKVicIwZjXlxwTlNP2LBL
+4lsDFbAqpQKBgCcD4gKu1BWVoffM27tWlJwp6kXEpTjYuyi0lbEBnEAHPE4/YV7b
+BvU+aC2ykEDyQ2YUs24tOTROEau38FOpdOXbLUwe5/hC0SdZunD+5PbmXPZophgm
+uO/MYkTzPlNqucg3oyn0uE1DG/MXK/eyBEekeSYoodGUhKXLPJYZICvTAoGARbaJ
+aEe70oF0605u60TZQNmpJxWmqxzhWd9hRWn9mvRPIViKaFFl3vpPT8Ecgd6n0WhD
+5E3QRvIhEDpyxSpyWf5xFnWnPN+p4ioB7/SEQG02giJ39FLhtWDpS/co7rvYge60
+vstFUWz/t0pzA4H4Qr0tOaB4jT3L+QU7Dhk4maECgYBHgeD6TI7JElxoGZqMo5Vl
+cT9dqxAFpjhm4oDY4U8BIXDeEScojO6idAjwXWCkworoizTPumeLWkywDk56vtc/
+2KjBL/ClWtykazw9jlkIUthg+keZzyqZBlGqFiNdUjrUAjWDZ27M0XsQ9lcalhN2
+a0klWs4BTnl3/fkcY00aMA==
+-----END PRIVATE KEY-----
+''';
+
+Future<void> _tlsAutofirmado() async {
+  section('TLS con certificado autofirmado');
+
+  final context = SecurityContext()
+    ..useCertificateChainBytes(utf8.encode(_selfSignedCert))
+    ..usePrivateKeyBytes(utf8.encode(_selfSignedKey));
+  final server = await SecureServerSocket.bind(
+    InternetAddress.loopbackIPv4,
+    0,
+    context,
+  );
+  final subs = <StreamSubscription<List<int>>>[];
+  server.listen(
+    (socket) {
+      unawaited(socket.done.catchError((Object _) {}));
+      final buffer = <int>[];
+      subs.add(
+        socket.listen((data) {
+          buffer.addAll(data);
+          if (latin1.decode(buffer, allowInvalid: true).contains('\r\n\r\n')) {
+            socket.write('HTTP/1.1 100 Continue\r\n\r\n');
+          }
+        }, onError: (_) {}),
+      );
+    },
+    // La primera conexion falla a proposito (certificado rechazado): el
+    // servidor ve un error de handshake que no debe tumbar el test.
+    onError: (_) {},
+  );
+
+  // 1) Sin permiso explicito, el certificado autofirmado debe rechazarse.
+  final strict = IcecastClient(
+    host: '127.0.0.1',
+    port: server.port,
+    mount: '/tls',
+    username: 'source',
+    password: 'p',
+    useTls: true,
+  );
+  try {
+    await strict.connect();
+    check(false, 'un certificado autofirmado se rechaza por defecto');
+  } on IcecastException catch (e) {
+    check(
+      e.message.contains('certificado'),
+      'el rechazo explica que el certificado no es valido',
+      detail: e.message,
+    );
+  } catch (e) {
+    check(false, 'el rechazo se informa como error de emision', detail: '$e');
+  } finally {
+    await strict.close();
+  }
+
+  // 2) Con el permiso del perfil, la emision funciona.
+  final relaxed = IcecastClient(
+    host: '127.0.0.1',
+    port: server.port,
+    mount: '/tls',
+    username: 'source',
+    password: 'p',
+    useTls: true,
+    allowBadCertificate: true,
+  );
+  try {
+    await relaxed.connect();
+    check(
+      relaxed.isConnected,
+      'al aceptar el certificado autofirmado se puede emitir',
+    );
+  } on Object catch (e) {
+    check(false, 'la conexion con certificado aceptado funciona', detail: '$e');
+  } finally {
+    await relaxed.close();
+  }
+
+  for (final sub in subs) {
+    await sub.cancel();
+  }
+  await server.close();
 }
 
 Future<void> _vumetros() async {
@@ -378,7 +730,10 @@ Future<void> _vumetros() async {
   final silence = LevelMeter();
   silence.feed(Uint8List(2000));
   check(silence.isSilent, 'el silencio se detecta como silencio');
-  check(silence.peakDb < -50, 'el pico del silencio esta por debajo de -50 dBFS');
+  check(
+    silence.peakDb < -50,
+    'el pico del silencio esta por debajo de -50 dBFS',
+  );
 
   final full = LevelMeter();
   final pcm = Uint8List(2000);
@@ -387,8 +742,11 @@ Future<void> _vumetros() async {
     view.setInt16(i * 2, i.isEven ? 32767 : -32768, Endian.little);
   }
   full.feed(pcm);
-  check(full.peakDb > -1 && full.peakDb <= 0,
-      'fondo de escala mide ~0 dBFS', detail: '${full.peakDb.toStringAsFixed(2)}');
+  check(
+    full.peakDb > -1 && full.peakDb <= 0,
+    'fondo de escala mide ~0 dBFS',
+    detail: '${full.peakDb.toStringAsFixed(2)}',
+  );
 
   final half = LevelMeter();
   final pcm2 = Uint8List(2000);
@@ -410,7 +768,8 @@ Future<void> _vumetros() async {
   check(
     drop.peakDb < peakBefore && drop.peakDb > -60,
     'el vumetro cae suavemente y no salta a cero',
-    detail: 'antes ${peakBefore.toStringAsFixed(1)} -> ahora ${drop.peakDb.toStringAsFixed(1)}',
+    detail:
+        'antes ${peakBefore.toStringAsFixed(1)} -> ahora ${drop.peakDb.toStringAsFixed(1)}',
   );
 }
 
@@ -423,6 +782,7 @@ Future<void> _captura() async {
     sampleRate: 44100,
     channels: 2,
     gainDb: 3.0,
+    backend: CaptureBackend.dshow,
   );
   final cmd = args.build('ffmpeg.exe');
   check(cmd.contains('dshow'), 'usa el capturador dshow de Windows');
@@ -468,11 +828,81 @@ Future<void> _captura() async {
     detail: maps.map((i) => cmd[i + 1]).join(', '),
   );
 
+  // Codecs alternativos: el mismo motor debe poder enviar MP3, AAC-LC o AAC+.
+  const aacArgs = CaptureArgs(
+    deviceName: 'Mic',
+    bitrateKbps: 96,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.dshow,
+    codec: AudioCodec.aac,
+  );
+  final aacCmd = aacArgs.build('ffmpeg');
+  check(
+    aacCmd.contains('aac') && aacCmd.contains('adts'),
+    'AAC-LC se codifica con el encoder nativo y contenedor ADTS',
+  );
+  check(!aacCmd.contains('libmp3lame'), 'AAC no usa el encoder MP3');
+
+  const aacPlusArgs = CaptureArgs(
+    deviceName: 'Mic',
+    bitrateKbps: 48,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.dshow,
+    codec: AudioCodec.aacPlus,
+  );
+  final aacPlusCmd = aacPlusArgs.build('ffmpeg');
+  check(
+    aacPlusCmd.contains('libfdk_aac') && aacPlusCmd.contains('aac_he_v2'),
+    'AAC+ usa libfdk_aac con perfil HE-AAC v2',
+  );
+
+  // Monitor de entrada: solo PCM, sin codificar. Es lo que mantiene el
+  // vumetro activo fuera del aire sin gastar CPU en MP3/AAC.
+  const meterOnly = CaptureArgs(
+    deviceName: 'Mic',
+    bitrateKbps: 128,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.pulse,
+    meterOnly: true,
+  );
+  final meterOnlyCmd = meterOnly.build('ffmpeg');
+  check(
+    !meterOnlyCmd.contains('pipe:1'),
+    'el monitor de entrada no genera audio codificado',
+  );
+  check(
+    meterOnlyCmd.contains('pipe:2') && meterOnlyCmd.contains('pcm_s16le'),
+    'el monitor de entrada solo entrega PCM para el vumetro',
+  );
+  check(
+    !meterOnlyCmd.contains('libmp3lame') &&
+        !meterOnlyCmd.contains('libfdk_aac'),
+    'el monitor de entrada no arranca un encoder',
+  );
+
+  const codecSettings = AudioSettings(
+    codec: AudioCodec.aacPlus,
+    bitrateKbps: 64,
+    sampleRate: 44100,
+    channels: 2,
+  );
+  final codecRoundTrip = AudioSettings.fromJson(codecSettings.toJson());
+  check(
+    codecRoundTrip.codec == AudioCodec.aacPlus &&
+        codecRoundTrip.bitrateKbps == 64,
+    'el codec y el bitrate se conservan al guardar el perfil',
+  );
+
   // La salida MP3 debe ir antes de la salida de niveles, y cada una a su pipe.
   final mp3Pipe = cmd.indexOf('pipe:1');
   final meterPipe = cmd.indexOf('pipe:2');
-  check(mp3Pipe > 0 && meterPipe > mp3Pipe,
-      'el MP3 sale antes que el PCM de niveles y cada uno a su tuberia');
+  check(
+    mp3Pipe > 0 && meterPipe > mp3Pipe,
+    'el MP3 sale antes que el PCM de niveles y cada uno a su tuberia',
+  );
 
   const sinGanancia = CaptureArgs(
     deviceName: 'Mic',
@@ -480,10 +910,123 @@ Future<void> _captura() async {
     sampleRate: 22050,
     channels: 1,
     gainDb: 0,
+    backend: CaptureBackend.dshow,
   );
   check(
     !sinGanancia.build('ffmpeg').any((a) => a.startsWith('volume=')),
     'sin ganancia no agrega el filtro de volumen',
+  );
+
+  section('Capturadores de Linux (PulseAudio y ALSA)');
+
+  // Linux no usa dshow: segun lo que traiga la build de FFmpeg se captura por
+  // PulseAudio/PipeWire (preferido) o por ALSA. La app no debe asumir uno.
+  const pulseArgs = CaptureArgs(
+    deviceName: 'alsa_input.pci-0000_00_1b.0.analog-stereo',
+    bitrateKbps: 128,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.pulse,
+  );
+  final pulseCmd = pulseArgs.build('ffmpeg');
+  check(
+    pulseCmd.contains('-f') && pulseCmd.contains('pulse'),
+    'PulseAudio usa el capturador pulse de FFmpeg',
+  );
+  final pulseInput = pulseCmd.indexOf('-i');
+  check(
+    pulseInput >= 0 &&
+        pulseCmd[pulseInput + 1] == 'alsa_input.pci-0000_00_1b.0.analog-stereo',
+    'PulseAudio pasa el nombre de la fuente tal cual',
+    detail: pulseInput >= 0 ? pulseCmd[pulseInput + 1] : 'sin -i',
+  );
+  check(!pulseCmd.contains('dshow'), 'en Linux no se cuela dshow');
+
+  const pulseDefault = CaptureArgs(
+    deviceName: '',
+    bitrateKbps: 128,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.pulse,
+  );
+  final pulseDefaultCmd = pulseDefault.build('ffmpeg');
+  final pulseDefaultInput = pulseDefaultCmd.indexOf('-i');
+  check(
+    pulseDefaultInput >= 0 &&
+        pulseDefaultCmd[pulseDefaultInput + 1] == 'default',
+    'sin dispositivo elegido, PulseAudio usa la fuente predeterminada',
+  );
+
+  const alsaArgs = CaptureArgs(
+    deviceName: 'plughw:0,0',
+    bitrateKbps: 128,
+    sampleRate: 44100,
+    channels: 2,
+    backend: CaptureBackend.alsa,
+  );
+  final alsaCmd = alsaArgs.build('ffmpeg');
+  check(
+    alsaCmd.contains('alsa') && !alsaCmd.contains('pulse'),
+    'ALSA usa el capturador alsa de FFmpeg',
+  );
+  final alsaInput = alsaCmd.indexOf('-i');
+  check(
+    alsaInput >= 0 && alsaCmd[alsaInput + 1] == 'plughw:0,0',
+    'ALSA pasa el PCM elegido (plughw:tarjeta,dispositivo)',
+  );
+
+  final expectedDefault = Platform.isWindows
+      ? CaptureBackend.dshow
+      : CaptureBackend.pulse;
+  check(
+    CaptureBackend.forPlatform() == expectedDefault,
+    'el capturador preferido por plataforma es el esperado',
+    detail: CaptureBackend.forPlatform().label,
+  );
+
+  final pulsePreview = pulseArgs.preview();
+  check(
+    pulsePreview.contains('-f pulse') && pulsePreview.contains('pipe:1'),
+    'el comando copiable de Linux muestra PulseAudio y las tuberias',
+    detail: pulsePreview,
+  );
+
+  section('Deteccion del capturador disponible');
+  check(
+    FfmpegLocator.chooseLinuxBackend(
+          hasPulse: true,
+          hasAlsa: true,
+          pulseReachable: true,
+        ) ==
+        CaptureBackend.pulse,
+    'con PulseAudio y ALSA disponibles se prefiere PulseAudio',
+  );
+  check(
+    FfmpegLocator.chooseLinuxBackend(
+          hasPulse: true,
+          hasAlsa: true,
+          pulseReachable: false,
+        ) ==
+        CaptureBackend.alsa,
+    'si Pulse no responde y hay ALSA, se cae a ALSA',
+  );
+  check(
+    FfmpegLocator.chooseLinuxBackend(
+          hasPulse: false,
+          hasAlsa: true,
+          pulseReachable: null,
+        ) ==
+        CaptureBackend.alsa,
+    'si la build de FFmpeg no trae pulse, se usa ALSA',
+  );
+  check(
+    FfmpegLocator.chooseLinuxBackend(
+          hasPulse: true,
+          hasAlsa: false,
+          pulseReachable: null,
+        ) ==
+        CaptureBackend.pulse,
+    'si solo hay pulse compilado, se usa Pulse',
   );
 
   section('Mensajes de error entendibles');
@@ -492,13 +1035,173 @@ Future<void> _captura() async {
     'microfono ocupado por Zoom/OBS se explica',
   );
   check(
-    explainFfmpegError('Could not find audio only device')
-        .contains('No se encontro el dispositivo'),
+    explainFfmpegError(
+      'Could not find audio only device',
+    ).contains('No se encontro el dispositivo'),
     'dispositivo inexistente se explica',
   );
   check(
     explainFfmpegError('Unknown encoder libmp3lame').contains('libmp3lame'),
     'FFmpeg sin MP3 se explica',
+  );
+  check(
+    explainFfmpegError(
+      "Unknown input format: 'pulse'",
+      backend: CaptureBackend.pulse,
+    ).contains('no incluye soporte'),
+    'una build de FFmpeg sin Pulse se explica',
+  );
+  check(
+    explainFfmpegError(
+      "Unknown input format: 'alsa'",
+      backend: CaptureBackend.alsa,
+    ).contains('no incluye soporte'),
+    'una build de FFmpeg sin ALSA se explica',
+  );
+  check(
+    explainFfmpegError(
+      'PulseAudio server connection failure: Connection refused',
+      backend: CaptureBackend.pulse,
+    ).contains('No se pudo conectar'),
+    'el servidor Pulse caido se explica',
+  );
+  check(
+    explainFfmpegError(
+      'Failed to open pulse device "no-existe": No such source',
+      backend: CaptureBackend.pulse,
+    ).contains('No se encontro la fuente'),
+    'la fuente de Pulse inexistente se explica',
+  );
+  check(
+    explainFfmpegError(
+      'cannot open audio device plughw:0,0 (Device or resource busy)',
+      backend: CaptureBackend.alsa,
+    ).contains('Otro programa'),
+    'el dispositivo ALSA ocupado se explica',
+  );
+  check(
+    explainFfmpegError(
+      'ALSA lib pcm.c: Cannot open shared library libasound_module_pcm_pipewire.so',
+      backend: CaptureBackend.alsa,
+    ).contains('alsa-plugins'),
+    'la falta del plugin de ALSA se explica',
+  );
+  check(
+    explainFfmpegError(
+      'cannot open audio device hw:99,0 (No such device)',
+      backend: CaptureBackend.alsa,
+    ).contains('No se encontro el dispositivo'),
+    'el dispositivo ALSA inexistente se explica',
+  );
+
+  section('Enumeracion de dispositivos en Linux (parseo)');
+  // Salida real de `pactl list sources` con LANG=C en PipeWire.
+  const pactlSample = """
+Source #37
+	State: RUNNING
+	Name: VBAN-In
+	Description: luisnobregon-HP-Stream
+	Monitor of Sink: n/a
+	Properties:
+		media.class = "Audio/Source"
+
+Source #56
+	State: SUSPENDED
+	Name: alsa_output.pci-0000_00_1b.0.analog-stereo.monitor
+	Description: Monitor of Built-in Audio
+	Monitor of Sink: alsa_output.pci-0000_00_1b.0.analog-stereo
+	Properties:
+		media.class = "Audio/Sink"
+
+Source #57
+	State: SUSPENDED
+	Name: alsa_input.pci-0000_00_1b.0.analog-stereo
+	Description: Built-in Audio
+	Monitor of Sink: n/a
+""";
+  final pulseDevices = FfmpegLocator.parsePulseSources(pactlSample);
+  check(
+    pulseDevices.length == 3,
+    'se leen las tres fuentes de Pulse',
+    detail: '${pulseDevices.length}',
+  );
+  check(
+    pulseDevices.any((d) => d.id == 'VBAN-In' && !d.isMonitor),
+    'se conserva el nombre real de la fuente',
+  );
+  check(
+    pulseDevices.any(
+      (d) =>
+          d.id == 'alsa_output.pci-0000_00_1b.0.analog-stereo.monitor' &&
+          d.isMonitor,
+    ),
+    'el monitor del altavoz se marca como monitor',
+  );
+  check(
+    pulseDevices.any(
+      (d) => d.isMonitor && d.name.contains('Monitor de Built-in Audio'),
+    ),
+    'la descripcion del monitor se muestra en espanol',
+  );
+  check(
+    pulseDevices.any(
+      (d) =>
+          d.id == 'alsa_input.pci-0000_00_1b.0.analog-stereo' &&
+          d.name.contains('Built-in Audio'),
+    ),
+    'la descripcion legible acompana al nombre tecnico',
+  );
+
+  const arecordSample = """
+**** List of CAPTURE Hardware Devices ****
+card 0: PCH [HDA Intel PCH], device 0: ALC3227 Analog [ALC3227 Analog]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: USB [USB Audio], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+""";
+  final alsaCards = FfmpegLocator.parseAlsaCards(arecordSample);
+  check(
+    alsaCards.length == 2,
+    'se leen las tarjetas de arecord -l',
+    detail: '${alsaCards.length}',
+  );
+  check(
+    alsaCards.first.id == 'plughw:0,0' && alsaCards.first.name.contains('PCH'),
+    'la tarjeta se traduce al PCM que entiende FFmpeg',
+  );
+
+  const arecordPcmSample = """
+null
+    Discard all samples (playback) or generate zero samples (capture)
+pipewire
+    PipeWire Sound Server
+default
+    Default ALSA Output (currently PipeWire Media Server)
+hw:CARD=PCH,DEV=0
+    HDA Intel PCH, ALC3227 Analog
+    Hardware device with all software conversions
+""";
+  final alsaPcms = FfmpegLocator.parseAlsaPcms(arecordPcmSample);
+  check(
+    alsaPcms.any((d) => d.id == 'pipewire'),
+    'los PCM virtuales de ALSA tambien se ofrecen',
+  );
+  check(
+    alsaPcms.any(
+      (d) => d.id == 'hw:CARD=PCH,DEV=0' && d.name.contains('HDA Intel PCH'),
+    ),
+    'el PCM de hardware lleva su descripcion',
+  );
+  check(
+    !alsaPcms.any((d) => d.id == 'null' || d.id == 'default'),
+    'se descartan null y default (default ya esta en la lista)',
+  );
+
+  check(
+    looksLikeMissingDevice('Failed to open pulse device "mic": No such source'),
+    'una fuente de Pulse desaparecida se reconoce como dispositivo ausente',
   );
 
   // --------------------------------------------------------- stderr mixto
@@ -512,7 +1215,9 @@ Future<void> _captura() async {
     'un mensaje de FFmpeg se reconoce como texto',
   );
   check(
-    looksLikeText(utf8.encode('[dshow @ 0000] Could not find audio only device')),
+    looksLikeText(
+      utf8.encode('[dshow @ 0000] Could not find audio only device'),
+    ),
     'una linea de log de FFmpeg se reconoce como texto',
   );
   check(
@@ -528,10 +1233,7 @@ Future<void> _captura() async {
     }
     check(!looksLikeText(pcm), 'una onda PCM real no se confunde con texto');
   }
-  check(
-    !looksLikeText(Uint8List(0)),
-    'un bloque vacio no se considera texto',
-  );
+  check(!looksLikeText(Uint8List(0)), 'un bloque vacio no se considera texto');
   check(
     looksLikeText(utf8.encode('error: acceso denegado\n')),
     'un mensaje con acentos y salto de linea se reconoce',
@@ -544,17 +1246,22 @@ Future<void> _captura() async {
   {
     // FFmpeg escribe el motivo como un bloque de texto propio (no mezclado con
     // PCM: cuando falla al abrir el dispositivo, todavia no hay audio).
-    final errorBlock = Uint8List.fromList(utf8.encode(
-      '[dshow @ 0000] Could not find audio only device with name [Mic]\n',
-    ));
+    final errorBlock = Uint8List.fromList(
+      utf8.encode(
+        '[dshow @ 0000] Could not find audio only device with name [Mic]\n',
+      ),
+    );
     final lines = collectFfmpegLines(errorBlock);
     check(
-      lines.length == 1 && lines.first.contains('Could not find audio only device'),
+      lines.length == 1 &&
+          lines.first.contains('Could not find audio only device'),
       'las lineas de FFmpeg se extraen del bloque',
       detail: lines.length == 1 ? lines.first : '${lines.length} lineas',
     );
     check(
-      explainFfmpegError(lines.join('\n')).contains('No se encontro el dispositivo'),
+      explainFfmpegError(
+        lines.join('\n'),
+      ).contains('No se encontro el dispositivo'),
       'con esas lineas se produce el mensaje final que ve el DJ',
     );
   }
@@ -616,13 +1323,16 @@ Future<void> _captura() async {
   // que el motor obtiene al relanzar FFmpeg pidiendo un instante de audio.
   const realDeviceErrors = <String, String>{
     '[dshow @ 0000] Could not find audio only device with name [Mic] among '
-        'source devices.': 'No se encontro el dispositivo',
+            'source devices.':
+        'No se encontro el dispositivo',
     "dshow: Could not open audio device\nAccess is denied.": 'Otro programa',
     'Unknown encoder libmp3lame': 'libmp3lame',
   };
 
   for (final entry in realDeviceErrors.entries) {
-    final lines = collectFfmpegLines(Uint8List.fromList(utf8.encode(entry.key)));
+    final lines = collectFfmpegLines(
+      Uint8List.fromList(utf8.encode(entry.key)),
+    );
     final hint = explainFfmpegError(lines.join('\n'));
     check(
       hint.contains(entry.value),
@@ -639,29 +1349,54 @@ Future<void> _captura() async {
 }
 
 Future<void> _cifrado() async {
-  section('Cifrado de credenciales (DPAPI)');
+  section('Almacen de credenciales');
   final store = createSecretStore();
-  check(store.isSecure, 'el cifrado del sistema esta disponible en Windows');
 
   const secreto = 'miClaveSuperSecreta!123';
   final protected = store.protect(secreto);
-  check(protected.ok, 'la contrasena se puede cifrar');
-  if (protected.ok) {
-    final blob = protected.data!;
-    final asText = latin1.decode(blob, allowInvalid: true);
-    check(
-      !asText.contains('miClaveSuperSecreta'),
-      'el blob cifrado NO contiene la contrasena en claro',
-    );
-    check(blob.length > 0, 'el blob tiene contenido', detail: '${blob.length} bytes');
 
-    final back = store.unprotect(blob);
-    check(back.ok, 'el blob cifrado se puede descifrar');
-    if (back.ok) {
+  if (Platform.isWindows) {
+    check(store.isSecure, 'DPAPI esta disponible en Windows');
+    check(protected.ok, 'la contrasena se puede cifrar');
+    if (protected.ok) {
+      final blob = protected.data!;
+      final asText = latin1.decode(blob, allowInvalid: true);
       check(
-        utf8.decode(back.data!) == secreto,
-        'el descifrado devuelve la contrasena original',
+        !asText.contains('miClaveSuperSecreta'),
+        'el blob cifrado NO contiene la contrasena en claro',
       );
+      check(
+        blob.length > 0,
+        'el blob tiene contenido',
+        detail: '${blob.length} bytes',
+      );
+
+      final back = store.unprotect(blob);
+      check(back.ok, 'el blob cifrado se puede descifrar');
+      if (back.ok) {
+        check(
+          utf8.decode(back.data!) == secreto,
+          'el descifrado devuelve la contrasena original',
+        );
+      }
+    }
+  } else {
+    // En Linux/macOS no hay DPAPI. El backend debe ser honesto y no fingir
+    // cifrado; la proteccion real son los permisos 0600 del archivo.
+    check(
+      !store.isSecure,
+      'en ${Platform.operatingSystem} el backend avisa que no hay cifrado',
+    );
+    check(protected.ok, 'la contrasena se puede guardar igual');
+    if (protected.ok) {
+      final back = store.unprotect(protected.data!);
+      check(back.ok, 'el secreto guardado se puede recuperar');
+      if (back.ok) {
+        check(
+          utf8.decode(back.data!) == secreto,
+          'el secreto recuperado coincide',
+        );
+      }
     }
   }
 
@@ -688,6 +1423,10 @@ Future<void> _persistencia() async {
       password: 'ClaveDelDJ2026',
       stationName: 'Radio Prueba FM',
       publicUrl: 'https://ejemplo.fm/miradio',
+      useTls: true,
+      allowBadCertificate: true,
+      inputDeviceId: 'Microfono de la radio',
+      autoReconnect: false,
     );
 
     await store.save(profile);
@@ -712,25 +1451,76 @@ Future<void> _persistencia() async {
     if (secretFile.existsSync()) {
       final blob = await secretFile.readAsBytes();
       final text = latin1.decode(blob, allowInvalid: true);
-      check(
-        !text.contains('ClaveDelDJ2026'),
-        'el archivo de secreto esta cifrado, no en claro',
-      );
+      if (Platform.isWindows) {
+        check(
+          !text.contains('ClaveDelDJ2026'),
+          'el archivo de secreto esta cifrado, no en claro',
+        );
+      } else {
+        check(
+          text.startsWith('xtreme-plain-v1:'),
+          'el archivo de secreto usa el formato marcado de la plataforma',
+        );
+        final mode = await Process.run('stat', ['-c', '%a', secretFile.path]);
+        check(
+          (mode.stdout as String).trim() == '600',
+          'el archivo de credenciales es privado (permisos 0600)',
+        );
+      }
     }
 
     // Al recargar debe volver la contrasena.
     final loaded = await store.load();
     check(loaded.length == 1, 'se recarga un perfil');
-    check(loaded.first.password == 'ClaveDelDJ2026',
-        'la contrasena se recupera descifrada');
-    check(loaded.first.normalizedMount == '/miradio',
-        'el mount se normaliza con barra inicial');
+    check(
+      loaded.first.password == 'ClaveDelDJ2026',
+      'la contrasena se recupera descifrada',
+    );
+    check(
+      loaded.first.normalizedMount == '/miradio',
+      'el mount se normaliza con barra inicial',
+    );
+    check(
+      loaded.first.allowBadCertificate,
+      'se recuerda aceptar el certificado autofirmado de esta emisora',
+    );
+    check(
+      loaded.first.inputDeviceId == 'Microfono de la radio',
+      'se recuerda el microfono asignado a la emisora',
+    );
+    check(
+      !loaded.first.autoReconnect,
+      'se recuerda si la reconexion automatica esta desactivada',
+    );
 
     // Exportar sin contrasena no debe filtrarla.
     final exported = store.exportProfile(loaded.first);
     check(
       !exported.contains('ClaveDelDJ2026'),
       'exportar un perfil NO incluye la contrasena',
+    );
+
+    // Tampoco puede filtrarla cuando se pide incluirla: al compartir el texto
+    // por chat o correo, una clave en claro quedaria a la vista de todos.
+    final exportedWithPassword = store.exportProfile(
+      loaded.first,
+      includePassword: true,
+    );
+    check(
+      !exportedWithPassword.contains('ClaveDelDJ2026'),
+      'exportar con includePassword tampoco escribe la clave en claro',
+    );
+
+    // La importacion debe aceptar ese mismo texto sin contrasena.
+    final reimportado = await store.importProfile(exported);
+    check(
+      reimportado.host == loaded.first.host &&
+          reimportado.mount == loaded.first.mount,
+      'la importacion recupera host y mount',
+    );
+    check(
+      reimportado.password.isEmpty,
+      'la importacion no inventa la contrasena',
     );
 
     // Borrado.
@@ -758,12 +1548,25 @@ Future<void> _persistencia() async {
       'el dispositivo elegido se recuerda al reabrir la app',
     );
     check(
-      reloaded.recordLocally && reloaded.recordDirectory == settings.recordDirectory,
+      reloaded.recordLocally &&
+          reloaded.recordDirectory == settings.recordDirectory,
       'la configuracion de grabacion se conserva',
     );
     check(
       reloaded.lastProfileId == 'abc',
       'se recuerda cual era la emisora activa',
+    );
+
+    // ------------------------------------- datos corruptos no bloquean la app
+    await store.profilesFile.writeAsString('{ esto no es JSON');
+    final trasCorrupto = await store.load();
+    check(
+      trasCorrupto.isEmpty,
+      'un profiles.json corrupto se ignora en vez de lanzar',
+    );
+    check(
+      File('${store.profilesFile.path}.corrupt').existsSync(),
+      'el archivo corrupto se conserva aparte para poder recuperarlo',
     );
   } finally {
     await temp.delete(recursive: true);
@@ -798,6 +1601,24 @@ Future<void> _perfil() async {
   );
   check(ok.validate().isEmpty, 'un perfil completo pasa la validacion');
 
+  // Importar un perfil exportado (que nunca incluye la contrasena) no debe
+  // fallar por falta de clave: se guarda y se le pide al DJ que la escriba.
+  final importado = ServerProfile(
+    id: 'z',
+    name: 'Radio importada',
+    host: 'h',
+    port: 8000,
+    username: 'source',
+  );
+  check(
+    importado.validate(requirePassword: false).isEmpty,
+    'un perfil importado sin contrasena se puede guardar',
+  );
+  check(
+    importado.validate().any((p) => p.contains('contrasena')),
+    'pero no se puede salir al aire sin escribirla',
+  );
+
   // ------------------------------------------------------------- ganancia
   section('Ganancia de entrada');
 
@@ -812,10 +1633,7 @@ Future<void> _perfil() async {
   check(conGanancia.gainDb == 0.0, 'una emisora nueva arranca sin ganancia');
 
   conGanancia.gainDb = 6.5;
-  check(
-    conGanancia.validate().isEmpty,
-    '+6.5 dB es un valor aceptable',
-  );
+  check(conGanancia.validate().isEmpty, '+6.5 dB es un valor aceptable');
 
   conGanancia.gainDb = 30.0;
   check(
@@ -893,7 +1711,9 @@ Future<void> _perfil() async {
 
   // El motor debe consultar el perfil, no una constante: es el fallo que tenia
   // esta funcion (el ajuste existia en la interfaz pero el motor lo ignoraba).
-  final engineSrc = File('lib/core/audio/broadcast_engine.dart').readAsStringSync();
+  final engineSrc = File(
+    'lib/core/audio/broadcast_engine.dart',
+  ).readAsStringSync();
   check(
     engineSrc.contains('profile.autoReconnect'),
     'el motor consulta el ajuste del perfil antes de reconectar',
@@ -941,8 +1761,11 @@ Future<void> _perfil() async {
       danados.add('$name -> ${repairDeviceName(name)}');
     }
   }
-  check(danados.isEmpty, 'un nombre ya correcto no se modifica',
-      detail: danados.join(' | '));
+  check(
+    danados.isEmpty,
+    'un nombre ya correcto no se modifica',
+    detail: danados.join(' | '),
+  );
 
   // El comando de captura debe llevar el nombre reparado, con sus acentos en
   // UTF-8, que es lo que espera FFmpeg.
@@ -952,6 +1775,7 @@ Future<void> _perfil() async {
       bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
+      backend: CaptureBackend.dshow,
     );
     final cmd = args.build('ffmpeg.exe');
     final idx = cmd.indexOf('-i');
@@ -1018,8 +1842,11 @@ Future<void> _perfil() async {
         failures.add('$p -> $e');
       }
     }
-    check(failures.isEmpty, 'las expresiones regulares del nucleo son validas',
-        detail: failures.join(' | '));
+    check(
+      failures.isEmpty,
+      'las expresiones regulares del nucleo son validas',
+      detail: failures.join(' | '),
+    );
   }
 
   // El filtro de secretos es lo que garantiza que el registro no guarde
@@ -1040,7 +1867,10 @@ Future<void> _perfil() async {
         fallos.add('"$caso" -> "$limpio"');
       }
     }
-    check(fallos.isEmpty, 'el filtro de secretos oculta toda contrasena',
-        detail: fallos.join(' | '));
+    check(
+      fallos.isEmpty,
+      'el filtro de secretos oculta toda contrasena',
+      detail: fallos.join(' | '),
+    );
   }
 }

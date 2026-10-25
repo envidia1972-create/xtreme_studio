@@ -11,9 +11,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-const host = 'a10.asurahosting.com';
-const user = 'Luis';
-const pass = 'pENgt';
+// Las credenciales se leen del entorno: este archivo se versiona.
+final host = Platform.environment['ASURA_HOST'] ?? 'a10.asurahosting.com';
+final user = Platform.environment['ASURA_USER'] ?? 'source';
+final pass = Platform.environment['ASURA_PASS'] ?? '';
 
 /// Resultado de un intento.
 class Attempt {
@@ -41,7 +42,6 @@ Future<String> tryIcecast(int port) async {
       'User-Agent: XtremeStudio/0.1\r\n'
       'Content-Type: audio/mpeg\r\n'
       'Expect: 100-continue\r\n'
-      'icy-metaint: 8192\r\n'
       'ice-name: Prueba Xtreme Studio\r\n'
       'Connection: close\r\n\r\n',
     );
@@ -155,7 +155,6 @@ Future<String> tryShoutcastV2(int port) async {
       'icy-br:128\r\n'
       'icy-pub:0\r\n'
       'content-type:audio/mpeg\r\n'
-      'icy-metaint:8192\r\n'
       'sid:1\r\n\r\n',
     );
     await socket.flush();

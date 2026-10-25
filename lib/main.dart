@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/audio/broadcast_engine.dart';
+import 'core/audio/input_monitor.dart';
 import 'core/audio/ffmpeg_capture.dart';
 import 'core/diagnostic_log.dart';
 import 'core/net/stream_health.dart';
@@ -54,6 +55,14 @@ class _StudioHomeState extends State<StudioHome> {
   StreamSubscription<BroadcastSnapshot>? _snapshotSub;
   StreamSubscription<LogEntry>? _logSub;
 
+  /// Captura liviana que mantiene el vumetro activo fuera del aire.
+  InputMonitor? _inputMonitor;
+  StreamSubscription<InputLevels>? _monitorLevelsSub;
+  StreamSubscription<String>? _monitorErrorsSub;
+  double _monitorPeakDb = -60;
+  double _monitorHoldDb = -60;
+  double _monitorRmsDb = -60;
+
   /// Monitor de senal: comprueba, como lo haria un oyente, que el servidor
   /// este sirviendo el mount. Cubre el caso en que nuestra conexion sigue viva
   /// pero nadie puede escuchar.
@@ -72,7 +81,13 @@ class _StudioHomeState extends State<StudioHome> {
   );
   final List<LogEntry> _log = [];
 
+  /// Ultimo titulo escrito por el DJ. Se conserva aunque todavia no este al
+  /// aire, para enviarlo al servidor en cuanto la conexion se establece.
+  String _pendingTrack = '';
+
   List<InputDevice> _devices = [];
+  CaptureBackend? _captureBackend;
+  Set<AudioCodec> _availableCodecs = const {AudioCodec.mp3};
   String _ffmpegPath = '';
   bool _loading = true;
   int _tabIndex = 0;
@@ -93,6 +108,9 @@ class _StudioHomeState extends State<StudioHome> {
     final settings = await _store.loadSettings();
     final profiles = await _store.load();
     final ffmpeg = await ProfileStore.findFfmpeg(settings.ffmpegPath);
+    final codecs = ffmpeg.isEmpty
+        ? const {AudioCodec.mp3}
+        : await FfmpegLocator(ffmpeg).availableCodecs();
 
     DiagnosticLog.instance?.write(
       'app',
@@ -117,6 +135,7 @@ class _StudioHomeState extends State<StudioHome> {
       _profiles = profiles;
       _activeProfile = active;
       _ffmpegPath = ffmpeg;
+      _availableCodecs = codecs;
       _loading = false;
     });
 
@@ -159,18 +178,141 @@ class _StudioHomeState extends State<StudioHome> {
   Future<void> refreshDevices() async {
     if (_ffmpegPath.isEmpty) return;
     final locator = FfmpegLocator(_ffmpegPath);
-    final devices = await locator.listAudioDevices();
+    // El capturador se decide con la build real de FFmpeg y con el servidor de
+    // audio que este corriendo (PulseAudio/PipeWire o ALSA). No se asume por
+    // sistema operativo.
+    final backend = await locator.resolveBackend();
+    final devices = await locator.listAudioDevices(backend: backend);
     DiagnosticLog.instance?.write(
       'audio',
-      'dispositivos detectados: ${devices.length}'
+      'capturador=${backend.label}; dispositivos detectados: ${devices.length}'
           '${devices.isEmpty ? "" : " -> ${devices.map((d) => d.name).join(" | ")}"}',
     );
 
     if (!mounted) return;
-    setState(() => _devices = devices);
+    setState(() {
+      _devices = devices;
+      _captureBackend = backend;
+    });
 
     // Se limpia el dispositivo guardado si no esta entre los reales.
     await _clearStaleDeviceSelection();
+    await _startInputMonitor(force: true);
+  }
+
+  /// Dispositivo que se usara para monitorear o salir al aire.
+  ///
+  /// Orden: microfono del perfil, dispositivo de Ajustes y, por ultimo, el
+  /// primero que reporte el sistema.
+  String _chosenDeviceId() {
+    final profile = _activeProfile;
+    final saved = profile?.inputDeviceId.isNotEmpty == true
+        ? profile!.inputDeviceId
+        : _settings.lastDeviceId;
+    final id = saved.isNotEmpty
+        ? saved
+        : (_devices.isNotEmpty ? _devices.first.id : '');
+    return repairDeviceName(id);
+  }
+
+  /// Arranca (o reinicia) el monitor de entrada fuera del aire.
+  Future<void> _startInputMonitor({bool force = false}) async {
+    if (_ffmpegPath.isEmpty) return;
+    if (_snapshot.state == BroadcastState.live ||
+        _snapshot.state == BroadcastState.starting ||
+        _snapshot.state == BroadcastState.reconnecting) {
+      return;
+    }
+
+    final backend =
+        _captureBackend ?? await FfmpegLocator(_ffmpegPath).resolveBackend();
+    if (!mounted) return;
+
+    final device = _chosenDeviceId();
+    final current = _inputMonitor;
+    if (!force &&
+        current != null &&
+        current.isRunning &&
+        current.deviceName == device &&
+        current.backend == backend) {
+      return;
+    }
+
+    await _stopInputMonitor(dispose: true);
+    if (!mounted) return;
+
+    final monitor = InputMonitor(
+      ffmpegPath: _ffmpegPath,
+      deviceName: device,
+      backend: backend,
+      // El monitor captura sin ganancia; la ganancia del perfil se aplica en
+      // la lectura que se muestra. Asi mover el control no reinicia el
+      // dispositivo ni deja el vumetro congelado.
+      gainDb: 0,
+    );
+    _inputMonitor = monitor;
+    _monitorLevelsSub = monitor.levels.listen((levels) {
+      if (!mounted) return;
+      setState(() {
+        _monitorPeakDb = levels.peakDb;
+        _monitorHoldDb = levels.peakHoldDb;
+        _monitorRmsDb = levels.rmsDb;
+      });
+    });
+    _monitorErrorsSub = monitor.errors.listen((message) {
+      if (!mounted) return;
+      DiagnosticLog.instance?.write('audio', 'monitor: $message');
+      _logSignal(message, 'warn');
+    });
+
+    final ok = await monitor.start();
+    if (!ok && mounted) {
+      final message = monitor.lastError ?? 'No se pudo monitorear la entrada';
+      DiagnosticLog.instance?.write('audio', message);
+      _logSignal(message, 'warn');
+    }
+  }
+
+  Future<void> _stopInputMonitor({bool dispose = false}) async {
+    await _monitorLevelsSub?.cancel();
+    _monitorLevelsSub = null;
+    await _monitorErrorsSub?.cancel();
+    _monitorErrorsSub = null;
+    final monitor = _inputMonitor;
+    _inputMonitor = null;
+    if (monitor != null) {
+      if (dispose) {
+        await monitor.dispose();
+      } else {
+        await monitor.stop();
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _monitorPeakDb = -60;
+        _monitorHoldDb = -60;
+        _monitorRmsDb = -60;
+      });
+    }
+  }
+
+  /// Instantanea que ve la interfaz: fuera del aire usa el monitor de entrada.
+  BroadcastSnapshot get _viewSnapshot {
+    if (_snapshot.state == BroadcastState.idle ||
+        _snapshot.state == BroadcastState.stopped) {
+      final gain = _activeProfile?.gainDb ?? 0.0;
+      double shown(double db) {
+        if (db <= -60) return -60;
+        return (db + gain).clamp(-60.0, 0.0);
+      }
+
+      return _snapshot.copyWith(
+        peakDb: shown(_monitorPeakDb),
+        rmsDb: shown(_monitorRmsDb),
+        peakHoldDb: shown(_monitorHoldDb),
+      );
+    }
+    return _snapshot;
   }
 
   /// Borra el dispositivo guardado si ya no existe en el sistema.
@@ -188,19 +330,27 @@ class _StudioHomeState extends State<StudioHome> {
     await _store.saveSettings(_settings);
   }
 
-  /// Guarda la lista de perfiles y sincroniza el perfil activo.
+  /// Persiste la seleccion de emisora y los ajustes.
+  ///
+  /// No se vuelven a guardar todos los perfiles: `ProfilesScreen` ya guarda el
+  /// que cambio. Reescribirlos todos obligaba a descifrar y volver a cifrar cada
+  /// contrasena en cada cambio, y si alguna no se podia descifrar se borraba su
+  /// archivo de secreto.
   Future<void> _saveProfiles() async {
-    for (final p in _profiles) {
-      await _store.save(p);
-    }
     await _store.saveSettings(_settings);
   }
 
   Future<void> _saveSettings() async {
     await _store.saveSettings(_settings);
     final ffmpeg = await ProfileStore.findFfmpeg(_settings.ffmpegPath);
+    final codecs = ffmpeg.isEmpty
+        ? const {AudioCodec.mp3}
+        : await FfmpegLocator(ffmpeg).availableCodecs();
     if (!mounted) return;
-    setState(() => _ffmpegPath = ffmpeg);
+    setState(() {
+      _ffmpegPath = ffmpeg;
+      _availableCodecs = codecs;
+    });
     await refreshDevices();
   }
 
@@ -222,24 +372,52 @@ class _StudioHomeState extends State<StudioHome> {
       );
       return;
     }
+    if (!_availableCodecs.contains(profile.audio.codec)) {
+      _showMessage(
+        'El FFmpeg instalado no puede codificar ${profile.audio.codec.label}. '
+        'Elegi otro codec en la emisora o instala una build con '
+        '${profile.audio.codec.encoder}.',
+        isError: true,
+      );
+      return;
+    }
 
     // Cada intento de salir al aire puede volver a necesitar el aviso por falta
     // de dispositivo: si no se reinicia, solo se mostraria la primera vez.
     _deviceRecoveryShown = false;
 
+    // Se suelta el monitor antes de abrir la captura de emision: en ALSA el
+    // dispositivo es exclusivo y dos procesos no pueden abrirlo a la vez.
+    await _stopInputMonitor(dispose: true);
+
+    // Un intento anterior fallido pudo dejar el motor con sus canales abiertos.
+    // Se libera antes de crear uno nuevo para no acumular escuchas ni sockets.
+    final previous = _engine;
+    if (previous != null &&
+        (previous.snapshot.state == BroadcastState.live ||
+            previous.snapshot.state == BroadcastState.starting ||
+            previous.snapshot.state == BroadcastState.reconnecting)) {
+      return; // Ya hay una emision en curso.
+    }
+    await _disposeEngine();
+
     // El dispositivo elegido puede haber desaparecido (microfono desconectado,
     // cascos cambiados). Si se pasa un nombre que ya no existe, FFmpeg falla y
     // el DJ veria "no captura audio" sin saber por que: mejor decirlo claro.
-    final chosen = _settings.lastDeviceId.isNotEmpty
-        ? _settings.lastDeviceId
-        : (profile.inputDeviceId.isNotEmpty
-            ? profile.inputDeviceId
-            : (_devices.isNotEmpty ? _devices.first.id : ''));
+    // Orden de preferencia: el microfono asignado a esta emisora, luego el
+    // elegido en Ajustes y, por ultimo, el primero disponible. Asi una radio
+    // concreta puede usar su propio equipo sin cambiar el ajuste global.
+    final chosen = profile.inputDeviceId.isNotEmpty
+        ? profile.inputDeviceId
+        : (_settings.lastDeviceId.isNotEmpty
+              ? _settings.lastDeviceId
+              : (_devices.isNotEmpty ? _devices.first.id : ''));
 
     if (_devices.isNotEmpty && chosen.isNotEmpty) {
       // Se repara por si quedo un nombre mal codificado de una version anterior.
       final fixed = repairDeviceName(chosen);
-      final stillThere = _devices.any((d) => d.id == chosen) ||
+      final stillThere =
+          _devices.any((d) => d.id == chosen) ||
           _devices.any((d) => d.id == fixed);
       if (!stillThere) {
         _showMessage(
@@ -257,6 +435,10 @@ class _StudioHomeState extends State<StudioHome> {
       // La ganancia viene del perfil: cada emisora puede usar otro microfono.
       gainDb: profile.gainDb,
       deviceName: repairDeviceName(chosen),
+      captureBackend: _captureBackend,
+      // La grabacion es un ajuste global de la app (Ajustes), no del perfil.
+      recordLocally: _settings.recordLocally,
+      recordDirectory: _settings.recordDirectory,
     );
 
     await _snapshotSub?.cancel();
@@ -279,40 +461,55 @@ class _StudioHomeState extends State<StudioHome> {
     setState(() => _engine = engine);
 
     final ok = await engine.goLive();
-    if (!ok && mounted) {
-      final error = engine.snapshot.lastError;
-
-      // El mount ya tiene otro DJ. Antes de desplazarlo se pregunta: en una
-      // emisora donde varios locutores comparten clave, entrar sin avisar deja
-      // al otro fuera del aire sin enterarse.
-      if (BroadcastEngine.isMountOccupiedError(engine.lastConnectStatusCode)) {
-        final confirmed = await _confirmDisplaceOtherDj(profile);
-        if (confirmed) {
-          final forced = await engine.goLive(force: true);
-          if (forced && mounted) {
-            _startSignalMonitoring(profile);
-            return;
-          }
-          if (mounted) {
-            _showMessage(
-              engine.snapshot.lastError ?? 'No se pudo entrar al aire',
-              isError: true,
-            );
-          }
-          return;
-        }
-        if (mounted) await _goOffAir();
-        return;
-      }
-
-      // El motor ya dejo el motivo en el snapshot; se muestra destacado.
-      if (error != null) _showMessage(error, isError: true);
+    if (ok) {
+      // El "suena ahora" escrito antes de salir al aire se instala ahora.
+      if (_pendingTrack.isNotEmpty) await engine.setTrack(_pendingTrack);
+      if (!mounted) return;
+      _startSignalMonitoring(profile);
       return;
     }
 
-    // Al entrar al aire se comprueba la senal desde el lado del oyente: que
-    // nuestro socket funcione no garantiza que el mount se este sirviendo.
-    _startSignalMonitoring(profile);
+    // El mount ya tiene otro DJ. Antes de desplazarlo se pregunta: en una
+    // emisora donde varios locutores comparten clave, entrar sin avisar deja
+    // al otro fuera del aire sin enterarse.
+    if (mounted &&
+        BroadcastEngine.isMountOccupiedError(engine.lastConnectStatusCode)) {
+      final confirmed = await _confirmDisplaceOtherDj(profile);
+      if (confirmed) {
+        final forced = await engine.goLive(force: true);
+        if (forced) {
+          if (_pendingTrack.isNotEmpty) await engine.setTrack(_pendingTrack);
+          if (mounted) _startSignalMonitoring(profile);
+          return;
+        }
+        if (mounted) {
+          _showMessage(
+            engine.snapshot.lastError ?? 'No se pudo entrar al aire',
+            isError: true,
+          );
+        }
+      }
+    } else if (mounted) {
+      // El motor ya dejo el motivo en el snapshot; se muestra destacado.
+      final error = engine.snapshot.lastError;
+      if (error != null) _showMessage(error, isError: true);
+    }
+
+    // Intento terminado sin emision: se libera el motor y su captura, y se
+    // devuelve el vumetro al monitor de entrada.
+    await _disposeEngine();
+    await _startInputMonitor(force: true);
+  }
+
+  /// Cancela las escuchas y libera el motor actual.
+  Future<void> _disposeEngine() async {
+    final engine = _engine;
+    _engine = null;
+    await _snapshotSub?.cancel();
+    _snapshotSub = null;
+    await _logSub?.cancel();
+    _logSub = null;
+    await engine?.dispose();
   }
 
   /// Pregunta si se debe desplazar al DJ que ya ocupa el mount.
@@ -432,15 +629,12 @@ class _StudioHomeState extends State<StudioHome> {
     if (engine == null) return;
     _stopSignalMonitoring();
     await engine.goOffAir();
-    await _snapshotSub?.cancel();
-    await _logSub?.cancel();
-    _snapshotSub = null;
-    _logSub = null;
+    // `goOffAir` deja el motor sin captura ni socket, pero sus canales siguen
+    // abiertos: hay que cerrarlos para no dejar recursos vivos tras cada salida.
+    await _disposeEngine();
     if (!mounted) return;
-    setState(() {
-      _engine = null;
-      _signalCheck = null;
-    });
+    setState(() => _signalCheck = null);
+    await _startInputMonitor(force: true);
   }
 
   /// Reacciona cuando la captura se detiene por falta de dispositivo.
@@ -490,6 +684,23 @@ class _StudioHomeState extends State<StudioHome> {
     }
   }
 
+  /// Recuerda el "suena ahora" y lo envia si ya estamos al aire.
+  Future<void> _setTrack(String track) async {
+    _pendingTrack = track;
+    final engine = _engine;
+    if (engine == null) {
+      _showMessage('El titulo se enviara al salir al aire');
+      return;
+    }
+    final ok = await engine.setTrack(track);
+    if (!mounted) return;
+    if (ok) {
+      _showMessage('Suena ahora actualizado');
+    } else {
+      _showMessage('El servidor no acepto el cambio de titulo', isError: true);
+    }
+  }
+
   /// Ajusta la ganancia de entrada y la guarda en el perfil activo.
   ///
   /// Si se esta al aire, el motor reinicia la captura para aplicar el filtro:
@@ -510,8 +721,10 @@ class _StudioHomeState extends State<StudioHome> {
     if (engine != null && engine.isCapturing) {
       await engine.setGain(db);
       if (!mounted) return;
-      _showMessage('Ganancia ajustada a ${db >= 0 ? '+' : ''}'
-          '${db.toStringAsFixed(1)} dB');
+      _showMessage(
+        'Ganancia ajustada a ${db >= 0 ? '+' : ''}'
+        '${db.toStringAsFixed(1)} dB',
+      );
     }
   }
 
@@ -532,18 +745,20 @@ class _StudioHomeState extends State<StudioHome> {
     _snapshotSub?.cancel();
     _logSub?.cancel();
     _engine?.dispose();
+    _monitorLevelsSub?.cancel();
+    _monitorErrorsSub?.cancel();
+    _inputMonitor?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final isLive = _snapshot.isLive ||
+    final isLive =
+        _snapshot.isLive ||
         _snapshot.state == BroadcastState.starting ||
         _snapshot.state == BroadcastState.reconnecting;
 
@@ -552,7 +767,7 @@ class _StudioHomeState extends State<StudioHome> {
         children: [
           _TopBar(
             profile: _activeProfile,
-            snapshot: _snapshot,
+            snapshot: _viewSnapshot,
             ffmpegReady: _ffmpegPath.isNotEmpty,
           ),
           Expanded(
@@ -569,14 +784,14 @@ class _StudioHomeState extends State<StudioHome> {
                     children: [
                       BroadcastScreen(
                         profile: _activeProfile,
-                        snapshot: _snapshot,
+                        snapshot: _viewSnapshot,
                         log: _log,
                         devices: _devices,
                         ffmpegReady: _ffmpegPath.isNotEmpty,
                         signalCheck: _signalCheck,
                         onGoLive: _goLive,
                         onGoOffAir: _goOffAir,
-                        onTrackChanged: (t) => _engine?.setTrack(t),
+                        onTrackChanged: _setTrack,
                         onGainChanged: _changeGain,
                         onOpenProfiles: () => setState(() => _tabIndex = 1),
                       ),
@@ -584,6 +799,8 @@ class _StudioHomeState extends State<StudioHome> {
                         profiles: _profiles,
                         activeProfile: _activeProfile,
                         store: _store,
+                        devices: _devices,
+                        availableCodecs: _availableCodecs,
                         onChanged: (profiles, active) async {
                           setState(() {
                             _profiles = profiles;
@@ -591,12 +808,14 @@ class _StudioHomeState extends State<StudioHome> {
                             _settings.lastProfileId = active?.id ?? '';
                           });
                           await _saveProfiles();
+                          await _startInputMonitor(force: true);
                         },
                         onMessage: _showMessage,
                       ),
                       SettingsScreen(
                         settings: _settings,
                         devices: _devices,
+                        captureBackend: _captureBackend,
                         ffmpegPath: _ffmpegPath,
                         onChanged: (s) async {
                           setState(() => _settings = s);
@@ -687,7 +906,9 @@ class _TopBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.warning.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: AppColors.warning.withValues(alpha: 0.4),
+                ),
               ),
               child: const Text(
                 'FFmpeg no detectado',
@@ -823,8 +1044,8 @@ class _NavItem extends StatelessWidget {
                 color: !enabled
                     ? AppColors.textMuted.withValues(alpha: 0.4)
                     : selected
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
+                    ? AppColors.accent
+                    : AppColors.textSecondary,
               ),
               const SizedBox(width: 12),
               Text(
@@ -833,8 +1054,8 @@ class _NavItem extends StatelessWidget {
                   color: !enabled
                       ? AppColors.textMuted.withValues(alpha: 0.4)
                       : selected
-                          ? AppColors.textPrimary
-                          : AppColors.textSecondary,
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   fontSize: 13.5,
                 ),

@@ -30,10 +30,25 @@ Depende de la build que se distribuya:
 
 1. Para uso interno (tu propia radio): cualquier build sirve.
 2. Para distribuir la app a terceros: usar una build **LGPL** y copiar su
-   `LICENSE` junto al ejecutable. El script `tool\build_windows.ps1` ya lo hace
-   automaticamente cuando encuentra el archivo.
+   `LICENSE` junto al ejecutable. Los scripts `tool\build_windows.ps1` y
+   `tool/build_linux.sh` ya lo hacen automaticamente cuando encuentran el
+   archivo.
 3. No es necesario publicar el codigo de Xtreme Studio: el audio se codifica con
    `libmp3lame` (MP3, sin royalties) y **no** se usa AAC ni H.264.
+
+### AAC / AAC+
+
+Xtreme Studio puede enviar **AAC-LC** con el encoder nativo de FFmpeg y
+**AAC+ (HE-AAC)** si la build incluye `libfdk_aac`.
+
+- El encoder `aac` nativo de FFmpeg es LGPL y se puede usar sin obligaciones
+  adicionales sobre la app.
+- `libfdk_aac` es la biblioteca de Fraunhofer FDK AAC. Se distribuye bajo una
+  licencia propia que **no es libre para todos los usos**; ademas, una build de
+  FFmpeg con `--enable-libfdk-aac` requiere `--enable-nonfree`. Esa build **no
+  se incluye** en `tools/`: si el usuario la aporta, la responsabilidad de su
+  licencia es del usuario. AAC+ solo aparece en la app cuando la build la
+  expone en `ffmpeg -encoders`.
 
 ### Sobre las patentes de MP3
 

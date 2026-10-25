@@ -14,6 +14,7 @@ class SettingsScreen extends StatefulWidget {
     super.key,
     required this.settings,
     required this.devices,
+    required this.captureBackend,
     required this.ffmpegPath,
     required this.onChanged,
     required this.onRefreshDevices,
@@ -22,6 +23,11 @@ class SettingsScreen extends StatefulWidget {
 
   final AppSettings settings;
   final List<InputDevice> devices;
+
+  /// Capturador que el motor va a usar. Se muestra en el comando de FFmpeg para
+  /// que el diagnostico coincida con lo que de verdad se ejecuta.
+  final CaptureBackend? captureBackend;
+
   final String ffmpegPath;
   final Future<void> Function(AppSettings settings) onChanged;
   final Future<void> Function() onRefreshDevices;
@@ -40,9 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    _ffmpegController = TextEditingController(
-      text: widget.settings.ffmpegPath,
-    );
+    _ffmpegController = TextEditingController(text: widget.settings.ffmpegPath);
     _recordDirController = TextEditingController(
       text: widget.settings.recordDirectory,
     );
@@ -77,7 +81,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     if (!available) {
-      widget.onMessage('No se encontro un ejecutable en esa ruta', isError: true);
+      widget.onMessage(
+        'No se encontro un ejecutable en esa ruta',
+        isError: true,
+      );
       return;
     }
 
@@ -93,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (found.isEmpty) {
       widget.onMessage(
         'No se encontro FFmpeg automaticamente. Descargalo y pega la ruta '
-        'completa a ffmpeg.exe.',
+        'completa a ${Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg'}.',
         isError: true,
       );
       return;
@@ -131,9 +138,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     Expanded(
                       child: TextField(
                         controller: _ffmpegController,
-                        decoration: const InputDecoration(
-                          labelText: 'Ruta a ffmpeg.exe',
-                          hintText: r'C:\ffmpeg\bin\ffmpeg.exe',
+                        decoration: InputDecoration(
+                          labelText: Platform.isWindows
+                              ? 'Ruta a ffmpeg.exe'
+                              : 'Ruta a ffmpeg',
+                          hintText: Platform.isWindows
+                              ? r'C:\ffmpeg\bin\ffmpeg.exe'
+                              : '/usr/bin/ffmpeg',
                         ),
                       ),
                     ),
@@ -161,7 +172,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (widget.ffmpegPath.isEmpty)
                   const _StatusLine(
                     ok: false,
-                    text: 'Sin FFmpeg no se puede emitir. '
+                    text:
+                        'Sin FFmpeg no se puede emitir. '
                         'Descargalo de ffmpeg.org y pega la ruta completa.',
                   )
                 else
@@ -197,11 +209,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 fontSize: 12.5,
                               ),
                             )
-                          : const Text(
-                              'Estos son los dispositivos que reporta Windows '
-                              '(incluye microfonos y capturas del sistema como '
-                              'Stereo Mix o CABLE Output):',
-                              style: TextStyle(
+                          : Text(
+                              Platform.isWindows
+                                  ? 'Estos son los dispositivos que reporta '
+                                        'Windows (incluye microfonos y capturas '
+                                        'del sistema como Stereo Mix o CABLE '
+                                        'Output):'
+                                  : 'Estos son los dispositivos que reporta '
+                                        'Linux (${widget.captureBackend?.label ?? 'audio'}). '
+                                        'Incluye microfonos y monitores del '
+                                        'sistema; el monitor captura lo que suena '
+                                        'en el equipo:',
+                              style: const TextStyle(
                                 color: AppColors.textSecondary,
                                 fontSize: 12.5,
                                 height: 1.4,
@@ -229,7 +248,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 if (widget.devices.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _CommandPreview(deviceName: _selectedDeviceId()),
+                  _CommandPreview(
+                    deviceName: _selectedDeviceId(),
+                    backend: widget.captureBackend,
+                  ),
                 ],
               ],
             ),
@@ -241,7 +263,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Grabacion local',
             subtitle:
                 'Guarda una copia de tu emision en tu equipo. Se graba '
-                'exactamente el mismo audio que reciben los oyentes.',
+                'exactamente el mismo audio que reciben los oyentes, con el '
+                'codec y el bitrate que elegiste en la emisora '
+                '(Emisoras > Calidad de audio).',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -263,9 +287,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _recordDirController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Carpeta de grabaciones',
-                      hintText: r'C:\Users\TuUsuario\Music\XtremeStudio',
+                      hintText: Platform.isWindows
+                          ? r'C:\Users\TuUsuario\Music\XtremeStudio'
+                          : '${Platform.environment['HOME'] ?? '~'}/Música/XtremeStudio',
                     ),
                     onSubmitted: (v) async {
                       settings.recordDirectory = v.trim();
@@ -277,8 +303,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       OutlinedButton(
                         onPressed: () async {
-                          settings.recordDirectory =
-                              _recordDirController.text.trim();
+                          settings.recordDirectory = _recordDirController.text
+                              .trim();
                           await widget.onChanged(settings);
                           widget.onMessage('Carpeta guardada');
                         },
@@ -293,8 +319,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 : 'La carpeta no existe: se creara al emitir',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Directory(settings.recordDirectory)
-                                      .existsSync()
+                              color:
+                                  Directory(
+                                    settings.recordDirectory,
+                                  ).existsSync()
                                   ? AppColors.live
                                   : AppColors.warning,
                             ),
@@ -328,8 +356,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       return;
                     }
-                    // Se abre el Explorador con el archivo seleccionado.
-                    await Process.run('explorer.exe', ['/select,', path]);
+                    // Se abre el gestor de archivos con el registro a la vista.
+                    // En Windows conviene seleccionar el archivo; en Linux y
+                    // macOS basta con abrir la carpeta que lo contiene.
+                    try {
+                      if (Platform.isWindows) {
+                        await Process.run('explorer.exe', ['/select,', path]);
+                      } else if (Platform.isMacOS) {
+                        await Process.run('open', ['-R', path]);
+                      } else {
+                        await Process.run('xdg-open', [File(path).parent.path]);
+                      }
+                    } catch (e) {
+                      widget.onMessage(
+                        'No se pudo abrir el registro: $e',
+                        isError: true,
+                      );
+                    }
                   },
                   icon: const Icon(Icons.folder_open, size: 18),
                   label: const Text('Abrir el registro'),
@@ -353,17 +396,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _card(
             title: 'Privacidad y seguridad',
             subtitle: '',
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Bullet('El audio va directo de tu equipo al servidor de tu '
-                    'emisora. No pasa por ningun servidor intermedio ni se '
-                    'almacena en la nube.'),
-                _Bullet('Las contrasenas se cifran con la proteccion de tu '
+                _Bullet(
+                  'El audio va directo de tu equipo al servidor de tu '
+                  'emisora. No pasa por ningun servidor intermedio ni se '
+                  'almacena en la nube.',
+                ),
+                if (Platform.isWindows)
+                  _Bullet(
+                    'Las contrasenas se cifran con la proteccion de tu '
                     'usuario de Windows (DPAPI). Copiar el archivo a otra PC '
-                    'no revela nada.'),
-                _Bullet('Al compartir un perfil, la contrasena nunca se '
-                    'incluye: solo los datos del servidor.'),
+                    'no revela nada.',
+                  )
+                else
+                  _Bullet(
+                    'Las contrasenas se guardan en un archivo privado '
+                    'con permisos 0600 (solo tu usuario). Linux no ofrece '
+                    'DPAPI, asi que no hay cifrado adicional: es el mismo '
+                    'nivel de proteccion que ofrece BUTT.',
+                  ),
+                _Bullet(
+                  'Al compartir un perfil, la contrasena nunca se '
+                  'incluye: solo los datos del servidor.',
+                ),
               ],
             ),
           ),
@@ -430,9 +487,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 /// forma del comando es identica para cualquier calidad: lo que interesa es ver
 /// el dispositivo, el capturador y las tuberias.
 class _CommandPreview extends StatefulWidget {
-  const _CommandPreview({required this.deviceName});
+  const _CommandPreview({required this.deviceName, required this.backend});
 
   final String deviceName;
+  final CaptureBackend? backend;
 
   @override
   State<_CommandPreview> createState() => _CommandPreviewState();
@@ -448,6 +506,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
       bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
+      backend: widget.backend,
     );
 
     return Column(
@@ -455,10 +514,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
       children: [
         TextButton.icon(
           onPressed: () => setState(() => _open = !_open),
-          icon: Icon(
-            _open ? Icons.expand_less : Icons.expand_more,
-            size: 18,
-          ),
+          icon: Icon(_open ? Icons.expand_less : Icons.expand_more, size: 18),
           label: const Text('Ver el comando de FFmpeg (para diagnosticar)'),
         ),
         if (_open) ...[
@@ -522,14 +578,14 @@ class _StatusLine extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(ok ? Icons.check_circle_outline : Icons.warning_amber_outlined,
-            size: 16, color: color),
+        Icon(
+          ok ? Icons.check_circle_outline : Icons.warning_amber_outlined,
+          size: 16,
+          color: color,
+        ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            text,
-            style: TextStyle(color: color, fontSize: 12),
-          ),
+          child: Text(text, style: TextStyle(color: color, fontSize: 12)),
         ),
       ],
     );
