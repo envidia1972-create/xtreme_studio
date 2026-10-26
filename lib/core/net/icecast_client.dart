@@ -148,8 +148,9 @@ class IcecastClient {
 
     if (iceName.isNotEmpty) b.write('ice-name: $iceName\r\n');
     if (iceGenre.isNotEmpty) b.write('ice-genre: $iceGenre\r\n');
-    if (iceDescription.isNotEmpty)
+    if (iceDescription.isNotEmpty) {
       b.write('ice-description: $iceDescription\r\n');
+    }
     if (username.isNotEmpty) b.write('ice-public: 1\r\n');
     b.write('Connection: keep-alive\r\n\r\n');
     return b.toString();

@@ -54,8 +54,47 @@ static void my_application_activate(GApplication* application) {
 
   // La consola necesita ancho para la barra lateral y los vumetros. La ventana
   // se puede redimensionar; este es solo el tamano inicial comodo en cabina.
-  gtk_window_set_default_size(window, 1280, 800);
+  // El tamano se recorta al area util del monitor: en pantallas de 1366x768
+  // (portatiles de cabina) una ventana de 800 px de alto se sale por abajo y
+  // deja el pie de la interfaz fuera de alcance.
+  gint window_width = 1280;
+  gint window_height = 800;
+  GdkDisplay* display = gdk_display_get_default();
+  if (display != nullptr) {
+    GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
+    if (monitor == nullptr) {
+      GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+      if (gdk_window != nullptr) {
+        monitor = gdk_display_get_monitor_at_window(display, gdk_window);
+      }
+    }
+    if (monitor == nullptr) {
+      monitor = gdk_display_get_monitor(display, 0);
+    }
+    if (monitor != nullptr) {
+      GdkRectangle workarea = {0, 0, 0, 0};
+      gdk_monitor_get_workarea(monitor, &workarea);
+      if (workarea.width > 0 && workarea.height > 0) {
+        window_width = MIN(window_width, workarea.width - 48);
+        window_height = MIN(window_height, workarea.height - 48);
+        if (window_width < 640) {
+          window_width = workarea.width;
+        }
+        if (window_height < 480) {
+          window_height = workarea.height;
+        }
+      }
+    }
+  }
+  gtk_window_set_default_size(window, window_width, window_height);
   gtk_window_set_position(window, GTK_WIN_POS_CENTER);
+
+  // Por debajo de este tamano la barra lateral, los vumetros y los botones de
+  // emision se pisan. El minimo nunca supera el tamano inicial calculado.
+  GdkGeometry geometry;
+  geometry.min_width = MIN(960, window_width);
+  geometry.min_height = MIN(600, window_height);
+  gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(

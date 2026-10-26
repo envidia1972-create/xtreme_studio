@@ -250,30 +250,39 @@ class _ProfilesScreenState extends State<ProfilesScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Mis emisoras',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.store.secrets.isSecure
-                        ? 'Servidores donde podes transmitir. Las contrasenas se '
-                              'guardan cifradas en este equipo.'
-                        : 'Servidores donde podes transmitir. En este sistema las '
-                              'contrasenas se guardan en un archivo privado del '
-                              'usuario (permisos 0600), sin cifrado adicional.',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12.5,
+              // La descripcion debe ocupar el ancho que sobra, no su ancho
+              // ideal: sin Expanded el texto largo empuja los botones fuera de
+              // la ventana (desborde de mas de 1000 px en 1280x687).
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Mis emisoras',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.store.secrets.isSecure
+                          ? 'Servidores donde podes transmitir. Las contrasenas se '
+                                'guardan cifradas en este equipo.'
+                          : 'Servidores donde podes transmitir. En este sistema las '
+                                'contrasenas se guardan en un archivo privado del '
+                                'usuario (permisos 0600), sin cifrado adicional.',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 16),
               OutlinedButton.icon(
                 onPressed: _import,
                 icon: const Icon(Icons.download_outlined, size: 18),
@@ -877,7 +886,7 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                       size: 14,
                       color: AppColors.textMuted,
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         Platform.isWindows

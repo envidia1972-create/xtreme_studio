@@ -398,9 +398,10 @@ class _LivePanel extends StatelessWidget {
             child: FilledButton(
               onPressed: busy ? null : () => onToggle(),
               style: FilledButton.styleFrom(
-                backgroundColor: isOnAir
-                    ? AppColors.onAirDark
-                    : AppColors.onAir,
+                // Verde para entrar al aire, rojo para salir. Al reves, un
+                // boton rojo fuera del aire parece "detener" y el estado en
+                // vivo queda menos visible de lo que debe estar en cabina.
+                backgroundColor: isOnAir ? AppColors.onAir : AppColors.live,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -416,7 +417,7 @@ class _LivePanel extends StatelessWidget {
                       ),
                     )
                   : Text(
-                      isOnAir ? 'SALIR DEL AIRE' : 'SALIR AL AIRE',
+                      isOnAir ? 'SALIR DEL AIRE' : 'ENTRAR AL AIRE',
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w800,

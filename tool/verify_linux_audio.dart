@@ -369,20 +369,23 @@ Future<void> _run() async {
     );
 
     // Ganancia en caliente: FFmpeg reinicia la captura con el nuevo filtro.
-    final livePeakBefore = engine.snapshot.peakDb;
-    await engine.setGain(-12);
+    // Se captura en un `final` para que la promocion a no-nulo se conserve
+    // dentro del closure de `waitFor` (Dart la pierde al capturar la variable).
+    final liveEngine = engine;
+    final livePeakBefore = liveEngine.snapshot.peakDb;
+    await liveEngine.setGain(-12);
     check(
       await waitFor(
         () =>
-            engine!.snapshot.peakDb < livePeakBefore - 8 &&
-            engine!.snapshot.isLive,
+            liveEngine.snapshot.peakDb < livePeakBefore - 8 &&
+            liveEngine.snapshot.isLive,
         timeout: const Duration(seconds: 20),
         what: 'que la ganancia en vivo baje el nivel',
       ),
       'la ganancia en vivo tambien baja el nivel del stream',
       detail:
           'antes ${livePeakBefore.toStringAsFixed(1)} dBFS, '
-          'despues ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+          'despues ${liveEngine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
     );
 
     final recOk = await waitFor(

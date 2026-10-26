@@ -236,16 +236,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                for (final d in widget.devices)
-                  RadioListTile<String>(
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
-                    value: d.id,
-                    groupValue: _selectedDeviceId(),
-                    activeColor: AppColors.accent,
-                    title: Text(d.name, style: const TextStyle(fontSize: 13)),
-                    onChanged: (_) => _selectDevice(d),
+                RadioGroup<String>(
+                  groupValue: _selectedDeviceId(),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    for (final d in widget.devices) {
+                      if (d.id == value) {
+                        _selectDevice(d);
+                        break;
+                      }
+                    }
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final d in widget.devices)
+                        RadioListTile<String>(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          value: d.id,
+                          activeColor: AppColors.accent,
+                          title: Text(
+                            d.name,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
                   ),
+                ),
                 if (widget.devices.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _CommandPreview(
@@ -272,7 +290,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   value: settings.recordLocally,
-                  activeColor: AppColors.accent,
+                  activeThumbColor: AppColors.accent,
                   title: const Text(
                     'Grabar mis emisiones',
                     style: TextStyle(fontSize: 13.5),
@@ -399,25 +417,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Bullet(
+                const _Bullet(
                   'El audio va directo de tu equipo al servidor de tu '
                   'emisora. No pasa por ningun servidor intermedio ni se '
                   'almacena en la nube.',
                 ),
                 if (Platform.isWindows)
-                  _Bullet(
+                  const _Bullet(
                     'Las contrasenas se cifran con la proteccion de tu '
                     'usuario de Windows (DPAPI). Copiar el archivo a otra PC '
                     'no revela nada.',
                   )
                 else
-                  _Bullet(
+                  const _Bullet(
                     'Las contrasenas se guardan en un archivo privado '
                     'con permisos 0600 (solo tu usuario). Linux no ofrece '
                     'DPAPI, asi que no hay cifrado adicional: es el mismo '
                     'nivel de proteccion que ofrece BUTT.',
                   ),
-                _Bullet(
+                const _Bullet(
                   'Al compartir un perfil, la contrasena nunca se '
                   'incluye: solo los datos del servidor.',
                 ),
@@ -447,35 +465,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String subtitle,
     required Widget child,
   }) {
-    return Container(
+    // Material (no un Container con color): asi los ListTile y RadioListTile
+    // de la tarjeta tienen un Material real donde pintar el toque. Con un
+    // DecoratedBox intermedio el efecto se pierde y Flutter lo denuncia.
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
+      child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12.5,
-                height: 1.45,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          child,
-        ],
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12.5,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              child,
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -6,10 +6,12 @@ cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC de
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
 > **Estado:** nucleo completo y **ejecutado y probado en Linux** (**335
-> comprobaciones automaticas en este equipo** en nueve suites, incluida una
-> emision real con FFmpeg + PulseAudio, otra en AAC-LC y el vumetro de entrada
-> siempre activo. La interfaz Flutter corre con runner Linux y verifica
-> vumetros, metadatos por la API de Icecast, grabacion, reconexion y apagado.
+> comprobaciones automaticas en este equipo** en nueve suites, mas **16 pruebas
+> de widgets** con `flutter test`, incluida una emision real con FFmpeg +
+> PulseAudio, otra en AAC-LC y el vumetro de entrada siempre activo. La interfaz
+> Flutter corre con runner Linux y verifica vumetros, metadatos por la API de
+> Icecast, grabacion, reconexion y apagado. La ventana se adapta al area util
+> del monitor y el flujo completo se probo contra un servidor local simulado.
 > Los caminos de Windows (dshow) estan cubiertos por las pruebas de argumentos
 > y deteccion; el `.exe` ya se **compilo y arranco** en GitHub Actions
 > (`windows-latest`, Flutter 3.47.8 + MSVC). Falta probar el audio real con un
@@ -28,7 +30,7 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | Protocolos **Icecast 2**, **Shoutcast v1** y **v2** | Listo |
 | Credenciales con **DPAPI** en Windows y archivo privado `0600` en Linux/macOS | Listo |
 | Boton **PROBAR CONEXION** con diagnostico legible (401, 403, 404...) | Listo |
-| **SALIR AL AIRE / SALIR** en un clic | Listo |
+| **ENTRAR / SALIR DEL AIRE** en un clic, con color inequivoco | Listo |
 | Vumetros de pico y RMS con escala en dBFS | Listo |
 | Campo **"suena ahora"** con metadatos en vivo | Listo |
 | **Ganancia de entrada** ajustable y guardada por emisora | Listo |
@@ -68,6 +70,11 @@ Emision real con metadatos actualizados y el titulo que ven los oyentes:
 Codigo, bitrate y frecuencia por emisora:
 
 ![Selector de codec y bitrate](docs/screenshots/linux-codecs.png)
+
+Gestor de emisoras con el perfil activo y los botones siempre visibles, incluso
+en ventanas angostas:
+
+![Gestor de emisoras en Linux](docs/screenshots/linux-emisoras.png)
 
 Ajustes con los dispositivos que reporta PulseAudio/PipeWire (incluye
 monitores) y el comando exacto que se le pasa a FFmpeg:
@@ -119,7 +126,7 @@ Cuatro decisiones que marcan la diferencia frente a "dejar que FFmpeg haga todo"
 El motor solo captura cuando se sale al aire, pero el DJ necesita ver el nivel
 del microfono en todo momento. Por eso la app mantiene un **monitor de entrada**
 liviano: un FFmpeg que captura el dispositivo y entrega solo PCM de niveles, sin
-codificar MP3/AAC. Cuando se pulsa *SALIR AL AIRE* se detiene ese monitor (en
+codificar MP3/AAC. Cuando se pulsa *ENTRAR AL AIRE* se detiene ese monitor (en
 ALSA el dispositivo es exclusivo) y arranca la captura de emision.
 
 Detalles:
@@ -406,7 +413,14 @@ dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  20 comprobaciones
 dart run tool/verify_linux_audio.dart       #  32 (audio real; ALSA opcional)
+
+# Interfaz renderizada de verdad (16 pruebas: estados, colores y desbordes).
+flutter test
 ```
+
+`flutter test` no reemplaza al analisis estatico: monta la app en un motor
+Flutter, la renderiza a 1280x687, 1000x620, 960x600 y 900x600, pulsa los botones
+de entrar/salir y falla si un texto, color o distribucion no corresponde.
 
 En Windows se usan las mismas rutas con `tool\...`; en Linux, con `/`.
 La suite de audio real depende del entorno: si no hay PulseAudio se omite, y la
@@ -563,10 +577,13 @@ lib/
       broadcast_engine.dart  Maquina de estados + reconexion
   ui/
     theme.dart               Paleta pensada para cabina
-    broadcast_screen.dart    Pantalla principal (SALIR AL AIRE)
+    broadcast_screen.dart    Pantalla principal (ENTRAR/SALIR DEL AIRE)
     profiles_screen.dart     Gestor de emisoras
     settings_screen.dart     FFmpeg, dispositivo, grabacion
     widgets/vu_meter.dart    Vumetro dibujado a mano
+test/
+  broadcast_screen_test.dart Pruebas reales de la pantalla principal (11)
+  other_screens_test.dart    Pruebas de Emisoras y Ajustes (5)
 tool/
   check_toolchain.ps1       Comprueba que Windows puede compilar (no compila)
   build_windows.ps1         Compilacion asistida para Windows

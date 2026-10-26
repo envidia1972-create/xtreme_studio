@@ -745,7 +745,7 @@ Future<void> _vumetros() async {
   check(
     full.peakDb > -1 && full.peakDb <= 0,
     'fondo de escala mide ~0 dBFS',
-    detail: '${full.peakDb.toStringAsFixed(2)}',
+    detail: full.peakDb.toStringAsFixed(2),
   );
 
   final half = LevelMeter();
@@ -758,7 +758,7 @@ Future<void> _vumetros() async {
   check(
     (half.peakDb - (-6.02)).abs() < 0.3,
     'media escala mide ~-6 dBFS',
-    detail: '${half.peakDb.toStringAsFixed(2)}',
+    detail: half.peakDb.toStringAsFixed(2),
   );
 
   final drop = LevelMeter();
@@ -1366,7 +1366,7 @@ Future<void> _cifrado() async {
         'el blob cifrado NO contiene la contrasena en claro',
       );
       check(
-        blob.length > 0,
+        blob.isNotEmpty,
         'el blob tiene contenido',
         detail: '${blob.length} bytes',
       );
@@ -1719,7 +1719,7 @@ Future<void> _perfil() async {
     'el motor consulta el ajuste del perfil antes de reconectar',
   );
   check(
-    RegExp(r'profile\.autoReconnect').allMatches(engineSrc).length >= 1 &&
+    RegExp(r'profile\.autoReconnect').allMatches(engineSrc).isNotEmpty &&
         engineSrc.contains('reconexion automatica esta desactivada'),
     'y explica al DJ cuando no reconecta por estar desactivado',
   );
@@ -1807,6 +1807,7 @@ Future<void> _perfil() async {
     // este archivo, el verificador se marcaria a si mismo (profecia
     // autocumplida), porque el texto del patron aparece en el propio codigo.
     final inlineFlagPattern = RegExp(
+      // ignore: prefer_adjacent_string_concatenation
       r'RegExp\(\s*r?[' + "'" + r'"]\(\?' + r'[ismxU]',
       caseSensitive: false,
     );

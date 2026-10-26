@@ -4,15 +4,23 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 15 (build Windows en CI)**. Última verificación:
-**335 comprobaciones automáticas en verde en Linux** y **172 en Windows**
+Fecha del corte: **ronda 16 (interfaz verificada con pruebas de widgets)**.
+Última verificación: **335 comprobaciones automáticas en Linux** (nueve
+suites), **16 pruebas de widgets** (`flutter test`) y **172 en Windows**
 (`verify_core`), con el `.exe` compilado y arrancado en GitHub Actions. La
 interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
 PulseAudio/PipeWire y emitió contra un servidor Icecast simulado.
 
+En esta ronda se corrigieron fallos que solo aparecían al renderizar de verdad:
+la ventana pedía 1280x800 y se salía de una pantalla de 1366x768, el botón de
+entrar al aire era rojo (parecía "detener"), la cabecera de Emisoras desbordaba
+a la derecha y las tarjetas de Ajustes no daban respuesta visual al tocar.
+
 Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
-`docs/screenshots/linux-al-aire.png`, `docs/screenshots/linux-codecs.png` y
-`docs/screenshots/linux-ajustes.png`.
+`docs/screenshots/linux-al-aire.png`, `docs/screenshots/linux-codecs.png`,
+`docs/screenshots/linux-emisoras.png` y `docs/screenshots/linux-ajustes.png`.
+Las de esta ronda se tomaron en un portátil de 1366x768: la ventana se ajusta al
+área útil y se ve completa.
 
 ---
 
@@ -43,6 +51,7 @@ Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
 | **Detección de dispositivos ALSA** | Parseo y comandos verificados; captura real con PCM `null` |
 | **Selección automática pulse/alsa** | Verificada con las combinaciones posibles |
 | **Códec MP3 / AAC-LC / AAC+** | MP3 y AAC-LC verificados con audio real; AAC+ requiere FFmpeg con `libfdk_aac` |
+| **Pruebas de widgets reales** | **16 pruebas con `flutter test`**: estados, colores, pulsaciones y ausencia de desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
@@ -60,7 +69,15 @@ dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  20 comprobaciones
 dart run tool/verify_linux_audio.dart       #  32 (audio REAL; ALSA opcional)
+
+# Interfaz renderizada de verdad (no analisis estatico): 16 pruebas.
+flutter test
 ```
+
+`flutter test` monta la pantalla principal, Emisoras y Ajustes en un motor
+Flutter real, a los tamanos de ventana de esta laptop (1280x687, 1000x620,
+960x600 y 900x600). Falla si aparece un desborde, si el boton muestra el estado
+equivocado o si el color de entrar/salir no corresponde.
 
 En Windows los mismos comandos con `tool\...`. `verify_engine` necesita
 `tools/fake_ffmpeg.exe`; en Linux/macOS, `tools/fake_ffmpeg` (se compila con
@@ -95,6 +112,48 @@ nivel porque el PCM `null` no garantiza silencio.
 
 Al terminar desmonta el sink y mata el tono. Si no hay PulseAudio o FFmpeg con
 soporte pulse, se **omite** con un mensaje claro: no falla por el entorno.
+
+---
+
+## Ronda 16: la interfaz, verificada de verdad
+
+El analisis estatico (`verify_ui`) no ve desbordes ni colores. Esta ronda añade
+`flutter test` con dos archivos:
+
+- `test/broadcast_screen_test.dart` (11 pruebas): estado fuera del aire y al
+  aire, texto y color del boton, cronometro, pulsacion real de los botones,
+  avisos de error y renderizado sin desbordes en 1280x700, 1280x687, 1000x620,
+  960x600 y 900x600.
+- `test/other_screens_test.dart` (5 pruebas): Emisoras con y sin perfiles y
+  Ajustes con dispositivos, en 1280x687 y 960x600.
+
+Fallos que encontraron y se corrigieron:
+
+1. **Ventana mas alta que la pantalla.** El runner pedia 1280x800 en un equipo
+   de 1366x768: el pie quedaba fuera de alcance. Ahora toma el area util del
+   monitor (`gdk_monitor_get_workarea`), deja 48 px de margen y fija un minimo
+   de 960x600 sin superar nunca el tamano calculado.
+2. **Señalizacion invertida.** Fuera del aire el boton era rojo con
+   "SALIR AL AIRE"; al entrar quedaba rojo oscuro. Ahora es verde
+   "ENTRAR AL AIRE" fuera y rojo "SALIR DEL AIRE" al aire, como una consola.
+3. **Cabecera de Emisoras desbordada.** El texto y los botones compartian un
+   `Row` sin `Expanded`: el parrafo empujaba los botones fuera de la ventana
+   (desborde de mas de 1000 px). La descripcion ahora ocupa el espacio libre y
+   envuelve; los botones quedan siempre visibles.
+4. **Tarjetas de Ajustes sin Material.** Los `RadioListTile`/`SwitchListTile`
+   estaban dentro de un `Container` con color; Flutter advierte que el toque no
+   se ve. Las tarjetas ahora son `Material` con borde y recorte.
+
+Ademas se probo el flujo completo con la interfaz real: perfil aislado en un
+`HOME` temporal, servidor Icecast simulado, tono de 440 Hz en un sink virtual y
+pulsaciones reales con XTest. El servidor recibio **713.874 bytes**, la pantalla
+mostro "AL AIRE", 128 kbps reales y el vumetro; al pulsar "SALIR DEL AIRE" el
+mount se libero y el monitor de entrada volvio a arrancar, sin FFmpeg huerfano.
+
+**Nota de este equipo:** el driver DRI3 de esta laptop a veces no entrega
+contexto GL. El proceso de la app sigue vivo pero la ventana queda sin mapear.
+Se lanza entonces con `LIBGL_ALWAYS_SOFTWARE=1` y funciona con llvmpipe; no es
+un fallo de Xtreme Studio. Con el compositor sano arranca con Impeller normal.
 
 ---
 
@@ -151,7 +210,8 @@ de forma intermitente. Ahora se espera al cierre del flujo
 ### Interfaz
 
 - Se añadió el runner `linux/` con `flutter create --platforms=linux`.
-- Ventana inicial 1280x800, título "Xtreme Studio", fondo `#0D0F14`.
+- Ventana inicial adaptada al area util del monitor (maximo 1280x800, margen
+  de 48 px, minimo 960x600), título "Xtreme Studio", fondo `#0D0F14`.
 - **Ajustes** usa textos y rutas de Linux, abre el registro con `xdg-open`,
   muestra `pulse`/`alsa` y avisa de que en Linux no hay DPAPI (archivo `0600`).
 - Se retiraron los textos que decían "Windows" en la lista de dispositivos.

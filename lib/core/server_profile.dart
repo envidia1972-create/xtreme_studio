@@ -341,11 +341,13 @@ class ServerProfile {
   /// DJ que escriba la clave.
   List<String> validate({bool requirePassword = true}) {
     final problems = <String>[];
-    if (name.trim().isEmpty)
+    if (name.trim().isEmpty) {
       problems.add('El nombre del perfil es obligatorio');
+    }
     if (host.trim().isEmpty) problems.add('El servidor (host) es obligatorio');
-    if (port <= 0 || port > 65535)
+    if (port <= 0 || port > 65535) {
       problems.add('El puerto debe estar entre 1 y 65535');
+    }
     if (username.trim().isEmpty) problems.add('El usuario es obligatorio');
     if (requirePassword && password.isEmpty) {
       problems.add('La contrasena es obligatoria');
