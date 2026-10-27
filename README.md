@@ -5,17 +5,19 @@ propia: cada DJ carga las credenciales de **su** servidor (el tuyo o el de
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**335
-> comprobaciones automaticas en este equipo** en nueve suites, mas **16 pruebas
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**365
+> comprobaciones automaticas en este equipo** en nueve suites, mas **18 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
-> PulseAudio, otra en AAC-LC y el vumetro de entrada siempre activo. La interfaz
-> Flutter corre con runner Linux y verifica vumetros, metadatos por la API de
-> Icecast, grabacion, reconexion y apagado. La ventana se adapta al area util
-> del monitor y el flujo completo se probo contra un servidor local simulado.
-> Los caminos de Windows (dshow) estan cubiertos por las pruebas de argumentos
-> y deteccion; el `.exe` ya se **compilo y arranco** en GitHub Actions
-> (`windows-latest`, Flutter 3.47.8 + MSVC). Falta probar el audio real con un
-> microfono Windows. ALSA se probo con captura real sobre el PCM `null`.
+> PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
+> vumetro y el codificador: mover la ganancia se aplica en vivo, sin reiniciar
+> el microfono ni cortar la emision. La interfaz Flutter corre con runner Linux
+> y verifica vumetros, metadatos por la API de Icecast, grabacion, reconexion y
+> apagado. La ventana se adapta al area util del monitor y el flujo completo se
+> probo contra un servidor local simulado. Los caminos de Windows (dshow) estan
+> cubiertos por las pruebas de argumentos y deteccion; el `.exe` ya se
+> **compilo y arranco** en GitHub Actions (`windows-latest`, Flutter 3.47.8 +
+> MSVC). Falta probar el audio real con un microfono Windows. ALSA se probo con
+> captura real sobre el PCM `null`.
 >
 > **Si retomas este proyecto, lee `ESTADO.md`**: ahi esta el punto exacto donde
 > se detuvo el trabajo y que queda pendiente.
@@ -88,12 +90,14 @@ monitores) y el comando exacto que se le pasa a FFmpeg:
 ```
   microfono / linea
          |
-    [ FFmpeg ]  captura (dshow en Windows; pulse o alsa en Linux)
-                y codifica al codec elegido (MP3/AAC)
+    [ FFmpeg captura ]  dshow en Windows; pulse o alsa en Linux
+         |  stdout: PCM f32le
+    [ motor en Dart ]  ganancia + vumetro (misma senal)
+         |  stdin: PCM f32le
+    [ FFmpeg codificador ]  MP3 / AAC-LC / AAC+
          |  stdout
     [ motor en Dart ]  -- socket -->  Icecast / Shoutcast
-         |  stderr (PCM)
-    [ vumetros en pantalla ]
+         `-- grabacion local
 ```
 
 Cuatro decisiones que marcan la diferencia frente a "dejar que FFmpeg haga todo":
@@ -102,8 +106,10 @@ Cuatro decisiones que marcan la diferencia frente a "dejar que FFmpeg haga todo"
    v1/v2 (que necesitan un *handshake* que `-f mp3` no negocia) y por eso
    podemos leer el codigo HTTP real y decir *"la contrasena fue rechazada"* en
    lugar de un error generico.
-2. **La captura nunca se reinicia.** Si se cae la red, solo se rehace el socket.
-   El DJ no tiene que volver a elegir el microfono y la grabacion no se corta.
+2. **Hay una sola captura y nunca se reinicia.** El mismo PCM del microfono
+   alimenta el vumetro y el codificador, este o no al aire. Mover la ganancia
+   es una multiplicacion en Dart: no reinicia FFmpeg, no corta la emision y el
+   vumetro cambia al instante. Si se cae la red, solo se rehace el socket.
 3. **Los metadatos van por una peticion HTTP aparte.** Icecast y Zeno.fm
    actualizan el "suena ahora" con `/admin/metadata?mode=updinfo`; NO se
    insertan bytes de texto dentro del audio. Insertarlos hacia que el servidor
@@ -123,22 +129,35 @@ Cuatro decisiones que marcan la diferencia frente a "dejar que FFmpeg haga todo"
 
 ## Nivel de entrada permanente y ganancia
 
-El motor solo captura cuando se sale al aire, pero el DJ necesita ver el nivel
-del microfono en todo momento. Por eso la app mantiene un **monitor de entrada**
-liviano: un FFmpeg que captura el dispositivo y entrega solo PCM de niveles, sin
-codificar MP3/AAC. Cuando se pulsa *ENTRAR AL AIRE* se detiene ese monitor (en
-ALSA el dispositivo es exclusivo) y arranca la captura de emision.
+Hay **un solo vumetro** y **una sola captura**. El motor abre el microfono en
+modo vista previa y ese mismo proceso sigue vivo al entrar y salir del aire: no
+existe un medidor "de fuera del aire" separado del de emision.
+
+El recorrido del audio es:
+
+1. FFmpeg captura el dispositivo y entrega **PCM `f32le`** por `stdout`.
+2. Dart aplica la **ganancia** y mide el nivel de esa misma senal.
+3. Ese PCM ya amplificado alimenta un segundo FFmpeg que codifica MP3/AAC.
 
 Detalles:
 
 - El vumetro y los numeros funcionan **fuera del aire**, con el dispositivo
   elegido en Ajustes o el asignado a la emisora.
-- La ganancia se aplica a la lectura del monitor y al filtro de FFmpeg cuando
-  se esta al aire. Mover el control no reinicia el dispositivo.
+- Mover la ganancia **no reinicia nada**: cambia el factor que se aplica al
+  siguiente bloque, asi que el vumetro responde al instante y la emision no se
+  corta ni pierde muestras. El aviso de la interfaz lo dice explicitamente.
 - El numero de pico usa un **pico retenido durante 2 s**: la lectura queda
-  estable en lugar de saltar con cada bloque de PCM.
-- Si el dispositivo esta ocupado o desaparece, el monitor se detiene y el
-  motivo queda en el registro de actividad.
+  estable en lugar de saltar con cada bloque de PCM. Al mover la ganancia se
+  limpia para que el cambio se note de inmediato.
+- Al salir del aire se detienen el codificador y el socket, pero **la captura
+  sigue viva** para el vumetro. Solo se cierra al cerrar la app o cambiar de
+  dispositivo.
+- El codificador arranca con `-probesize 32 -analyzeduration 0`: sin eso FFmpeg
+  retiene los primeros segundos de audio analizando un flujo que ya tiene el
+  formato declarado, y la emision empieza tarde (o no empieza si el dispositivo
+  entrega mas lento que tiempo real).
+- Si el dispositivo esta ocupado o desaparece, el motivo queda en el registro
+  de actividad y la app sigue funcionando.
 
 ## Calidad, codec y bitrate
 
@@ -404,17 +423,17 @@ memoria y comprueban el comportamiento real del protocolo.
 # Si usaste setup_local_sdk.sh:
 # source .tooling/env.sh
 
-dart run tool/verify_core.dart              # 171 comprobaciones
-dart run tool/verify_engine.dart            #  37 comprobaciones (FFmpeg simulado)
+dart run tool/verify_core.dart              # 179 comprobaciones
+dart run tool/verify_engine.dart            #  50 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
 dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
-dart run tool/verify_ffmpeg_discovery.dart  #  20 comprobaciones
-dart run tool/verify_linux_audio.dart       #  32 (audio real; ALSA opcional)
+dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
+dart run tool/verify_linux_audio.dart       #  40 (audio real; ALSA opcional)
 
-# Interfaz renderizada de verdad (16 pruebas: estados, colores y desbordes).
+# Interfaz renderizada de verdad (18 pruebas: estados, colores y desbordes).
 flutter test
 ```
 
@@ -485,8 +504,8 @@ automatica**, y apagado sin dejar procesos huerfanos.
 3. **ALSA:** si hay un FFmpeg con soporte ALSA (`ALSA_FFMPEG`,
    `.tooling/ffmpeg-alsa/ffmpeg` o `tools/ffmpeg`), captura el PCM `null`,
    comprueba que el flujo llega y que el motor lo cierra sin dejar huerfanos.
-   Tambien verifica el monitor de entrada y que la ganancia cambia el nivel
-   medido.
+   Ademas verifica que la captura sobrevive al salir del aire y que la ganancia
+   cambia el nivel medido sin reiniciar el proceso.
 
 Si no hay PulseAudio o FFmpeg con soporte pulse, se omite con un mensaje claro
 (no falla por el entorno).

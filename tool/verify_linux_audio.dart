@@ -22,7 +22,6 @@ import 'dart:io';
 
 import 'package:xtreme_studio/core/audio/broadcast_engine.dart';
 import 'package:xtreme_studio/core/audio/ffmpeg_capture.dart';
-import 'package:xtreme_studio/core/audio/input_monitor.dart';
 import 'package:xtreme_studio/core/profile_store.dart';
 import 'package:xtreme_studio/core/server_profile.dart';
 
@@ -247,52 +246,7 @@ Future<void> _run() async {
     );
     check(tone.pid > 0, 'el tono de prueba esta sonando');
 
-    section('Monitor de entrada permanente');
-    final inputMonitor = InputMonitor(
-      ffmpegPath: ffmpegPath,
-      deviceName: monitor.id,
-      backend: backend,
-    );
-    final levels = <InputLevels>[];
-    inputMonitor.levels.listen(levels.add);
-    check(
-      await inputMonitor.start(),
-      'el monitor de entrada arranca sin estar al aire',
-      detail: inputMonitor.lastError ?? '',
-    );
-    check(
-      await waitFor(
-        () => levels.any((l) => l.peakDb > -30),
-        timeout: const Duration(seconds: 10),
-        what: 'niveles del monitor de entrada',
-      ),
-      'el vumetro recibe niveles reales fuera del aire',
-      detail: levels.isEmpty
-          ? 'sin lecturas'
-          : 'pico ${levels.last.peakDb.toStringAsFixed(1)} dBFS',
-    );
-    final peakBeforeGain = inputMonitor.peakDb;
-    check(
-      await inputMonitor.restart(gainDb: -12),
-      'el monitor se reinicia al cambiar la ganancia',
-    );
-    await waitFor(
-      () => levels.isNotEmpty && inputMonitor.isRunning,
-      timeout: const Duration(seconds: 10),
-      what: 'el monitor con la nueva ganancia',
-    );
-    await Future<void>.delayed(const Duration(seconds: 1));
-    final peakAfterGain = inputMonitor.peakDb;
-    check(
-      peakAfterGain < peakBeforeGain - 8,
-      'la ganancia de -12 dB baja el nivel medido de verdad',
-      detail:
-          'antes ${peakBeforeGain.toStringAsFixed(1)} dBFS, '
-          'despues ${peakAfterGain.toStringAsFixed(1)} dBFS',
-    );
-    await inputMonitor.dispose();
-
-    section('Emision con captura real');
+    section('Vumetro fuera del aire (misma captura que la emision)');
     await server.start();
     final profile = ServerProfile(
       id: 'linux-real',
@@ -321,10 +275,56 @@ Future<void> _run() async {
     final logs = <String>[];
     engine.logs.listen((e) => logs.add('[${e.level}] ${e.message}'));
 
+    check(
+      await engine.startPreview(),
+      'la captura arranca fuera del aire, sin abrir un segundo proceso',
+      detail: engine.snapshot.lastError ?? '',
+    );
+    check(
+      await waitFor(
+        () => engine!.snapshot.peakDb > -30,
+        timeout: const Duration(seconds: 10),
+        what: 'niveles reales fuera del aire',
+      ),
+      'el vumetro recibe niveles reales antes de salir al aire',
+      detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+
+    final previewPid = engine.capturePid;
+    final peakBeforeGain = engine.snapshot.peakDb;
+    await engine.setGain(-12);
+    check(
+      await waitFor(
+        () => engine!.snapshot.peakDb < peakBeforeGain - 8,
+        timeout: const Duration(seconds: 5),
+        what: 'que la ganancia baje el nivel fuera del aire',
+      ),
+      'mover la ganancia actualiza el vumetro sin reiniciar la captura',
+      detail:
+          'antes ${peakBeforeGain.toStringAsFixed(1)} dBFS, '
+          'despues ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+    check(
+      engine.capturePid == previewPid,
+      'la captura conserva el mismo proceso al cambiar la ganancia',
+      detail: 'pid antes $previewPid, ahora ${engine.capturePid}',
+    );
+    await engine.setGain(0);
+    check(
+      await waitFor(
+        () => engine!.snapshot.peakDb > peakBeforeGain - 3,
+        timeout: const Duration(seconds: 5),
+        what: 'que la ganancia vuelva al nivel original',
+      ),
+      'volver a 0 dB restaura el nivel medido',
+      detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+
+    section('Emision con captura real');
     final live = await engine.goLive();
     check(
       live,
-      'el motor entra al aire con captura real',
+      'el motor entra al aire reutilizando la captura del vumetro',
       detail: engine.snapshot.lastError ?? '',
     );
     if (!live) {
@@ -368,18 +368,21 @@ Future<void> _run() async {
       detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
     );
 
-    // Ganancia en caliente: FFmpeg reinicia la captura con el nuevo filtro.
-    // Se captura en un `final` para que la promocion a no-nulo se conserve
-    // dentro del closure de `waitFor` (Dart la pierde al capturar la variable).
+    // Ganancia en caliente: la captura y el codificador deben seguir siendo los
+    // mismos procesos. Se captura en un `final` para que la promocion a no-nulo
+    // se conserve dentro del closure de `waitFor`.
     final liveEngine = engine;
     final livePeakBefore = liveEngine.snapshot.peakDb;
+    final liveCapturePid = liveEngine.capturePid;
+    final liveEncoderPid = liveEngine.encoderPid;
+    final liveBytesBefore = server.audio.length;
     await liveEngine.setGain(-12);
     check(
       await waitFor(
         () =>
             liveEngine.snapshot.peakDb < livePeakBefore - 8 &&
             liveEngine.snapshot.isLive,
-        timeout: const Duration(seconds: 20),
+        timeout: const Duration(seconds: 5),
         what: 'que la ganancia en vivo baje el nivel',
       ),
       'la ganancia en vivo tambien baja el nivel del stream',
@@ -387,6 +390,28 @@ Future<void> _run() async {
           'antes ${livePeakBefore.toStringAsFixed(1)} dBFS, '
           'despues ${liveEngine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
     );
+    check(
+      liveEngine.capturePid == liveCapturePid &&
+          liveEngine.encoderPid == liveEncoderPid,
+      'ningun proceso de audio se reinicio al mover la ganancia',
+      detail:
+          'captura $liveCapturePid->${liveEngine.capturePid}, '
+          'codificador $liveEncoderPid->${liveEngine.encoderPid}',
+    );
+    check(
+      await waitFor(
+        () => server.audio.length > liveBytesBefore + 1000,
+        timeout: const Duration(seconds: 5),
+        what: 'que el audio siga llegando tras el ajuste',
+      ),
+      'el audio real sigue fluyendo tras el ajuste de ganancia',
+    );
+    check(
+      !logs.any((l) => l.contains('La captura de audio se detuvo')),
+      'el ajuste no provoca ningun corte de captura',
+    );
+    // Se deja en 0 dB para el resto de la prueba.
+    await liveEngine.setGain(0);
 
     final recOk = await waitFor(
       () {
@@ -406,11 +431,24 @@ Future<void> _run() async {
     );
     check(
       await waitFor(
+        () => !engine!.isEncoding,
+        timeout: const Duration(seconds: 5),
+        what: 'que termine el codificador',
+      ),
+      'el codificador se detiene al salir del aire',
+    );
+    check(
+      engine.isCapturing,
+      'la captura sigue viva para el vumetro fuera del aire',
+    );
+    await engine.dispose();
+    check(
+      await waitFor(
         () => !engine!.isCapturing,
         timeout: const Duration(seconds: 5),
         what: 'que termine el proceso de captura',
       ),
-      'no queda FFmpeg huerfano tras salir del aire',
+      'al cerrar no queda FFmpeg huerfano',
     );
     check(
       engine.captureExitCode != null,
@@ -468,13 +506,21 @@ Future<void> _run() async {
     await aacEngine.goOffAir();
     check(
       await waitFor(
+        () => !aacEngine.isEncoding,
+        timeout: const Duration(seconds: 5),
+        what: 'que termine el codificador AAC',
+      ),
+      'el codificador AAC se detiene al salir del aire',
+    );
+    await aacEngine.dispose();
+    check(
+      await waitFor(
         () => !aacEngine.isCapturing,
         timeout: const Duration(seconds: 5),
         what: 'que termine la captura AAC',
       ),
       'no queda FFmpeg huerfano tras la emision AAC',
     );
-    await aacEngine.dispose();
   } finally {
     try {
       await engine?.dispose();
@@ -602,11 +648,20 @@ Future<void> _testAlsaSilence() async {
     await engine.goOffAir();
     check(
       await waitFor(
+        () => !engine!.isEncoding,
+        timeout: const Duration(seconds: 5),
+        what: 'que termine el codificador de ALSA',
+      ),
+      'el codificador ALSA se detiene al salir del aire',
+    );
+    await engine.dispose();
+    check(
+      await waitFor(
         () => !engine!.isCapturing,
         timeout: const Duration(seconds: 5),
         what: 'que termine el FFmpeg de ALSA',
       ),
-      'no queda FFmpeg huerfano al salir del aire (ALSA)',
+      'no queda FFmpeg huerfano al cerrar (ALSA)',
     );
   } finally {
     try {

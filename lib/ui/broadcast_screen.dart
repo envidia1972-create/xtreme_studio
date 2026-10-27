@@ -810,9 +810,9 @@ class _GainPanelState extends State<_GainPanel> {
             const Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text(
-                'Estas al aire: al aplicar el cambio la captura se reinicia un '
-                'instante.',
-                style: TextStyle(color: AppColors.warning, fontSize: 11),
+                'Estas al aire: el cambio se aplica en vivo, sin cortar la '
+                'emision.',
+                style: TextStyle(color: AppColors.meterSafe, fontSize: 11),
               ),
             ),
         ],

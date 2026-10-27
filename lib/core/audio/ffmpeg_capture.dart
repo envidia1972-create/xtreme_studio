@@ -573,40 +573,23 @@ class FfmpegLocator {
   }
 }
 
-/// Argumentos de captura y codificacion, separados para poder probarlos.
+/// Argumentos de la captura de entrada.
+///
+/// La captura **no codifica**: entrega el PCM del microfono en crudo. Dart
+/// aplica la ganancia, mide el nivel y recien despues lo manda al codificador.
+/// Esa es la unica fuente de audio de la app, este o no al aire, asi que el
+/// vumetro y el stream siempre miden exactamente la misma senal.
 class CaptureArgs {
   const CaptureArgs({
     required this.deviceName,
-    required this.bitrateKbps,
     required this.sampleRate,
     required this.channels,
-    this.gainDb = 0.0,
-    this.metering = true,
-    this.codec = AudioCodec.mp3,
-    this.meterOnly = false,
     CaptureBackend? backend,
   }) : _backend = backend;
 
   final String deviceName;
-  final int bitrateKbps;
   final int sampleRate;
   final int channels;
-
-  /// Codec con el que se codifica el audio enviado (y grabado).
-  final AudioCodec codec;
-
-  /// Ganancia de entrada en dB (el control de volumen del DJ).
-  final double gainDb;
-
-  /// Emitir tambien un PCM de niveles por stderr.
-  final bool metering;
-
-  /// Solo medir niveles: no produce audio por stdout.
-  ///
-  /// Lo usa el monitor de entrada que mantiene el vumetro activo fuera del
-  /// aire. Al no codificar MP3/AAC gasta mucho menos CPU y no genera un flujo
-  /// que nadie va a escuchar.
-  final bool meterOnly;
 
   /// Capturador elegido. `null` = el preferido de la plataforma.
   ///
@@ -650,57 +633,107 @@ class CaptureArgs {
     }
   }
 
-  /// Construye la linea de comandos.
+  /// Captura del dispositivo y entrega PCM `f32le` por stdout.
   ///
-  /// Salidas normales:
-  ///  1. Audio codificado (MP3 o AAC) hacia `pipe:1` -> lo consume el motor.
-  ///  2. PCM crudo s16le mono 8 kHz hacia `pipe:2` -> vumetros.
-  ///
-  /// Con [meterOnly] solo se genera la salida 2: es el monitor de entrada que
-  /// mantiene el vumetro vivo sin estar al aire.
-  ///
-  /// La grabacion local NO se hace aqui: el motor duplica el mismo flujo que
-  /// ya viaja al servidor, asi lo grabado es exactamente lo que oyeron los
-  /// oyentes y no se gasta CPU en codificar dos veces.
+  /// Sin filtros ni codificador: cualquier procesamiento aqui obligaria a
+  /// reiniciar el proceso para cambiarlo, que es justo lo que corta la
+  /// emision al mover la ganancia.
   List<String> build(String executablePath) {
-    final args = <String>[
+    return <String>[
       '-hide_banner',
       '-loglevel',
       'error',
-      // Captura del dispositivo de entrada (dshow, pulse o alsa).
       ...inputArguments,
-      // Cadena de filtros: ganancia y limitador para no saturar el codec.
+      // Solo audio: algunos capturadores anuncian tambien video y sin esto
+      // FFmpeg elegiria un flujo que no sirve.
+      '-vn',
+      '-ac',
+      '$channels',
+      '-ar',
+      '$sampleRate',
+      '-f',
+      'f32le',
+      'pipe:1',
+    ];
+  }
+
+  /// El comando completo en una linea, para mostrarlo o copiarlo.
+  String preview() => previewCommand(
+    build(Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg'),
+    executable: Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg',
+  );
+
+  /// dshow necesita que el nombre del dispositivo se pase literal.
+  static String _escapeDshow(String name) => name;
+}
+
+/// Argumentos del codificador.
+///
+/// Recibe por stdin el PCM `f32le` que ya salio de [GainStage], aplica el
+/// limitador de seguridad y entrega MP3/AAC por stdout. Al estar separado de
+/// la captura, el codificador se puede arrancar y parar al entrar o salir del
+/// aire sin tocar el microfono.
+class EncoderArgs {
+  const EncoderArgs({
+    required this.bitrateKbps,
+    required this.sampleRate,
+    required this.channels,
+    this.codec = AudioCodec.mp3,
+  });
+
+  final int bitrateKbps;
+  final int sampleRate;
+  final int channels;
+
+  /// Codec con el que se codifica el audio enviado (y grabado).
+  final AudioCodec codec;
+
+  /// Entrada cruda por stdin. Debe declarar formato, frecuencia y canales:
+  /// sin eso FFmpeg no puede interpretar un flujo PCM sin cabecera.
+  ///
+  /// `-probesize` y `-analyzeduration` se bajan al minimo a proposito. Sin
+  /// ellos FFmpeg analiza hasta cinco segundos de audio antes de emitir el
+  /// primer paquete: con un flujo en vivo eso significa empezar a transmitir
+  /// con retraso, o no transmitir nada si el dispositivo entrega mas lento que
+  /// tiempo real. El formato ya esta declarado, asi que no hay nada que
+  /// analizar.
+  List<String> get inputArguments => [
+    '-f',
+    'f32le',
+    '-ar',
+    '$sampleRate',
+    '-ac',
+    '$channels',
+    '-probesize',
+    '32',
+    '-analyzeduration',
+    '0',
+    '-i',
+    'pipe:0',
+  ];
+
+  /// Construye la linea de comandos del codificador.
+  List<String> build(String executablePath) {
+    return <String>[
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      ...inputArguments,
+      '-map',
+      '0:a:0',
+      // El limitador evita que un pico distorsione el audio de los oyentes.
+      // La ganancia NO va aqui: se aplica en Dart para poder cambiarla en vivo.
       '-af',
       _filterChain(),
+      '-ac',
+      '$channels',
+      '-ar',
+      '$sampleRate',
+      ...codecOutputArguments,
     ];
-
-    if (!meterOnly) {
-      args.addAll(['-ac', '$channels', '-ar', '$sampleRate']);
-      // El mapeo se hace explicito (`-map 0:a:0`) en cada salida: con dos
-      // salidas, dejar que FFmpeg elija el flujo por su cuenta es una fuente
-      // clasica de "el audio sale sin filtros" o "el vumetro mide otra cosa".
-      args.addAll(['-map', '0:a:0', ...codecOutputArguments]);
-    }
-
-    // Niveles por stderr. Se emiten tambien en modo `meterOnly`.
-    if (metering || meterOnly) {
-      args.addAll([
-        '-map',
-        '0:a:0',
-        '-c:a',
-        'pcm_s16le',
-        '-ac',
-        '1',
-        '-ar',
-        '8000',
-        '-f',
-        's16le',
-        'pipe:2',
-      ]);
-    }
-
-    return args;
   }
+
+  String _filterChain() => 'alimiter=limit=0.95:attack=5:release=50';
 
   /// Argumentos del encoder de salida para el codec elegido.
   List<String> get codecOutputArguments {
@@ -755,53 +788,59 @@ class CaptureArgs {
   String get fileExtension => codec.fileExtension;
 
   /// El comando completo en una linea, para mostrarlo o copiarlo.
-  ///
-  /// Sirve para diagnosticar: si un dispositivo no captura, el DJ puede pegar
-  /// esto en una consola y ver el error real de FFmpeg. Ademas es la unica
-  /// forma practica de revisar la configuracion en una PC ajena.
-  String preview() {
-    final exe = Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg';
-    final parts = <String>[exe];
-    for (final a in build(exe)) {
-      // Se citan solo los argumentos que lo necesitan, para que el comando se
-      // pueda pegar tal cual en cmd o PowerShell.
-      if (a.isEmpty || a.contains(' ') || a.contains('(') || a.contains(')')) {
-        parts.add('"$a"');
-      } else {
-        parts.add(a);
-      }
-    }
-    return parts.join(' ');
-  }
-
-  String _filterChain() {
-    final filters = <String>[];
-    if (gainDb.abs() > 0.01) {
-      filters.add('volume=${gainDb.toStringAsFixed(2)}dB');
-    }
-    // Evita que un pico distorsione el audio enviado a los oyentes.
-    filters.add('alimiter=limit=0.95:attack=5:release=50');
-    return filters.join(',');
-  }
-
-  /// dshow necesita que el nombre del dispositivo se pase literal.
-  static String _escapeDshow(String name) => name;
+  String preview() => previewCommand(
+    build(Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg'),
+    executable: Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg',
+  );
 }
 
-/// Proceso de captura/codificacion en ejecucion.
-class CaptureProcess {
-  CaptureProcess._(this._process, this.args);
+/// Convierte argumentos en un comando que se puede pegar en una consola.
+///
+/// Sirve para diagnosticar: si un dispositivo no captura, el DJ puede pegar
+/// esto y ver el error real de FFmpeg. Ademas es la unica forma practica de
+/// revisar la configuracion en una PC ajena.
+String previewCommand(List<String> args, {required String executable}) {
+  final parts = <String>[executable];
+  for (final a in args) {
+    // Se citan solo los argumentos que lo necesitan, para que el comando se
+    // pueda pegar tal cual en cmd o PowerShell.
+    if (a.isEmpty || a.contains(' ') || a.contains('(') || a.contains(')')) {
+      parts.add('"$a"');
+    } else {
+      parts.add(a);
+    }
+  }
+  return parts.join(' ');
+}
+
+/// Proceso de FFmpeg en ejecucion (captura o codificador).
+///
+/// Los dos papeles comparten el mismo envoltorio porque lo unico que cambia es
+/// la linea de comandos. La captura usa [stdout] para el PCM y el codificador
+/// para el audio comprimido; en ambos casos [stderr] queda libre para los
+/// mensajes de error en texto.
+class FfmpegProcess {
+  FfmpegProcess._(this._process, this.args, this.role);
 
   final Process _process;
-  final CaptureArgs args;
 
-  /// MP3 codificado listo para enviar al servidor.
-  Stream<Uint8List> get audio =>
+  /// Argumentos con los que se lanzo, para el diagnostico.
+  final List<String> args;
+
+  /// `capture` o `encoder`. El doble de pruebas lo usa para no mezclar sus
+  /// archivos de argumentos.
+  final String role;
+
+  /// Datos de salida (PCM crudo en la captura, audio codificado al emitir).
+  Stream<Uint8List> get stdout =>
       _process.stdout.map((d) => Uint8List.fromList(d));
 
-  /// PCM crudo para los vumetros (vacio si `metering` esta desactivado).
-  Stream<Uint8List> get meter =>
+  /// Mensajes de FFmpeg (texto).
+  Stream<Uint8List> get stderr =>
       _process.stderr.map((d) => Uint8List.fromList(d));
+
+  /// Entrada del proceso (PCM para el codificador). Vacio en la captura.
+  IOSink get stdin => _process.stdin;
 
   int? get pid => _process.pid;
 
@@ -814,26 +853,27 @@ class CaptureProcess {
   int? get exitCodeIfFinished => _exitCode;
   int? _exitCode;
 
-  /// `true` mientras el proceso de captura este en ejecucion.
+  /// `true` mientras el proceso este en ejecucion.
   bool get isRunning => _exitCode == null;
 
-  static Future<CaptureProcess> start({
+  static Future<FfmpegProcess> start({
     required String ffmpegPath,
-    required CaptureArgs args,
+    required List<String> args,
+    required String role,
     Map<String, String> environment = const {},
   }) async {
     final process = await Process.start(
       ffmpegPath,
-      args.build(ffmpegPath),
-      environment: environment.isEmpty ? null : environment,
+      args,
+      environment: {...environment, 'XTREME_FFMPEG_ROLE': role},
     );
-    final capture = CaptureProcess._(process, args);
+    final result = FfmpegProcess._(process, args, role);
     // Se guarda el codigo de salida cuando ocurra, sin bloquear a nadie.
-    unawaited(process.exitCode.then((code) => capture._exitCode = code));
-    return capture;
+    unawaited(process.exitCode.then((code) => result._exitCode = code));
+    return result;
   }
 
-  /// Detiene el proceso de captura y **garantiza** que no quede vivo.
+  /// Detiene el proceso y **garantiza** que no quede vivo.
   ///
   /// Es critico que esto termine siempre: si FFmpeg sobrevive, el microfono
   /// queda ocupado y la app no puede volver a emitir. Y si la espera se cuelga,
@@ -908,10 +948,14 @@ class CaptureProcess {
   String? _lastStopDetail;
 }
 
-/// Calcula nivel de audio (peak y RMS) desde PCM s16le mono.
+/// Calcula nivel de audio (peak y RMS) desde PCM.
 ///
 /// Se calcula en Dart a proposito: decodificar el MP3 otra vez solo para medir
-/// seria desperdiciar CPU en la cabina del DJ.
+/// seria desperdiciar CPU en la cabina del DJ. Acepta PCM entero de 16 bits
+/// ([feed]) o coma flotante de 32 bits ([feedFloat]).
+///
+/// La misma instancia mide antes y despues de entrar al aire: no hay dos
+/// vumetros con ajustes distintos.
 class LevelMeter {
   LevelMeter({this.smoothing = 0.35});
 
@@ -937,7 +981,7 @@ class LevelMeter {
   /// `true` si la senal esta practicamente en silencio.
   bool get isSilent => _peakDb < -50;
 
-  /// Alimenta un bloque PCM y actualiza los niveles.
+  /// Alimenta un bloque PCM s16le y actualiza los niveles.
   void feed(Uint8List pcm) {
     if (pcm.length < 2) return;
     final sampleCount = pcm.length ~/ 2;
@@ -951,8 +995,33 @@ class LevelMeter {
       if (abs > peak) peak = abs;
       sumSquares += sample * sample;
     }
+    _update(peak, sampleCount > 0 ? math.sqrt(sumSquares / sampleCount) : 0.0);
+  }
 
-    final rms = sampleCount > 0 ? math.sqrt(sumSquares / sampleCount) : 0.0;
+  /// Alimenta un bloque PCM `f32le` (el que produce la captura y procesa
+  /// [GainStage]).
+  ///
+  /// Mide la senal **despues** de la ganancia, que es exactamente la que recibe
+  /// el codificador. Asi el vumetro cambia al mover el control y no hay
+  /// diferencia entre estar al aire o no.
+  void feedFloat(Uint8List pcm) {
+    final sampleCount = pcm.length ~/ 4;
+    if (sampleCount == 0) return;
+    var peak = 0.0;
+    var sumSquares = 0.0;
+
+    final view = ByteData.sublistView(pcm, 0, sampleCount * 4);
+    for (var i = 0; i < sampleCount; i++) {
+      final sample = view.getFloat32(i * 4, Endian.little);
+      if (!sample.isFinite) continue;
+      final abs = sample.abs();
+      if (abs > peak) peak = abs;
+      sumSquares += sample * sample;
+    }
+    _update(peak, math.sqrt(sumSquares / sampleCount));
+  }
+
+  void _update(double peak, double rms) {
     final newPeak = _toDb(peak);
     final newRms = _toDb(rms);
 
@@ -966,6 +1035,16 @@ class LevelMeter {
       _peakHoldDb = newPeak;
       _peakHoldAt = now;
     }
+  }
+
+  /// Olvida el pico retenido para que el numero refleje el nivel actual.
+  ///
+  /// Se usa al mover la ganancia: sin esto el valor numerico seguiria mostrando
+  /// durante dos segundos el nivel anterior, y pareceria que el control no
+  /// responde.
+  void clearHold() {
+    _peakHoldDb = -60;
+    _peakHoldAt = DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   double _smooth(double current, double target) {

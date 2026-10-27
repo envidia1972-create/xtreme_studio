@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/audio/broadcast_engine.dart';
-import 'core/audio/input_monitor.dart';
 import 'core/audio/ffmpeg_capture.dart';
 import 'core/diagnostic_log.dart';
 import 'core/net/stream_health.dart';
@@ -54,14 +53,6 @@ class _StudioHomeState extends State<StudioHome> {
   BroadcastEngine? _engine;
   StreamSubscription<BroadcastSnapshot>? _snapshotSub;
   StreamSubscription<LogEntry>? _logSub;
-
-  /// Captura liviana que mantiene el vumetro activo fuera del aire.
-  InputMonitor? _inputMonitor;
-  StreamSubscription<InputLevels>? _monitorLevelsSub;
-  StreamSubscription<String>? _monitorErrorsSub;
-  double _monitorPeakDb = -60;
-  double _monitorHoldDb = -60;
-  double _monitorRmsDb = -60;
 
   /// Monitor de senal: comprueba, como lo haria un oyente, que el servidor
   /// este sirviendo el mount. Cubre el caso en que nuestra conexion sigue viva
@@ -197,7 +188,7 @@ class _StudioHomeState extends State<StudioHome> {
 
     // Se limpia el dispositivo guardado si no esta entre los reales.
     await _clearStaleDeviceSelection();
-    await _startInputMonitor(force: true);
+    await _startPreview();
   }
 
   /// Dispositivo que se usara para monitorear o salir al aire.
@@ -215,8 +206,71 @@ class _StudioHomeState extends State<StudioHome> {
     return repairDeviceName(id);
   }
 
-  /// Arranca (o reinicia) el monitor de entrada fuera del aire.
-  Future<void> _startInputMonitor({bool force = false}) async {
+  /// Crea el motor si hace falta y lo deja capturando para el vumetro.
+  ///
+  /// El motor es el unico dueno del microfono: fuera del aire solo mide, y al
+  /// entrar al aire reutiliza exactamente la misma captura. De ahi que el
+  /// vumetro sea uno solo y que mover la ganancia no corte nada.
+  Future<BroadcastEngine?> _prepareEngine() async {
+    final profile = _activeProfile;
+    if (profile == null || _ffmpegPath.isEmpty) return null;
+
+    final device = _chosenDeviceId();
+    final backend = _captureBackend;
+    var engine = _engine;
+
+    final reusable =
+        engine != null &&
+        identical(engine.profile, profile) &&
+        engine.deviceName == device &&
+        engine.captureBackend == backend;
+
+    if (!reusable) {
+      await _disposeEngine();
+      if (!mounted) return null;
+
+      engine = BroadcastEngine(
+        profile: profile,
+        ffmpegPath: _ffmpegPath,
+        gainDb: profile.gainDb,
+        deviceName: device,
+        captureBackend: backend,
+        // La grabacion es un ajuste global de la app (Ajustes), no del perfil.
+        recordLocally: _settings.recordLocally,
+        recordDirectory: _settings.recordDirectory,
+      );
+      _log.clear();
+      _attachEngine(engine);
+      setState(() => _engine = engine);
+    } else {
+      // El perfil y los ajustes pueden cambiar sin que haga falta reabrir el
+      // microfono (por ejemplo, la ganancia o la carpeta de grabacion).
+      if (engine.gainDb != profile.gainDb) {
+        await engine.setGain(profile.gainDb);
+      }
+      engine.recordLocally = _settings.recordLocally;
+      engine.recordDirectory = _settings.recordDirectory;
+    }
+    return engine;
+  }
+
+  void _attachEngine(BroadcastEngine engine) {
+    _snapshotSub = engine.snapshots.listen((s) {
+      if (!mounted) return;
+      setState(() => _snapshot = s);
+      _reactToCaptureFailure(s);
+    });
+    _logSub = engine.logs.listen((entry) {
+      if (!mounted) return;
+      setState(() {
+        _log.insert(0, entry);
+        if (_log.length > 300) _log.removeLast();
+      });
+    });
+  }
+
+  /// Arranca (o mantiene) la captura que alimenta el vumetro fuera del aire.
+  Future<void> _startPreview() async {
     if (_ffmpegPath.isEmpty) return;
     if (_snapshot.state == BroadcastState.live ||
         _snapshot.state == BroadcastState.starting ||
@@ -224,95 +278,16 @@ class _StudioHomeState extends State<StudioHome> {
       return;
     }
 
-    final backend =
-        _captureBackend ?? await FfmpegLocator(_ffmpegPath).resolveBackend();
-    if (!mounted) return;
+    final engine = await _prepareEngine();
+    if (engine == null || !mounted) return;
 
-    final device = _chosenDeviceId();
-    final current = _inputMonitor;
-    if (!force &&
-        current != null &&
-        current.isRunning &&
-        current.deviceName == device &&
-        current.backend == backend) {
-      return;
-    }
-
-    await _stopInputMonitor(dispose: true);
-    if (!mounted) return;
-
-    final monitor = InputMonitor(
-      ffmpegPath: _ffmpegPath,
-      deviceName: device,
-      backend: backend,
-      // El monitor captura sin ganancia; la ganancia del perfil se aplica en
-      // la lectura que se muestra. Asi mover el control no reinicia el
-      // dispositivo ni deja el vumetro congelado.
-      gainDb: 0,
-    );
-    _inputMonitor = monitor;
-    _monitorLevelsSub = monitor.levels.listen((levels) {
-      if (!mounted) return;
-      setState(() {
-        _monitorPeakDb = levels.peakDb;
-        _monitorHoldDb = levels.peakHoldDb;
-        _monitorRmsDb = levels.rmsDb;
-      });
-    });
-    _monitorErrorsSub = monitor.errors.listen((message) {
-      if (!mounted) return;
-      DiagnosticLog.instance?.write('audio', 'monitor: $message');
-      _logSignal(message, 'warn');
-    });
-
-    final ok = await monitor.start();
+    final ok = await engine.startPreview();
     if (!ok && mounted) {
-      final message = monitor.lastError ?? 'No se pudo monitorear la entrada';
+      final message =
+          engine.snapshot.lastError ?? 'No se pudo monitorear la entrada';
       DiagnosticLog.instance?.write('audio', message);
       _logSignal(message, 'warn');
     }
-  }
-
-  Future<void> _stopInputMonitor({bool dispose = false}) async {
-    await _monitorLevelsSub?.cancel();
-    _monitorLevelsSub = null;
-    await _monitorErrorsSub?.cancel();
-    _monitorErrorsSub = null;
-    final monitor = _inputMonitor;
-    _inputMonitor = null;
-    if (monitor != null) {
-      if (dispose) {
-        await monitor.dispose();
-      } else {
-        await monitor.stop();
-      }
-    }
-    if (mounted) {
-      setState(() {
-        _monitorPeakDb = -60;
-        _monitorHoldDb = -60;
-        _monitorRmsDb = -60;
-      });
-    }
-  }
-
-  /// Instantanea que ve la interfaz: fuera del aire usa el monitor de entrada.
-  BroadcastSnapshot get _viewSnapshot {
-    if (_snapshot.state == BroadcastState.idle ||
-        _snapshot.state == BroadcastState.stopped) {
-      final gain = _activeProfile?.gainDb ?? 0.0;
-      double shown(double db) {
-        if (db <= -60) return -60;
-        return (db + gain).clamp(-60.0, 0.0);
-      }
-
-      return _snapshot.copyWith(
-        peakDb: shown(_monitorPeakDb),
-        rmsDb: shown(_monitorRmsDb),
-        peakHoldDb: shown(_monitorHoldDb),
-      );
-    }
-    return _snapshot;
   }
 
   /// Borra el dispositivo guardado si ya no existe en el sistema.
@@ -386,20 +361,17 @@ class _StudioHomeState extends State<StudioHome> {
     // de dispositivo: si no se reinicia, solo se mostraria la primera vez.
     _deviceRecoveryShown = false;
 
-    // Se suelta el monitor antes de abrir la captura de emision: en ALSA el
-    // dispositivo es exclusivo y dos procesos no pueden abrirlo a la vez.
-    await _stopInputMonitor(dispose: true);
-
-    // Un intento anterior fallido pudo dejar el motor con sus canales abiertos.
-    // Se libera antes de crear uno nuevo para no acumular escuchas ni sockets.
-    final previous = _engine;
-    if (previous != null &&
-        (previous.snapshot.state == BroadcastState.live ||
-            previous.snapshot.state == BroadcastState.starting ||
-            previous.snapshot.state == BroadcastState.reconnecting)) {
-      return; // Ya hay una emision en curso.
+    // Si ya hay una emision en curso no se hace nada.
+    if (_snapshot.isLive ||
+        _snapshot.state == BroadcastState.starting ||
+        _snapshot.state == BroadcastState.reconnecting) {
+      return;
     }
-    await _disposeEngine();
+
+    // El motor (y su captura) se crea una sola vez y se reutiliza: entrar al
+    // aire engancha el codificador a la captura que ya mueve el vumetro.
+    final engine = await _prepareEngine();
+    if (engine == null) return;
 
     // El dispositivo elegido puede haber desaparecido (microfono desconectado,
     // cascos cambiados). Si se pasa un nombre que ya no existe, FFmpeg falla y
@@ -428,37 +400,6 @@ class _StudioHomeState extends State<StudioHome> {
         return;
       }
     }
-
-    final engine = BroadcastEngine(
-      profile: profile,
-      ffmpegPath: _ffmpegPath,
-      // La ganancia viene del perfil: cada emisora puede usar otro microfono.
-      gainDb: profile.gainDb,
-      deviceName: repairDeviceName(chosen),
-      captureBackend: _captureBackend,
-      // La grabacion es un ajuste global de la app (Ajustes), no del perfil.
-      recordLocally: _settings.recordLocally,
-      recordDirectory: _settings.recordDirectory,
-    );
-
-    await _snapshotSub?.cancel();
-    await _logSub?.cancel();
-    _log.clear();
-
-    _snapshotSub = engine.snapshots.listen((s) {
-      if (!mounted) return;
-      setState(() => _snapshot = s);
-      _reactToCaptureFailure(s);
-    });
-    _logSub = engine.logs.listen((entry) {
-      if (!mounted) return;
-      setState(() {
-        _log.insert(0, entry);
-        if (_log.length > 300) _log.removeLast();
-      });
-    });
-
-    setState(() => _engine = engine);
 
     final ok = await engine.goLive();
     if (ok) {
@@ -495,10 +436,9 @@ class _StudioHomeState extends State<StudioHome> {
       if (error != null) _showMessage(error, isError: true);
     }
 
-    // Intento terminado sin emision: se libera el motor y su captura, y se
-    // devuelve el vumetro al monitor de entrada.
-    await _disposeEngine();
-    await _startInputMonitor(force: true);
+    // Intento terminado sin emision: el motor sigue vivo para que el vumetro no
+    // se apague y el DJ pueda reintentar sin volver a abrir el microfono.
+    await _startPreview();
   }
 
   /// Cancela las escuchas y libera el motor actual.
@@ -510,6 +450,18 @@ class _StudioHomeState extends State<StudioHome> {
     await _logSub?.cancel();
     _logSub = null;
     await engine?.dispose();
+    if (mounted) {
+      setState(
+        () => _snapshot = const BroadcastSnapshot(
+          state: BroadcastState.idle,
+          peakDb: -60,
+          rmsDb: -60,
+          secondsOnAir: 0,
+          bytesSent: 0,
+          reconnectAttempt: 0,
+        ),
+      );
+    }
   }
 
   /// Pregunta si se debe desplazar al DJ que ya ocupa el mount.
@@ -623,18 +575,17 @@ class _StudioHomeState extends State<StudioHome> {
     _signalMonitor = null;
   }
 
-  /// Sale del aire.
+  /// Sale del aire y vuelve al modo monitor.
+  ///
+  /// El motor y su captura siguen vivos: el vumetro no se apaga y el proximo
+  /// "entrar al aire" engancha el codificador sin reabrir el microfono.
   Future<void> _goOffAir() async {
     final engine = _engine;
     if (engine == null) return;
     _stopSignalMonitoring();
     await engine.goOffAir();
-    // `goOffAir` deja el motor sin captura ni socket, pero sus canales siguen
-    // abiertos: hay que cerrarlos para no dejar recursos vivos tras cada salida.
-    await _disposeEngine();
     if (!mounted) return;
     setState(() => _signalCheck = null);
-    await _startInputMonitor(force: true);
   }
 
   /// Reacciona cuando la captura se detiene por falta de dispositivo.
@@ -688,7 +639,7 @@ class _StudioHomeState extends State<StudioHome> {
   Future<void> _setTrack(String track) async {
     _pendingTrack = track;
     final engine = _engine;
-    if (engine == null) {
+    if (engine == null || !engine.snapshot.isLive) {
       _showMessage('El titulo se enviara al salir al aire');
       return;
     }
@@ -703,8 +654,8 @@ class _StudioHomeState extends State<StudioHome> {
 
   /// Ajusta la ganancia de entrada y la guarda en el perfil activo.
   ///
-  /// Si se esta al aire, el motor reinicia la captura para aplicar el filtro:
-  /// FFmpeg no permite cambiar la cadena de filtros de un proceso en marcha.
+  /// Se aplica en vivo sobre la misma captura: no reinicia FFmpeg, no corta la
+  /// emision y el vumetro refleja el cambio en el siguiente bloque de audio.
   Future<void> _changeGain(double db) async {
     final profile = _activeProfile;
     if (profile == null) return;
@@ -718,13 +669,15 @@ class _StudioHomeState extends State<StudioHome> {
     if (!mounted) return;
 
     final engine = _engine;
-    if (engine != null && engine.isCapturing) {
+    if (engine != null) {
       await engine.setGain(db);
       if (!mounted) return;
-      _showMessage(
-        'Ganancia ajustada a ${db >= 0 ? '+' : ''}'
-        '${db.toStringAsFixed(1)} dB',
-      );
+      if (engine.snapshot.isLive) {
+        _showMessage(
+          'Ganancia ajustada a ${db >= 0 ? '+' : ''}'
+          '${db.toStringAsFixed(1)} dB (sin cortar la emision)',
+        );
+      }
     }
   }
 
@@ -745,9 +698,6 @@ class _StudioHomeState extends State<StudioHome> {
     _snapshotSub?.cancel();
     _logSub?.cancel();
     _engine?.dispose();
-    _monitorLevelsSub?.cancel();
-    _monitorErrorsSub?.cancel();
-    _inputMonitor?.dispose();
     super.dispose();
   }
 
@@ -767,7 +717,7 @@ class _StudioHomeState extends State<StudioHome> {
         children: [
           _TopBar(
             profile: _activeProfile,
-            snapshot: _viewSnapshot,
+            snapshot: _snapshot,
             ffmpegReady: _ffmpegPath.isNotEmpty,
           ),
           Expanded(
@@ -784,7 +734,7 @@ class _StudioHomeState extends State<StudioHome> {
                     children: [
                       BroadcastScreen(
                         profile: _activeProfile,
-                        snapshot: _viewSnapshot,
+                        snapshot: _snapshot,
                         log: _log,
                         devices: _devices,
                         ffmpegReady: _ffmpegPath.isNotEmpty,
@@ -808,7 +758,7 @@ class _StudioHomeState extends State<StudioHome> {
                             _settings.lastProfileId = active?.id ?? '';
                           });
                           await _saveProfiles();
-                          await _startInputMonitor(force: true);
+                          await _startPreview();
                         },
                         onMessage: _showMessage,
                       ),

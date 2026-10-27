@@ -515,6 +515,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 /// Usa los valores tipicos de emision (128 kbps, 44.1 kHz, estereo) porque la
 /// forma del comando es identica para cualquier calidad: lo que interesa es ver
 /// el dispositivo, el capturador y las tuberias.
+///
+/// Ahora hay dos procesos: uno captura el microfono y otro codifica. Se
+/// muestran los dos porque, si algo falla, el DJ necesita saber cual pegar en
+/// una consola para ver el error real.
 class _CommandPreview extends StatefulWidget {
   const _CommandPreview({required this.deviceName, required this.backend});
 
@@ -532,11 +536,18 @@ class _CommandPreviewState extends State<_CommandPreview> {
   Widget build(BuildContext context) {
     final args = CaptureArgs(
       deviceName: widget.deviceName,
-      bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
       backend: widget.backend,
     );
+    const encoder = EncoderArgs(
+      bitrateKbps: 128,
+      sampleRate: 44100,
+      channels: 2,
+    );
+    final commands =
+        'CAPTURA (microfono -> PCM):\n${args.preview()}\n\n'
+        'CODIFICADOR (PCM -> MP3):\n${encoder.preview()}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -557,7 +568,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
               border: Border.all(color: AppColors.border),
             ),
             child: SelectableText(
-              args.preview(),
+              commands,
               style: AppTheme.mono.copyWith(
                 fontSize: 11,
                 height: 1.4,
@@ -570,7 +581,7 @@ class _CommandPreviewState extends State<_CommandPreview> {
             children: [
               OutlinedButton.icon(
                 onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: args.preview()));
+                  await Clipboard.setData(ClipboardData(text: commands));
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Comando copiado')),
@@ -582,8 +593,8 @@ class _CommandPreviewState extends State<_CommandPreview> {
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
-                  'Pegalo en una consola para ver el error exacto si no captura '
-                  'audio.',
+                  'Pegalos en una consola para ver el error exacto si no captura '
+                  'audio o no codifica.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
                 ),
               ),

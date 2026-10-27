@@ -16,6 +16,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:xtreme_studio/core/audio/ffmpeg_capture.dart';
+import 'package:xtreme_studio/core/audio/gain_stage.dart';
 import 'package:xtreme_studio/core/diagnostic_log.dart';
 import 'package:xtreme_studio/core/net/icecast_client.dart';
 import 'package:xtreme_studio/core/net/shoutcast_client.dart';
@@ -774,14 +775,12 @@ Future<void> _vumetros() async {
 }
 
 Future<void> _captura() async {
-  section('Linea de comandos de FFmpeg');
+  section('Linea de comandos de la captura');
 
   const args = CaptureArgs(
     deviceName: 'Micrófono (Realtek)',
-    bitrateKbps: 128,
     sampleRate: 44100,
     channels: 2,
-    gainDb: 3.0,
     backend: CaptureBackend.dshow,
   );
   final cmd = args.build('ffmpeg.exe');
@@ -790,51 +789,59 @@ Future<void> _captura() async {
     cmd.contains('audio=Micrófono (Realtek)'),
     'pasa el nombre del dispositivo con acentos',
   );
-  check(cmd.contains('libmp3lame'), 'codifica en MP3 con LAME (sin royalties)');
-  check(cmd.contains('128k'), 'respeta el bitrate elegido');
-  check(cmd.contains('pipe:1'), 'el MP3 sale por stdout hacia nuestro motor');
-  check(cmd.contains('pipe:2'), 'los niveles salen por stderr');
-
-  // El filtro de audio va como UN SOLO argumento tras `-af`.
-  final af = cmd.indexOf('-af');
-  check(af >= 0 && af + 1 < cmd.length, 'declara la cadena de filtros con -af');
-  final filtros = af >= 0 ? cmd[af + 1] : '';
+  check(cmd.contains('f32le'), 'entrega PCM en coma flotante (f32le)');
+  check(cmd.contains('pipe:1'), 'el PCM sale por stdout hacia el motor');
   check(
-    filtros.contains('alimiter=limit=0.95'),
-    'incluye limitador anti-saturacion',
-    detail: filtros,
+    cmd.contains('44100') && cmd.contains('2'),
+    'respeta la frecuencia y los canales del perfil',
   );
   check(
-    filtros.contains('volume=3.00dB'),
-    'aplica la ganancia pedida por el DJ',
-    detail: filtros,
-  );
-
-  // Con dos salidas, cada una debe mapear el flujo de audio explicitamente:
-  // si se deja a la seleccion automatica de FFmpeg, es habitual que una salida
-  // se quede sin el filtro de ganancia o sin el limitador.
-  final maps = <int>[];
-  for (var i = 0; i < cmd.length; i++) {
-    if (cmd[i] == '-map') maps.add(i);
-  }
-  check(
-    maps.length == 2,
-    'mapea explicitamente el audio en las dos salidas (MP3 y niveles)',
-    detail: 'se encontraron ${maps.length} mapeos',
+    !cmd.contains('libmp3lame') && !cmd.contains('libfdk_aac'),
+    'la captura NO codifica: el codificador es un proceso aparte',
   );
   check(
-    maps.every((i) => i + 1 < cmd.length && cmd[i + 1] == '0:a:0'),
-    'ambas salidas toman el mismo flujo filtrado',
-    detail: maps.map((i) => cmd[i + 1]).join(', '),
+    !cmd.any((a) => a.startsWith('volume=')),
+    'la captura NO lleva la ganancia: se aplica en Dart para poder cambiarla '
+    'sin reiniciar el proceso',
+  );
+  check(
+    !cmd.contains('pipe:2'),
+    'los niveles ya no comparten la salida de error con el PCM',
   );
 
-  // Codecs alternativos: el mismo motor debe poder enviar MP3, AAC-LC o AAC+.
-  const aacArgs = CaptureArgs(
-    deviceName: 'Mic',
+  section('Linea de comandos del codificador');
+
+  const encArgs = EncoderArgs(bitrateKbps: 128, sampleRate: 44100, channels: 2);
+  final encCmd = encArgs.build('ffmpeg');
+  check(
+    encCmd.contains('f32le') && encCmd.contains('pipe:0'),
+    'el codificador recibe el mismo PCM flotante por stdin',
+  );
+  check(
+    encCmd.contains('-analyzeduration') &&
+        encCmd.contains('-probesize') &&
+        encCmd.contains('0'),
+    'el codificador no analiza el flujo en vivo antes de emitir',
+    detail: 'sin esto FFmpeg retiene los primeros segundos de audio',
+  );
+  check(encCmd.contains('libmp3lame'), 'codifica en MP3 con LAME');
+  check(encCmd.contains('128k'), 'respeta el bitrate elegido');
+  check(encCmd.contains('pipe:1'), 'el MP3 sale por stdout hacia el motor');
+  check(
+    encCmd.any((a) => a.contains('alimiter=limit=0.95')),
+    'el limitador de seguridad sigue en la cadena del codificador',
+  );
+  check(
+    !encCmd.any((a) => a.startsWith('volume=')),
+    'el codificador no aplica ganancia: viene ya procesada desde Dart',
+  );
+
+  // Codecs alternativos: el mismo codificador debe poder enviar MP3, AAC-LC o
+  // AAC+. La captura es identica en los tres casos.
+  const aacArgs = EncoderArgs(
     bitrateKbps: 96,
     sampleRate: 44100,
     channels: 2,
-    backend: CaptureBackend.dshow,
     codec: AudioCodec.aac,
   );
   final aacCmd = aacArgs.build('ffmpeg');
@@ -844,43 +851,16 @@ Future<void> _captura() async {
   );
   check(!aacCmd.contains('libmp3lame'), 'AAC no usa el encoder MP3');
 
-  const aacPlusArgs = CaptureArgs(
-    deviceName: 'Mic',
+  const aacPlusArgs = EncoderArgs(
     bitrateKbps: 48,
     sampleRate: 44100,
     channels: 2,
-    backend: CaptureBackend.dshow,
     codec: AudioCodec.aacPlus,
   );
   final aacPlusCmd = aacPlusArgs.build('ffmpeg');
   check(
     aacPlusCmd.contains('libfdk_aac') && aacPlusCmd.contains('aac_he_v2'),
     'AAC+ usa libfdk_aac con perfil HE-AAC v2',
-  );
-
-  // Monitor de entrada: solo PCM, sin codificar. Es lo que mantiene el
-  // vumetro activo fuera del aire sin gastar CPU en MP3/AAC.
-  const meterOnly = CaptureArgs(
-    deviceName: 'Mic',
-    bitrateKbps: 128,
-    sampleRate: 44100,
-    channels: 2,
-    backend: CaptureBackend.pulse,
-    meterOnly: true,
-  );
-  final meterOnlyCmd = meterOnly.build('ffmpeg');
-  check(
-    !meterOnlyCmd.contains('pipe:1'),
-    'el monitor de entrada no genera audio codificado',
-  );
-  check(
-    meterOnlyCmd.contains('pipe:2') && meterOnlyCmd.contains('pcm_s16le'),
-    'el monitor de entrada solo entrega PCM para el vumetro',
-  );
-  check(
-    !meterOnlyCmd.contains('libmp3lame') &&
-        !meterOnlyCmd.contains('libfdk_aac'),
-    'el monitor de entrada no arranca un encoder',
   );
 
   const codecSettings = AudioSettings(
@@ -896,25 +876,93 @@ Future<void> _captura() async {
     'el codec y el bitrate se conservan al guardar el perfil',
   );
 
-  // La salida MP3 debe ir antes de la salida de niveles, y cada una a su pipe.
-  final mp3Pipe = cmd.indexOf('pipe:1');
-  final meterPipe = cmd.indexOf('pipe:2');
   check(
-    mp3Pipe > 0 && meterPipe > mp3Pipe,
-    'el MP3 sale antes que el PCM de niveles y cada uno a su tuberia',
+    args.preview().contains('-f dshow') && args.preview().contains('pipe:1'),
+    'el comando de captura se puede copiar y pegar',
+    detail: args.preview(),
+  );
+  check(
+    encArgs.preview().contains('-f f32le') &&
+        encArgs.preview().contains('libmp3lame'),
+    'el comando del codificador se puede copiar y pegar',
+    detail: encArgs.preview(),
   );
 
-  const sinGanancia = CaptureArgs(
-    deviceName: 'Mic',
-    bitrateKbps: 64,
-    sampleRate: 22050,
-    channels: 1,
-    gainDb: 0,
-    backend: CaptureBackend.dshow,
+  section('Ganancia en vivo sin reiniciar la captura');
+
+  Uint8List floats(List<double> values) {
+    final data = Uint8List(values.length * 4);
+    final view = ByteData.sublistView(data);
+    for (var i = 0; i < values.length; i++) {
+      view.setFloat32(i * 4, values[i], Endian.little);
+    }
+    return data;
+  }
+
+  double peakOf(Uint8List data) {
+    final view = ByteData.sublistView(data);
+    var peak = 0.0;
+    for (var i = 0; i < data.length ~/ 4; i++) {
+      final v = view.getFloat32(i * 4, Endian.little).abs();
+      if (v > peak) peak = v;
+    }
+    return peak;
+  }
+
+  final stage = GainStage();
+  final input = floats([0.25, -0.25, 0.125, -0.125]);
+  stage.gainDb = 6.0206; // x2
+  final doubled = stage.process(input);
+  check(
+    (peakOf(doubled) - 0.5).abs() < 0.001,
+    '+6 dB duplica la amplitud de la misma captura',
+    detail: peakOf(doubled).toStringAsFixed(3),
+  );
+  stage.gainDb = -6.0206; // x0.5
+  final halved = stage.process(input);
+  check(
+    (peakOf(halved) - 0.125).abs() < 0.001,
+    'bajar la ganancia en la misma instancia reduce el nivel',
+    detail: peakOf(halved).toStringAsFixed(3),
+  );
+  stage.gainDb = 12;
+  final boosted = stage.process(floats([0.8, -0.8]));
+  check(
+    peakOf(boosted) > 1.0,
+    'una ganancia alta conserva el excedente en coma flotante para que el '
+    'limitador lo recorte, en vez de saturar en Dart',
+    detail: peakOf(boosted).toStringAsFixed(2),
+  );
+
+  // Bloques partidos a mitad de muestra: el resto debe esperar al siguiente.
+  stage.gainDb = 0;
+  final all = floats([0.5, -0.5]);
+  final first = stage.process(all.sublist(0, 3));
+  final rest = stage.process(all.sublist(3));
+  final joined = Uint8List(first.length + rest.length)
+    ..setAll(0, first)
+    ..setAll(first.length, rest);
+  check(
+    first.isEmpty && joined.length == 8,
+    'un bloque partido se reensambla sin desalinear el audio',
   );
   check(
-    !sinGanancia.build('ffmpeg').any((a) => a.startsWith('volume=')),
-    'sin ganancia no agrega el filtro de volumen',
+    (peakOf(joined) - 0.5).abs() < 0.001,
+    'el bloque reensamblado conserva las muestras originales',
+  );
+
+  // El vumetro debe medir el PCM flotante que sale de la ganancia.
+  final meterFloat = LevelMeter();
+  meterFloat.feedFloat(doubled);
+  check(
+    (meterFloat.peakDb - (-6.02)).abs() < 0.3,
+    'el vumetro mide el PCM flotante ya amplificado',
+    detail: meterFloat.peakDb.toStringAsFixed(2),
+  );
+  meterFloat.clearHold();
+  check(
+    meterFloat.peakDb > -20,
+    'limpiar el pico retenido no borra la barra (solo el numero)',
   );
 
   section('Capturadores de Linux (PulseAudio y ALSA)');
@@ -923,7 +971,6 @@ Future<void> _captura() async {
   // PulseAudio/PipeWire (preferido) o por ALSA. La app no debe asumir uno.
   const pulseArgs = CaptureArgs(
     deviceName: 'alsa_input.pci-0000_00_1b.0.analog-stereo',
-    bitrateKbps: 128,
     sampleRate: 44100,
     channels: 2,
     backend: CaptureBackend.pulse,
@@ -944,7 +991,6 @@ Future<void> _captura() async {
 
   const pulseDefault = CaptureArgs(
     deviceName: '',
-    bitrateKbps: 128,
     sampleRate: 44100,
     channels: 2,
     backend: CaptureBackend.pulse,
@@ -959,7 +1005,6 @@ Future<void> _captura() async {
 
   const alsaArgs = CaptureArgs(
     deviceName: 'plughw:0,0',
-    bitrateKbps: 128,
     sampleRate: 44100,
     channels: 2,
     backend: CaptureBackend.alsa,
@@ -1661,19 +1706,13 @@ Future<void> _perfil() async {
     detail: '${roundTrip.gainDb}',
   );
 
-  // Y debe llegar al comando de FFmpeg como filtro real.
-  final cmdGain = CaptureArgs(
-    deviceName: 'Mic',
-    bitrateKbps: 128,
-    sampleRate: 44100,
-    channels: 2,
-    gainDb: conGanancia.gainDb,
-  ).build('ffmpeg');
-  final afIndex = cmdGain.indexOf('-af');
+  // Y debe aplicarse en la etapa de ganancia del motor (Dart), no como filtro
+  // de FFmpeg: asi se puede cambiar en vivo sin reiniciar la captura.
+  final gainStage = GainStage(gainDb: conGanancia.gainDb);
   check(
-    afIndex >= 0 && cmdGain[afIndex + 1].contains('volume=4.00dB'),
-    'la ganancia del perfil llega como filtro a FFmpeg',
-    detail: afIndex >= 0 ? cmdGain[afIndex + 1] : 'sin -af',
+    (gainStage.linearGain - 1.5849).abs() < 0.001,
+    'la ganancia del perfil se convierte a factor lineal para el audio',
+    detail: gainStage.linearGain.toStringAsFixed(4),
   );
 
   // ------------------------------------------------- reconexion automatica
@@ -1772,7 +1811,6 @@ Future<void> _perfil() async {
   {
     final args = CaptureArgs(
       deviceName: repairDeviceName('Mezcla estÃ©reo (Realtek Audio)'),
-      bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
       backend: CaptureBackend.dshow,

@@ -4,23 +4,27 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 16 (interfaz verificada con pruebas de widgets)**.
-Última verificación: **335 comprobaciones automáticas en Linux** (nueve
-suites), **16 pruebas de widgets** (`flutter test`) y **172 en Windows**
+Fecha del corte: **ronda 17 (una sola captura de audio)**.
+Última verificación: **365 comprobaciones automáticas en Linux** (nueve
+suites), **18 pruebas de widgets** (`flutter test`) y **172 en Windows**
 (`verify_core`), con el `.exe` compilado y arrancado en GitHub Actions. La
 interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
-PulseAudio/PipeWire y emitió contra un servidor Icecast simulado.
+PulseAudio/PipeWire, por ALSA y emitió contra un servidor Icecast simulado.
 
-En esta ronda se corrigieron fallos que solo aparecían al renderizar de verdad:
-la ventana pedía 1280x800 y se salía de una pantalla de 1366x768, el botón de
-entrar al aire era rojo (parecía "detener"), la cabecera de Emisoras desbordaba
-a la derecha y las tarjetas de Ajustes no daban respuesta visual al tocar.
+En esta ronda se unificó el audio en **una sola captura**: el mismo PCM alimenta
+el vúmetro y el codificador, la ganancia se aplica en Dart y moverla ya no
+reinicia FFmpeg ni corta la emisión. Antes había dos capturas (un monitor fuera
+del aire y otra al emitir) y por eso el vúmetro cambiaba de fuente al entrar al
+aire.
 
-Capturas de esa ejecución: `docs/screenshots/linux-nivel-idle.png`,
-`docs/screenshots/linux-al-aire.png`, `docs/screenshots/linux-codecs.png`,
-`docs/screenshots/linux-emisoras.png` y `docs/screenshots/linux-ajustes.png`.
-Las de esta ronda se tomaron en un portátil de 1366x768: la ventana se ajusta al
-área útil y se ve completa.
+El flujo se reprodujo con la app real, tono de 440 Hz en un sink virtual y
+pulsaciones con XTest: un solo "NIVEL DE ENTRADA", misma captura antes y al
+aire, y al mover la ganancia de -4 a 0 dB el vúmetro pasó de -31,1 a -27,1 dBFS
+con los PID de captura y codificador intactos, sin reconexión y con bytes
+crecientes en el servidor. Al salir del aire el codificador se detuvo y la
+captura siguió midiendo; al cerrar la app no quedó ningún FFmpeg huérfano.
+Capturas actualizadas: `docs/screenshots/linux-nivel-idle.png` y
+`docs/screenshots/linux-al-aire.png`.
 
 ---
 
@@ -34,14 +38,14 @@ Las de esta ronda se tomaron en un portátil de 1366x768: la ventana se ajusta a
 | Credenciales DPAPI en Windows | Verificado en Windows (GitHub Actions, `verify_core`) |
 | Credenciales con permisos `0600` en Linux/macOS | Verificado y usado por la app en Linux |
 | "Probar conexión" con diagnóstico por código HTTP | Verificado |
-| Captura y codificación MP3 por FFmpeg | **Verificada con audio real en Linux** |
+| Captura y codificación por FFmpeg | **Verificada con audio real en Linux**, con captura y codificador como procesos separados |
 | Motor de emisión, reconexión y detección de caída | Verificado con FFmpeg simulado y con audio real |
 | Red estancada (backpressure) y conexión “zombi” | Verificado con servidor que deja de leer |
 | TLS con certificado autofirmado | Verificado con certificado real embebido |
 | Metadatos por `/admin/metadata` (Icecast/Zeno.fm) | Verificado con servidor simulado y sonda real |
-| Vúmetros de pico y RMS, siempre activos | Verificado con ondas sintéticas y con audio real, fuera y dentro del aire |
+| Un solo vúmetro, alimentado por la misma captura antes y después de salir al aire | Verificado con PCM sintético y con audio real |
 | Grabación local | Verificada con audio real; usa el mismo codec/bitrate que el stream |
-| Ganancia de entrada por emisora | Verificada en el vúmetro y en el audio real |
+| Ganancia de entrada por emisora | **Verificada en vivo**: cambia el vúmetro y el stream sin reiniciar procesos ni cortar la emisión |
 | Micrófono y reconexión por emisora | Persistencia y contrato de UI verificados |
 | Monitor de señal (vista del oyente) | Verificado, y probado contra servidor real |
 | Protección del mount ocupado | Verificado, incluida la petición `mode=delete` |
@@ -51,7 +55,7 @@ Las de esta ronda se tomaron en un portátil de 1366x768: la ventana se ajusta a
 | **Detección de dispositivos ALSA** | Parseo y comandos verificados; captura real con PCM `null` |
 | **Selección automática pulse/alsa** | Verificada con las combinaciones posibles |
 | **Códec MP3 / AAC-LC / AAC+** | MP3 y AAC-LC verificados con audio real; AAC+ requiere FFmpeg con `libfdk_aac` |
-| **Pruebas de widgets reales** | **16 pruebas con `flutter test`**: estados, colores, pulsaciones y ausencia de desbordes de 900x600 a 1280x700 |
+| **Pruebas de widgets reales** | **18 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo y ausencia de desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
@@ -60,17 +64,17 @@ En Linux/macOS (con Flutter instalado y `PUB_CACHE` configurado). Si el SDK se
 preparó con `tool/setup_local_sdk.sh`, ejecutar antes `source .tooling/env.sh`:
 
 ```bash
-dart run tool/verify_core.dart              # 171 comprobaciones
-dart run tool/verify_engine.dart            #  37 comprobaciones (FFmpeg simulado)
+dart run tool/verify_core.dart              # 179 comprobaciones
+dart run tool/verify_engine.dart            #  50 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
 dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
-dart run tool/verify_ffmpeg_discovery.dart  #  20 comprobaciones
-dart run tool/verify_linux_audio.dart       #  32 (audio REAL; ALSA opcional)
+dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
+dart run tool/verify_linux_audio.dart       #  40 (audio REAL; ALSA opcional)
 
-# Interfaz renderizada de verdad (no analisis estatico): 16 pruebas.
+# Interfaz renderizada de verdad (no analisis estatico): 18 pruebas.
 flutter test
 ```
 
@@ -91,16 +95,21 @@ En Windows los mismos comandos con `tool\...`. `verify_engine` necesita
 `pactl load-module module-null-sink`, reproduce un tono de 1 kHz dentro de él,
 captura su monitor con FFmpeg real y comprueba:
 
-- que el proceso de captura arranca y el MP3 llega al servidor;
+- que el proceso de captura arranca, que el mismo proceso sigue vivo al entrar
+  al aire y que el MP3 llega al servidor;
 - que el flujo contiene tramas MP3 válidas (incluida la etiqueta ID3v2 que
   antepone FFmpeg 7);
 - que el vúmetro mide el tono real (≈ -6 dBFS);
 - que la grabación local se escribe;
-- que al salir del aire no queda ningún FFmpeg huérfano.
+- que al salir del aire se detiene el codificador pero la captura sigue viva, y
+  que al cerrar no queda ningún FFmpeg huérfano.
 
-**Monitor de entrada:** arranca el monitor con el tono, verifica que llegan
-niveles fuera del aire y que una ganancia de -12 dB baja de verdad el nivel
-medido. Tambien comprueba la ganancia en caliente mientras se emite.
+**Una sola captura y ganancia en vivo:** arranca la captura en modo vista previa,
+comprueba que llegan niveles, aplica -12 dB y verifica que el vúmetro baja **sin
+que cambie el PID de la captura**; al volver a 0 dB recupera el nivel. Con el
+motor al aire repite el ajuste y comprueba que el PID de la captura y el del
+codificador no cambian, que el audio sigue llegando al servidor y que no hay
+ningún corte de captura.
 
 **AAC-LC:** emite el mismo tono con el encoder nativo, comprueba cabecera ADTS
 y que el `PUT` anuncia `audio/aac`.
@@ -120,10 +129,11 @@ soporte pulse, se **omite** con un mensaje claro: no falla por el entorno.
 El analisis estatico (`verify_ui`) no ve desbordes ni colores. Esta ronda añade
 `flutter test` con dos archivos:
 
-- `test/broadcast_screen_test.dart` (11 pruebas): estado fuera del aire y al
+- `test/broadcast_screen_test.dart` (13 pruebas): estado fuera del aire y al
   aire, texto y color del boton, cronometro, pulsacion real de los botones,
-  avisos de error y renderizado sin desbordes en 1280x700, 1280x687, 1000x620,
-  960x600 y 900x600.
+  ajuste de ganancia fuera y dentro del aire (aviso verde de "sin cortar la
+  emision" y disparo del cambio al soltar el control), avisos de error y
+  renderizado sin desbordes en 1280x700, 1280x687, 1000x620, 960x600 y 900x600.
 - `test/other_screens_test.dart` (5 pruebas): Emisoras con y sin perfiles y
   Ajustes con dispositivos, en 1280x687 y 960x600.
 
@@ -154,6 +164,67 @@ mount se libero y el monitor de entrada volvio a arrancar, sin FFmpeg huerfano.
 contexto GL. El proceso de la app sigue vivo pero la ventana queda sin mapear.
 Se lanza entonces con `LIBGL_ALWAYS_SOFTWARE=1` y funciona con llvmpipe; no es
 un fallo de Xtreme Studio. Con el compositor sano arranca con Impeller normal.
+
+---
+
+## Ronda 17: una sola captura de audio
+
+La ronda 14 había resuelto el vúmetro fuera del aire con un **segundo** proceso
+FFmpeg (`InputMonitor`) que solo medía. Funcionaba, pero tenía dos defectos que
+se notaban en cabina:
+
+1. **Había dos vúmetros en la práctica.** Fuera del aire medía un proceso y al
+   entrar al aire otro, con otro dispositivo y otra latencia. Al cambiar de
+   fuente el nivel podía saltar aunque el locutor no hubiera tocado nada.
+2. **Mover la ganancia cortaba la emisión.** La ganancia era el filtro `volume`
+   de FFmpeg; cambiarlo obliga a reiniciar el proceso de captura, y ese reinicio
+   se oía como un corte y dejaba el vúmetro congelado un instante.
+
+La arquitectura actual separa responsabilidades:
+
+```
+ffmpeg captura (dispositivo -> PCM f32le por stdout)
+        |
+        v
+  motor en Dart: GainStage + LevelMeter   (una sola senal)
+        |
+        v
+ffmpeg codificador (PCM f32le por stdin -> MP3/AAC por stdout)
+        |
+        v
+  socket Icecast/Shoutcast + grabacion local
+```
+
+- `lib/core/audio/gain_stage.dart` aplica la ganancia sobre el PCM flotante. Es
+  una multiplicación por bloque; cambiar `gainDb` afecta al bloque siguiente sin
+  tocar procesos. Se usa `f32le` para conservar el excedente por encima de 0 dBFS
+  y que el limitador del codificador decida cuánto recortar.
+- `BroadcastEngine.startPreview()` mantiene la captura viva fuera del aire.
+  `goLive()` reutiliza esa misma captura y solo agrega el codificador y el
+  socket. `goOffAir()` detiene codificador y socket, no la captura.
+  `dispose()` cierra todo.
+- `LevelMeter.feedFloat()` mide el PCM **después** de la ganancia, exactamente lo
+  que recibe el codificador. `clearHold()` se llama al mover la ganancia para que
+  el número no muestre durante 2 s el nivel anterior.
+- El codificador recibe `-probesize 32 -analyzeduration 0`. Sin eso FFmpeg
+  analiza hasta 5 s de audio antes de emitir el primer paquete: con un flujo en
+  vivo eso retrasa el arranque y, si el dispositivo entrega más lento que tiempo
+  real, puede no emitir nada dentro de una prueba razonable.
+- `setGain()` ya no reinicia la captura: solo cambia el factor, limpia el pico
+  retenido y registra "sin cortar la emisión". La interfaz muestra ese mismo
+  aviso en verde.
+
+Pruebas que cubren el cambio:
+
+- `verify_core` comprueba la línea de comandos de captura y codificador, que la
+  ganancia **no** viaja como filtro `volume`, la aritmética de `GainStage`, los
+  bloques partidos a mitad de muestra y el vúmetro sobre PCM flotante.
+- `verify_engine` comprueba con FFmpeg simulado que al mover la ganancia cambian
+  el vúmetro y los bytes enviados, pero **no** los PID de captura y codificador.
+- `verify_linux_audio` comprueba lo mismo con audio real: fuera del aire,
+  al aire y al salir (el codificador se detiene, la captura sigue).
+- `verify_ffmpeg_discovery` y `verify_widget_arguments` verifican que los comandos
+  mostrados en Ajustes corresponden a captura y codificador.
 
 ---
 
@@ -249,11 +320,14 @@ La prueba con Zeno.fm destapó cuatro problemas reales:
    las de administración como respaldo) y el audio va intacto.
 2. **El nivel de entrada solo funcionaba al aire.** El motor no capturaba
    fuera de emisión. Se añadió `InputMonitor`, un FFmpeg liviano que solo mide
-   PCM y mantiene el vúmetro activo siempre.
+   PCM y mantiene el vúmetro activo siempre. **La ronda 17 lo reemplazó** por
+   una sola captura reutilizada, para que el vúmetro no cambie de fuente al
+   entrar al aire.
 3. **La ganancia no se notaba.** Al no haber captura fuera del aire, el control
    no tenía efecto. Ahora la ganancia se aplica a la lectura del monitor y al
    filtro de FFmpeg al emitir. El número de pico se retiene 2 s para que no
-   parpadee.
+   parpadee. **La ronda 17 la movió a Dart** para poder cambiarla sin reiniciar
+   la captura.
 4. **No se podía elegir códec/bitrate.** Se agregó `AudioCodec` (MP3, AAC-LC,
    AAC+), detección real con `ffmpeg -encoders`, selector por emisora y
    `Content-Type` correcto. La grabación usa el mismo códec/bitrate que el
@@ -425,7 +499,8 @@ Ronda 14 (correcciones reportadas por el DJ):
 
 - `lib/core/net/icecast_client.dart` — metadatos por `/admin/metadata`; se
   eliminó el entrelazado `icy-metaint` que corrompía el audio.
-- `lib/core/audio/input_monitor.dart` — monitor de entrada permanente.
+- `lib/core/audio/input_monitor.dart` — monitor de entrada permanente
+  (**eliminado en la ronda 17**: la captura del motor cumple esa función).
 - `lib/core/audio/ffmpeg_capture.dart` — modo `meterOnly`, pico retenido,
   códecs MP3/AAC/AAC+, detección de encoders y flujo MP3 sin ID3/Xing.
 - `lib/core/audio/broadcast_engine.dart` — códec en captura, extensión de
@@ -443,3 +518,21 @@ Ronda 14 (correcciones reportadas por el DJ):
   local adaptados a metadatos fuera del flujo y a códecs.
 - `tool/probe_asura.dart` — se quitaron credenciales en claro y `icy-metaint`.
 - `README.md`, `ESTADO.md`, `THIRD_PARTY.md`, `docs/screenshots/`.
+
+Ronda 17 (una sola captura):
+
+- `lib/core/audio/gain_stage.dart` — **nuevo**: ganancia lineal sobre PCM
+  `f32le`, con reensamblado de bloques partidos a mitad de muestra.
+- `lib/core/audio/ffmpeg_capture.dart` — `CaptureArgs` (solo captura, PCM por
+  stdout), `EncoderArgs` (PCM por stdin, limitador, `-probesize`/
+  `-analyzeduration` mínimos), `FfmpegProcess` con roles, `LevelMeter.feedFloat`
+  y `clearHold`.
+- `lib/core/audio/broadcast_engine.dart` — captura única, `startPreview`,
+  `_onPcm`, `_startEncoder`/`_stopEncoder`, `setGain` en vivo y limpieza.
+- `lib/main.dart` — un solo `_snapshot`, `_prepareEngine`, `_startPreview`, sin
+  `InputMonitor`.
+- `lib/ui/broadcast_screen.dart` — aviso verde de ajuste en vivo sin corte.
+- `lib/ui/settings_screen.dart` — muestra los comandos de captura y codificador.
+- `tool/fake_ffmpeg.c` y `tools/fake_ffmpeg` — doble de FFmpeg para ambos roles.
+- `tool/verify_core.dart`, `tool/verify_engine.dart`, `tool/verify_linux_audio.dart`
+  y `tool/verify_ffmpeg_discovery.dart` — pruebas de la nueva arquitectura.

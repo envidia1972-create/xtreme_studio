@@ -58,6 +58,7 @@ Widget _app({
   SignalCheck? signalCheck,
   Future<void> Function()? onGoLive,
   Future<void> Function()? onGoOffAir,
+  ValueChanged<double>? onGainChanged,
 }) {
   return MaterialApp(
     theme: AppTheme.build(),
@@ -73,7 +74,7 @@ Widget _app({
         onGoLive: onGoLive ?? () async {},
         onGoOffAir: onGoOffAir ?? () async {},
         onTrackChanged: (_) {},
-        onGainChanged: (_) {},
+        onGainChanged: onGainChanged ?? (_) {},
         onOpenProfiles: () {},
       ),
     ),
@@ -173,6 +174,70 @@ void main() {
 
       expect(goOffAir, 1);
       expect(goLive, 0);
+    });
+  });
+
+  group('Ganancia de entrada', () {
+    testWidgets('fuera del aire se ajusta y no habla de emision en vivo', (
+      tester,
+    ) async {
+      await _setSize(tester, const Size(1280, 687));
+      final changes = <double>[];
+      await tester.pumpWidget(
+        _app(profile: _profile(), onGainChanged: changes.add),
+      );
+      await tester.pump();
+
+      expect(find.text('GANANCIA DE ENTRADA'), findsOneWidget);
+      expect(find.textContaining('Estas al aire'), findsNothing);
+
+      await tester.drag(find.byType(Slider), const Offset(60, 0));
+      await tester.pumpAndSettle();
+
+      expect(changes, isNotEmpty);
+      expect(changes.last, greaterThan(0));
+      // La etiqueta refleja el valor que se acaba de elegir.
+      expect(
+        find.text('+${changes.last.toStringAsFixed(1)} dB'),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('al aire avisa en verde que el cambio no corta la emision', (
+      tester,
+    ) async {
+      await _setSize(tester, const Size(1280, 687));
+      final changes = <double>[];
+      await tester.pumpWidget(
+        _app(
+          profile: _profile(),
+          snapshot: _snapshot(state: BroadcastState.live),
+          onGainChanged: changes.add,
+        ),
+      );
+      await tester.pump();
+
+      final warning = find.text(
+        'Estas al aire: el cambio se aplica en vivo, sin cortar la emision.',
+      );
+      expect(warning, findsOneWidget);
+      expect(tester.widget<Text>(warning).style?.color, AppColors.meterSafe);
+
+      // Arrastrar el control dispara el ajuste en vivo una sola vez al soltar.
+      await tester.drag(find.byType(Slider), const Offset(-60, 0));
+      await tester.pumpAndSettle();
+
+      expect(changes, isNotEmpty);
+      expect(changes.last, lessThan(0));
+      expect(
+        find.text(
+          'Estas al aire: el cambio se aplica en vivo, sin cortar la '
+          'emision.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
     });
   });
 

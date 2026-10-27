@@ -1,19 +1,29 @@
-/// Motor de emision: une captura, codificacion, envio y reconexion.
+/// Motor de emision: une captura, ganancia, codificacion, envio y reconexion.
 ///
-/// Decision de diseno clave: **la captura de audio nunca se reinicia**. FFmpeg
-/// arranca una sola vez y sigue produciendo MP3; si la red se cae, solo se
-/// rehace el socket contra el servidor. Eso significa que un microcorte de
-/// internet no obliga al DJ a volver a elegir el microfono, ni corta la
-/// grabacion local, ni deja la senal muda mas de lo necesario.
+/// Decision de diseno clave: **la captura de audio nunca se reinicia**. Hay un
+/// solo proceso FFmpeg que lee el microfono y entrega PCM en crudo; Dart aplica
+/// la ganancia, mide el nivel y alimenta a un segundo proceso que codifica.
+///
+/// Eso resuelve dos problemas de una vez:
+///
+/// 1. El vumetro es uno solo: mide el mismo PCM con la misma ganancia antes y
+///    despues de entrar al aire.
+/// 2. Mover la ganancia no corta la emision: es una multiplicacion en Dart, no
+///    un reinicio de FFmpeg.
 ///
 /// El flujo es:
 ///
-///   ffmpeg (dshow -> MP3) --stdout--> Dart --> [socket] --> Icecast/Shoutcast
-///                                    \--> grabacion local (.mp3)
-///   ffmpeg (PCM 8k) --stderr--> vumetros en pantalla
+///   ffmpeg (captura -> PCM f32le) --stdout--> Dart
+///                                              |-- ganancia + vumetro
+///                                              `--> ffmpeg (encoder) --stdout--> socket
+///                                                                       `--> grabacion
+///
+/// Si la red se cae, solo se rehace el socket: ni el microfono ni el
+/// codificador se tocan.
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -22,6 +32,7 @@ import '../net/icecast_client.dart';
 import '../server_profile.dart';
 import '../diagnostic_log.dart';
 import 'ffmpeg_capture.dart';
+import 'gain_stage.dart';
 
 /// Estado del motor, tal como se muestra en pantalla.
 enum BroadcastState {
@@ -142,7 +153,9 @@ class BroadcastEngine {
     this.recordDirectory,
     this.captureBackend,
     Map<String, String>? environment,
-  }) : environment = environment ?? const {};
+  }) : environment = environment ?? const {} {
+    _gainStage.gainDb = gainDb;
+  }
 
   ServerProfile profile;
   String ffmpegPath;
@@ -191,26 +204,42 @@ class BroadcastEngine {
 
   BroadcastSnapshot get snapshot => _snapshot;
 
-  /// `true` mientras el proceso de captura/codificacion este vivo.
+  /// `true` mientras el proceso de captura este vivo.
   ///
-  /// Tras salir del aire debe ser `false`: si quedara un FFmpeg huerfano, el
-  /// microfono seguiria ocupado y el proximo intento de emitir fallaria.
+  /// La captura se mantiene fuera del aire para que el vumetro siga midiendo
+  /// con la misma fuente. Solo se detiene al cerrar la app o al cambiar de
+  /// dispositivo.
   bool get isCapturing => _capture?.isRunning ?? false;
 
-  /// Codigo de salida de FFmpeg, cuando ya termino.
+  /// `true` mientras haya un codificador produciendo audio para el servidor.
+  bool get isEncoding => _encoder?.isRunning ?? false;
+
+  /// Codigo de salida de la captura, cuando ya termino.
   int? get captureExitCode =>
       _capture?.exitCodeIfFinished ?? _lastCaptureExitCode;
 
+  /// Codigo de salida del codificador, cuando ya termino.
+  int? get encoderExitCode => _encoder?.exitCodeIfFinished;
+
+  /// PID de cada proceso, para diagnostico y pruebas.
+  int? get capturePid => _capture?.pid;
+  int? get encoderPid => _encoder?.pid;
+
   final LevelMeter _meter = LevelMeter();
+  final GainStage _gainStage = GainStage();
 
   BroadcastState _state = BroadcastState.idle;
   String? _lastError;
 
-  CaptureProcess? _capture;
+  FfmpegProcess? _capture;
+  FfmpegProcess? _encoder;
   Broadcaster? _broadcaster;
+  StreamSubscription<Uint8List>? _pcmSub;
   StreamSubscription<Uint8List>? _audioSub;
-  StreamSubscription<Uint8List>? _meterSub;
+  StreamSubscription<Uint8List>? _captureErrSub;
+  StreamSubscription<Uint8List>? _encoderErrSub;
   StreamSubscription<int>? _exitSub;
+  StreamSubscription<int>? _encoderExitSub;
   StreamSubscription<void>? _lostSub;
   Timer? _ticker;
   Timer? _reconnectTimer;
@@ -224,6 +253,11 @@ class BroadcastEngine {
   bool _flushInFlight = false;
   int? _lastCaptureExitCode;
   final List<String> _ffmpegErrors = [];
+  final List<String> _encoderErrors = [];
+
+  /// Ultima vez que se publico una lectura de nivel (se limita a ~20 por
+  /// segundo para no reconstruir la interfaz en cada bloque de PCM).
+  DateTime? _lastMeterEmit;
 
   /// Bitrate de pico reciente, para mostrar "no llega audio" con fundamento.
   DateTime? _lastAudioAt;
@@ -256,6 +290,28 @@ class BroadcastEngine {
     _state = state;
     _lastError = error;
     _emit();
+  }
+
+  /// Arranca solo la captura, sin conectarse a ningun servidor.
+  ///
+  /// Es lo que mantiene vivo el vumetro fuera del aire. La misma captura se
+  /// reutiliza al salir al aire: no se abre el microfono dos veces ni se cambia
+  /// de medidor.
+  Future<bool> startPreview() async {
+    if (_capture?.isRunning == true) return true;
+    if (ffmpegPath.isEmpty || !File(ffmpegPath).existsSync()) return false;
+    _stopping = false;
+    _lastCaptureExitCode = null;
+    _effectiveBackend =
+        captureBackend ?? await FfmpegLocator(ffmpegPath).resolveBackend();
+    final started = await _startCapture();
+    if (started &&
+        _state != BroadcastState.live &&
+        _state != BroadcastState.starting &&
+        _state != BroadcastState.reconnecting) {
+      _setState(BroadcastState.idle);
+    }
+    return started;
   }
 
   /// Entra al aire.
@@ -424,17 +480,22 @@ class BroadcastEngine {
       notifyConnectionLost('el servidor dejo de responder o cerro la conexion');
     });
 
-    // 2. Arrancar la captura una sola vez.
-    if (_capture == null) {
-      if (_stopping) {
-        await _teardownBroadcaster();
-        return false;
-      }
-      final started = await _startCapture();
-      if (!started) {
-        await _teardownBroadcaster();
-        return false;
-      }
+    // 2. La captura puede estar viva desde el modo monitor. Si no, se abre
+    //    ahora; en ningun caso se reinicia al entrar al aire.
+    if (!await _ensureCapture()) {
+      await _teardownBroadcaster();
+      return false;
+    }
+
+    if (_stopping) {
+      await _teardownBroadcaster();
+      return false;
+    }
+
+    // 3. Codificador: existe solo mientras se esta al aire.
+    if (!await _startEncoder()) {
+      await _teardownBroadcaster();
+      return false;
     }
 
     _setState(BroadcastState.live);
@@ -442,46 +503,34 @@ class BroadcastEngine {
     return true;
   }
 
+  /// Abre la captura si todavia no esta corriendo.
+  Future<bool> _ensureCapture() async {
+    if (_capture?.isRunning == true) return true;
+    return _startCapture();
+  }
+
+  /// Arranca la captura de entrada (PCM crudo).
   Future<bool> _startCapture() async {
     final args = CaptureArgs(
       deviceName: deviceName,
-      bitrateKbps: profile.audio.bitrateKbps,
       sampleRate: profile.audio.sampleRate,
       channels: profile.audio.channels,
-      codec: profile.audio.codec,
-      gainDb: gainDb,
-      metering: true,
-      backend: _effectiveBackend,
+      backend: _effectiveBackend ?? captureBackend,
     );
 
+    FfmpegProcess capture;
     try {
-      final capture = await CaptureProcess.start(
+      capture = await FfmpegProcess.start(
         ffmpegPath: ffmpegPath,
-        args: args,
+        args: args.build(ffmpegPath),
+        role: 'capture',
         environment: environment,
       );
-      _capture = capture;
-
-      // La conexion pudo cancelarse mientras FFmpeg arrancaba: se cierra el
-      // proceso para no dejar el microfono ocupado sin emision.
-      if (_stopping) {
-        await capture.stop();
-        _capture = null;
-        return false;
-      }
-
-      // La linea de comandos completa permite reproducir el fallo a mano: es el
-      // dato que mas veces hace falta y el mas dificil de adivinar.
-      DiagnosticLog.instance?.write(
-        'ffmpeg',
-        'proceso iniciado, pid=${capture.pid}',
-      );
-      DiagnosticLog.instance?.write('ffmpeg', 'comando: ${args.preview()}');
     } on ProcessException catch (e) {
       if (_stopping) return false;
       DiagnosticLog.instance?.write(
         'ffmpeg',
-        'no se pudo iniciar el proceso: ${e.message} (ruta: $ffmpegPath)',
+        'no se pudo iniciar la captura: ${e.message} (ruta: $ffmpegPath)',
       );
       _setState(
         BroadcastState.stopped,
@@ -491,8 +540,115 @@ class BroadcastEngine {
       return false;
     }
 
-    // Audio -> servidor (+ grabacion local si esta activa).
-    _audioSub = _capture!.audio.listen((chunk) {
+    _capture = capture;
+    _gainStage.reset();
+    _meter.reset();
+    _lastMeterEmit = null;
+
+    DiagnosticLog.instance?.write(
+      'ffmpeg',
+      'captura iniciada, pid=${capture.pid}',
+    );
+    DiagnosticLog.instance?.write(
+      'ffmpeg',
+      'comando captura: ${args.preview()}',
+    );
+
+    // PCM -> ganancia -> vumetro + codificador.
+    _pcmSub = capture.stdout.listen(
+      _onPcm,
+      onError: (Object e) => _log('warn', 'Error leyendo audio: $e'),
+    );
+    _captureErrSub = capture.stderr.listen(
+      (data) =>
+          _recordFfmpegMessage(data, target: _ffmpegErrors, source: 'captura'),
+      onError: (_) {},
+    );
+
+    _exitSub = capture.exitCode.asStream().listen((code) async {
+      if (_stopping || code == 0) return;
+      await _handleCaptureFailure(code);
+    });
+
+    return true;
+  }
+
+  /// Aplica la ganancia, mide y entrega el mismo PCM al codificador.
+  ///
+  /// Todo lo que se mide es exactamente lo que se codifica: no hay una segunda
+  /// ruta de audio que pueda desincronizarse.
+  void _onPcm(Uint8List chunk) {
+    final amplified = _gainStage.process(chunk);
+    if (amplified.isEmpty) return;
+
+    _meter.feedFloat(amplified);
+
+    final encoder = _encoder;
+    if (encoder != null) {
+      try {
+        encoder.stdin.add(amplified);
+      } catch (e) {
+        _log('warn', 'No se pudo entregar audio al codificador: $e');
+      }
+    }
+
+    final now = DateTime.now();
+    final last = _lastMeterEmit;
+    if (last == null ||
+        now.difference(last) >= const Duration(milliseconds: 50)) {
+      _lastMeterEmit = now;
+      _emit();
+    }
+  }
+
+  /// Arranca el codificador que alimenta al servidor.
+  Future<bool> _startEncoder() async {
+    if (_encoder?.isRunning == true) return true;
+
+    final args = EncoderArgs(
+      bitrateKbps: profile.audio.bitrateKbps,
+      sampleRate: profile.audio.sampleRate,
+      channels: profile.audio.channels,
+      codec: profile.audio.codec,
+    );
+
+    FfmpegProcess encoder;
+    try {
+      encoder = await FfmpegProcess.start(
+        ffmpegPath: ffmpegPath,
+        args: args.build(ffmpegPath),
+        role: 'encoder',
+        environment: environment,
+      );
+    } on ProcessException catch (e) {
+      DiagnosticLog.instance?.write(
+        'ffmpeg',
+        'no se pudo iniciar el codificador: ${e.message}',
+      );
+      _setState(
+        BroadcastState.stopped,
+        error: 'No se pudo iniciar el codificador: ${e.message}',
+      );
+      _log('error', 'No se pudo iniciar el codificador: ${e.message}');
+      return false;
+    }
+
+    _encoder = encoder;
+    _encoderErrors.clear();
+    // Si el codificador muere, escribir en su entrada no debe tumbar la app.
+    unawaited(encoder.stdin.done.catchError((Object _) {}));
+
+    DiagnosticLog.instance?.write(
+      'ffmpeg',
+      'codificador iniciado, pid=${encoder.pid}',
+    );
+    DiagnosticLog.instance?.write(
+      'ffmpeg',
+      'comando codificador: ${args.preview()}',
+    );
+
+    // Audio codificado -> servidor (+ grabacion local si esta activa).
+    _audioSub = encoder.stdout.listen((chunk) {
       _lastAudioAt = DateTime.now();
       try {
         _broadcaster?.send(chunk);
@@ -503,25 +659,18 @@ class BroadcastEngine {
       }
     }, onError: (Object e) => _log('warn', 'Error leyendo audio: $e'));
 
-    // PCM -> vumetros, y texto -> diagnostico.
-    //
-    // FFmpeg escribe las dos cosas por la misma salida de error, asi que hay
-    // que separarlas: los mensajes de texto no son muestras de audio (harian
-    // saltar el vumetro) y son justamente lo que explica un fallo real.
-    _meterSub = _capture!.meter.listen((data) {
-      if (looksLikeText(data)) {
-        _recordFfmpegMessage(data);
-        return;
-      }
-      _meter.feed(data);
-      _emit();
-    }, onError: (_) {});
+    _encoderErrSub = encoder.stderr.listen(
+      (data) => _recordFfmpegMessage(
+        data,
+        target: _encoderErrors,
+        source: 'codificador',
+      ),
+      onError: (_) {},
+    );
 
-    // Si FFmpeg muere (microfono desconectado, driver que falla) hay que
-    // decirlo, no dejar la pantalla diciendo "AL AIRE" en falso.
-    _exitSub = _capture!.exitCode.asStream().listen((code) async {
+    _encoderExitSub = encoder.exitCode.asStream().listen((code) async {
       if (_stopping || code == 0) return;
-      await _handleCaptureFailure(code);
+      await _handleEncoderFailure(code);
     });
 
     _startRecording();
@@ -558,12 +707,8 @@ class BroadcastEngine {
         ffmpegPath: ffmpegPath,
         args: CaptureArgs(
           deviceName: deviceName,
-          bitrateKbps: profile.audio.bitrateKbps,
           sampleRate: profile.audio.sampleRate,
           channels: profile.audio.channels,
-          codec: profile.audio.codec,
-          gainDb: gainDb,
-          metering: false,
           backend: _effectiveBackend,
         ),
         environment: environment,
@@ -590,13 +735,39 @@ class BroadcastEngine {
       _log('info', 'Diagnostico obtenido al reabrir el dispositivo');
     }
 
-    // No queda audio que enviar: se corta el reloj y se suelta el socket. Si se
-    // dejara abierto, el servidor seguiria mostrando el mount ocupado y el
-    // proximo intento de salir al aire recibiria un 403.
+    // No queda audio que enviar: se corta el reloj, se cierra el codificador y
+    // se suelta el socket. Si se dejara abierto, el servidor seguiria mostrando
+    // el mount ocupado y el proximo intento de salir al aire recibiria un 403.
     _ticker?.cancel();
     _ticker = null;
+    await _stopEncoder();
     await _teardownCapture();
     await _teardownBroadcaster();
+  }
+
+  /// El codificador murio mientras la captura sigue viva.
+  ///
+  /// Se sale del aire porque no hay audio que enviar, pero se conserva la
+  /// captura: el DJ sigue viendo el nivel del microfono y puede volver a
+  /// intentarlo sin reconectar el dispositivo.
+  Future<void> _handleEncoderFailure(int code) async {
+    if (_stopping) return;
+    final recorded = _encoderErrors.join('\n');
+    DiagnosticLog.instance?.write(
+      'ffmpeg',
+      'el codificador termino con codigo $code. Mensajes: '
+          '${recorded.isEmpty ? "(ninguno)" : recorded.replaceAll("\n", " | ")}',
+    );
+    final hint = recorded.trim().isEmpty
+        ? 'El codificador de audio se detuvo (codigo $code).'
+        : explainFfmpegError(recorded);
+
+    _log('error', 'La codificacion se detuvo (codigo $code). $hint');
+    _ticker?.cancel();
+    _ticker = null;
+    await _stopEncoder();
+    await _teardownBroadcaster();
+    _setState(BroadcastState.stopped, error: hint);
   }
 
   void _startRecording() {
@@ -642,16 +813,31 @@ class BroadcastEngine {
   /// Guarda un mensaje de FFmpeg para poder explicar un fallo despues.
   ///
   /// El motivo real ("device already in use", "Unknown encoder") solo aparece
-  /// aqui, y es lo unico que permite decirle al DJ que hacer.
-  void _recordFfmpegMessage(Uint8List data) {
+  /// aqui, y es lo unico que permite decirle al DJ que hacer. La captura y el
+  /// codificador tienen listas separadas para no confundir sus diagnosticos.
+  void _recordFfmpegMessage(
+    Uint8List data, {
+    required List<String> target,
+    required String source,
+  }) {
     try {
-      final lines = collectFfmpegLines(data);
+      // La salida de error de FFmpeg es texto UTF-8. Se decodifica el bloque
+      // completo con tolerancia: un acento puede quedar partido entre bloques.
+      final text = utf8.decode(data, allowMalformed: true);
+      final lines = text
+          .split(RegExp(r'\r?\n'))
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
       if (lines.isEmpty) return;
-      _ffmpegErrors.addAll(lines);
+      target.addAll(lines);
       // Solo interesan las ultimas lineas: no tiene sentido guardar un log
       // entero durante una emision larga.
-      while (_ffmpegErrors.length > 40) {
-        _ffmpegErrors.removeAt(0);
+      while (target.length > 40) {
+        target.removeAt(0);
+      }
+      for (final line in lines) {
+        DiagnosticLog.instance?.write('ffmpeg', '$source: $line');
       }
     } catch (_) {
       // Un mensaje ilegible no debe afectar a la emision.
@@ -724,27 +910,28 @@ class BroadcastEngine {
     return ok;
   }
 
-  /// Cambia la ganancia en caliente. Se aplica reiniciando solo la cadena de
-  /// captura, que es irreversible en FFmpeg sin reiniciar el proceso.
+  /// Cambia la ganancia en caliente.
+  ///
+  /// No reinicia nada: solo cambia el factor que [GainStage] aplica al siguiente
+  /// bloque de PCM. El microfono, el codificador y el socket siguen intactos,
+  /// asi que la emision no se corta y el vumetro refleja el cambio de inmediato.
   Future<void> setGain(double db) async {
     gainDb = db;
+    _gainStage.gainDb = db;
+    // El pico retenido mostraria durante dos segundos el nivel anterior y
+    // pareceria que el control no responde.
+    _meter.clearHold();
+    _emit();
     if (_state == BroadcastState.live) {
-      _log('info', 'Ajustando ganancia a ${db.toStringAsFixed(1)} dB');
-      await _restartCapture();
-    } else {
-      _emit();
+      _log(
+        'info',
+        'Ganancia ajustada a ${db >= 0 ? '+' : ''}'
+            '${db.toStringAsFixed(1)} dB (sin cortar la emision)',
+      );
     }
   }
 
-  Future<void> _restartCapture() async {
-    // La grabacion local no se corta al reiniciar la captura (p. ej. al mover
-    // la ganancia): se cierra solo al salir del aire o si la captura falla.
-    await _teardownCapture(keepRecording: true);
-    if (_broadcaster == null) return;
-    await _startCapture();
-  }
-
-  /// Suelta el socket y el aviso de caida, sin recargar la captura.
+  /// Suelta el socket y el aviso de caida, sin tocar la captura ni el encoder.
   Future<void> _teardownBroadcaster({bool releaseMount = false}) async {
     await _lostSub?.cancel();
     _lostSub = null;
@@ -765,32 +952,59 @@ class BroadcastEngine {
     }
   }
 
-  Future<void> _teardownCapture({bool keepRecording = false}) async {
+  /// Detiene el codificador y cierra la grabacion local.
+  ///
+  /// La captura no se toca: sigue alimentando el vumetro fuera del aire.
+  Future<void> _stopEncoder() async {
     await _audioSub?.cancel();
-    await _meterSub?.cancel();
-    await _exitSub?.cancel();
+    await _encoderErrSub?.cancel();
+    await _encoderExitSub?.cancel();
     _audioSub = null;
-    _meterSub = null;
-    _exitSub = null;
-    final capture = _capture;
-    await capture?.stop();
-    // Se conserva el codigo de salida para poder comprobar que el proceso
-    // realmente termino y no quedo un FFmpeg huerfano ocupando el microfono.
-    if (capture != null) {
-      _lastCaptureExitCode ??= capture.exitCodeIfFinished;
+    _encoderErrSub = null;
+    _encoderExitSub = null;
+
+    final encoder = _encoder;
+    _encoder = null;
+    if (encoder != null) {
+      await encoder.stop();
+      DiagnosticLog.instance?.write(
+        'ffmpeg',
+        'codificador detenido'
+            '${encoder.lastStopDetail == null ? "" : ": ${encoder.lastStopDetail}"}',
+      );
     }
-    _capture = null;
-    if (!keepRecording) await _closeRecording();
+    await _closeRecording();
   }
 
-  /// Cierra la captura y el socket tras una caida sin reconexion.
-  ///
-  /// Se hace aparte porque `_teardownCapture` no toca el socket y aqui tambien
-  /// hay que soltarlo: si no, quedaria una conexion medio muerta contra el
-  /// servidor.
-  Future<void> _teardownCaptureFromReconnectFailure() async {
-    await _teardownCapture();
-    await _teardownBroadcaster();
+  /// Detiene la captura de entrada.
+  Future<void> _teardownCapture() async {
+    await _pcmSub?.cancel();
+    await _captureErrSub?.cancel();
+    await _exitSub?.cancel();
+    _pcmSub = null;
+    _captureErrSub = null;
+    _exitSub = null;
+
+    final capture = _capture;
+    _capture = null;
+    if (capture != null) {
+      await capture.stop();
+      // Se conserva el codigo de salida para poder comprobar que el proceso
+      // realmente termino y no quedo un FFmpeg huerfano ocupando el microfono.
+      _lastCaptureExitCode ??= capture.exitCodeIfFinished;
+      DiagnosticLog.instance?.write(
+        'ffmpeg',
+        'captura detenida'
+            '${capture.lastStopDetail == null ? "" : ": ${capture.lastStopDetail}"}',
+      );
+    }
+    _gainStage.reset();
+  }
+
+  /// Cierra el codificador y el socket, conservando la captura.
+  Future<void> _stopEncoderAndBroadcaster({bool releaseMount = false}) async {
+    await _stopEncoder();
+    await _teardownBroadcaster(releaseMount: releaseMount);
   }
 
   /// Se perdio el socket: reintenta con espera creciente, sin tocar el audio.
@@ -813,9 +1027,9 @@ class BroadcastEngine {
             'Conexion perdida. La reconexion automatica esta desactivada '
             'en esta emisora.',
       );
-      // Se corta la captura: seguir codificando sin destino solo ocupa el
-      // microfono y gasta CPU.
-      unawaited(_teardownCaptureFromReconnectFailure());
+      // Se cierra el codificador y el socket, pero no la captura: el DJ sigue
+      // viendo el nivel del microfono y puede volver a intentarlo.
+      unawaited(_stopEncoderAndBroadcaster());
       return;
     }
 
@@ -883,17 +1097,17 @@ class BroadcastEngine {
     _scheduleReconnect();
   }
 
-  /// Sale del aire y libera todo.
+  /// Sale del aire y libera el socket, sin apagar el vumetro.
   ///
   /// [releaseMount] pide al servidor que suelte la fuente: asi el proximo DJ
   /// puede entrar de inmediato en lugar de esperar el timeout.
   ///
   /// El boton debe responder **de inmediato**: por eso el estado cambia a
-  /// "fuera del aire" antes de la limpieza, y el cierre de red y de captura se
+  /// "fuera del aire" antes de la limpieza, y el cierre de red y del encoder se
   /// hace despues, con limites de tiempo. Si algo se cuelga, no puede dejar al
   /// DJ atrapado con una emision que sigue sonando y un boton que no responde.
   Future<void> goOffAir({bool releaseMount = true}) async {
-    if (_stopping) return;
+    if (_state == BroadcastState.idle && _encoder == null) return;
     _stopping = true;
 
     _ticker?.cancel();
@@ -901,13 +1115,13 @@ class BroadcastEngine {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
 
-    // Primero lo que ve el usuario.
-    _meter.reset();
+    // Primero lo que ve el usuario. El vumetro NO se reinicia: la captura sigue
+    // midiendo el microfono igual que antes de entrar al aire.
     _setState(BroadcastState.idle);
     _log('info', 'Saliendo del aire...');
 
     try {
-      await _shutdown(
+      await _stopEncoderAndBroadcaster(
         releaseMount: releaseMount,
       ).timeout(const Duration(seconds: 12));
     } catch (e) {
@@ -917,17 +1131,22 @@ class BroadcastEngine {
       DiagnosticLog.instance?.write('motor', 'fallo al salir del aire: $e');
     }
 
+    _secondsOnAir = 0;
+    _bytesSent = 0;
+    _emit();
+    _stopping = false;
     _log('info', 'Fuera del aire');
   }
 
-  /// Cierre ordenado de red, captura y grabacion.
-  Future<void> _shutdown({required bool releaseMount}) async {
-    await _teardownBroadcaster(releaseMount: releaseMount);
-    await _teardownCapture();
-  }
-
+  /// Cierra todo: encoder, socket y captura.
   Future<void> dispose() async {
-    await goOffAir();
+    _stopping = true;
+    _ticker?.cancel();
+    _ticker = null;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    await _stopEncoderAndBroadcaster(releaseMount: true);
+    await _teardownCapture();
     await _snapshotController.close();
     await _logController.close();
   }

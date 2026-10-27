@@ -144,10 +144,8 @@ Future<void> main() async {
     final backend = CaptureBackend.forPlatform();
     final args = CaptureArgs(
       deviceName: 'Micrófono (Realtek(R) Audio)',
-      bitrateKbps: 128,
       sampleRate: 44100,
       channels: 2,
-      gainDb: 2.5,
       backend: backend,
     );
     final preview = args.preview();
@@ -181,12 +179,25 @@ Future<void> main() async {
       );
     }
     check(
-      preview.contains('pipe:1') && preview.contains('pipe:2'),
-      'las dos salidas van a las tuberias correctas',
+      preview.contains('f32le') && preview.contains('pipe:1'),
+      'la captura entrega PCM flotante por stdout',
     );
     check(
       !preview.contains('\n'),
       'el comando queda en una sola linea (se puede pegar en la consola)',
+    );
+
+    final encoderPreview = const EncoderArgs(
+      bitrateKbps: 128,
+      sampleRate: 44100,
+      channels: 2,
+    ).preview();
+    check(
+      encoderPreview.contains('pipe:0') &&
+          encoderPreview.contains('libmp3lame') &&
+          !encoderPreview.contains('\n'),
+      'el codificador recibe PCM por stdin y entrega MP3 por stdout',
+      detail: encoderPreview,
     );
 
     section('Diagnostico de errores de FFmpeg');

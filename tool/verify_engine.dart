@@ -188,7 +188,11 @@ Future<void> _run() async {
   }
 
   final temp = await Directory.systemTemp.createTemp('xtreme_engine_');
-  final argsFile = File('${temp.path}${Platform.pathSeparator}ffmpeg_args.txt');
+  // El doble escribe un archivo por papel (captura/codificador) para no
+  // mezclar los argumentos de los dos procesos.
+  final argsBase = '${temp.path}${Platform.pathSeparator}ffmpeg_args.txt';
+  File roleArgs(String role) => File('$argsBase.$role');
+  final argsFile = File(argsBase);
   final recordDir = Directory('${temp.path}${Platform.pathSeparator}rec')
     ..createSync(recursive: true);
 
@@ -261,52 +265,71 @@ Future<void> _run() async {
     );
 
     // ------------------------------------------------------- argumentos ffmpeg
-    section('Argumentos con los que se invoco a FFmpeg');
+    section('Argumentos de la captura y del codificador');
     final gotArgs = await waitFor(
-      () => argsFile.existsSync(),
+      () =>
+          roleArgs('capture').existsSync() && roleArgs('encoder').existsSync(),
       timeout: const Duration(seconds: 5),
-      what: 'el archivo de argumentos',
+      what: 'los archivos de argumentos',
     );
-    check(gotArgs, 'FFmpeg fue invocado');
-    if (argsFile.existsSync()) {
-      final args = argsFile
-          .readAsLinesSync()
-          .where((l) => l.isNotEmpty)
-          .toList();
+    check(gotArgs, 'se lanzaron la captura y el codificador');
+    if (gotArgs) {
+      List<String> readArgs(String role) =>
+          roleArgs(role).readAsLinesSync().where((l) => l.isNotEmpty).toList();
+
+      final captureArgs = readArgs('capture');
       check(
-        args.contains(backend.ffmpegName),
-        'se captura por el backend de la plataforma (${backend.ffmpegName})',
+        captureArgs.contains(backend.ffmpegName),
+        'la captura usa el backend de la plataforma (${backend.ffmpegName})',
       );
       if (backend == CaptureBackend.dshow) {
         check(
-          args.any((a) => a.startsWith('audio=')),
-          'se pasa un dispositivo de entrada (dshow)',
-          detail: args.firstWhere(
+          captureArgs.any((a) => a.startsWith('audio=')),
+          'la captura pasa un dispositivo de entrada (dshow)',
+          detail: captureArgs.firstWhere(
             (a) => a.startsWith('audio='),
             orElse: () => '',
           ),
         );
       } else {
-        final inputIndex = args.indexOf('-i');
+        final inputIndex = captureArgs.indexOf('-i');
         check(
-          inputIndex >= 0 && args[inputIndex + 1] == 'Microfono Falso',
-          'se pasa el nombre de la fuente de audio (${backend.ffmpegName})',
-          detail: inputIndex >= 0 ? args[inputIndex + 1] : 'sin -i',
+          inputIndex >= 0 && captureArgs[inputIndex + 1] == 'Microfono Falso',
+          'la captura pasa el nombre de la fuente (${backend.ffmpegName})',
+          detail: inputIndex >= 0 ? captureArgs[inputIndex + 1] : 'sin -i',
         );
       }
-      check(args.contains('libmp3lame'), 'se codifica en MP3');
-      final bitrateIndex = args.indexOf('-b:a');
       check(
-        bitrateIndex >= 0 && args[bitrateIndex + 1] == '128k',
+        captureArgs.contains('f32le') && captureArgs.contains('pipe:1'),
+        'la captura entrega PCM flotante por stdout',
+      );
+      check(
+        !captureArgs.contains('libmp3lame') &&
+            !captureArgs.any((a) => a.startsWith('volume=')),
+        'la captura no codifica ni aplica ganancia (eso es de Dart)',
+      );
+
+      final encoderArgs = readArgs('encoder');
+      check(
+        encoderArgs.contains('f32le') &&
+            encoderArgs.contains('pipe:0') &&
+            encoderArgs.contains('pipe:1'),
+        'el codificador recibe PCM por stdin y entrega audio por stdout',
+      );
+      check(
+        encoderArgs.contains('-analyzeduration') &&
+            encoderArgs.contains('-probesize'),
+        'el codificador emite sin analizar el flujo en vivo',
+      );
+      check(encoderArgs.contains('libmp3lame'), 'el codificador usa MP3/LAME');
+      final bitrateIndex = encoderArgs.indexOf('-b:a');
+      check(
+        bitrateIndex >= 0 && encoderArgs[bitrateIndex + 1] == '128k',
         'se usa el bitrate del perfil',
       );
-      check(args.contains('pipe:1'), 'el MP3 se entrega por stdout');
-      check(args.contains('pipe:2'), 'los niveles se entregan por stderr');
-      final mapCount = args.where((a) => a == '-map').length;
       check(
-        mapCount == 2,
-        'las dos salidas mapean el audio explicitamente',
-        detail: 'mapeos: $mapCount',
+        encoderArgs.any((a) => a.contains('alimiter=limit=0.95')),
+        'el codificador mantiene el limitador de seguridad',
       );
     }
 
@@ -346,6 +369,73 @@ Future<void> _run() async {
       detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
     );
     check(engine.snapshot.isLive, 'el estado es AL AIRE');
+
+    // ------------------------------------------------- ganancia en vivo
+    section('Ganancia en vivo sin cortar la emision');
+    final capturePidBefore = engine.capturePid;
+    final encoderPidBefore = engine.encoderPid;
+    final peakBeforeGain = engine.snapshot.peakDb;
+    final bytesBeforeGain = server.audio.length;
+
+    await engine.setGain(-12);
+    check(
+      await waitFor(
+        () => engine.snapshot.peakDb < peakBeforeGain - 8,
+        timeout: const Duration(seconds: 4),
+        what: 'que el vumetro baje con la ganancia',
+      ),
+      'mover la ganancia actualiza el vumetro al aire',
+      detail:
+          'antes ${peakBeforeGain.toStringAsFixed(1)} dBFS, '
+          'despues ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+    check(
+      engine.capturePid == capturePidBefore,
+      'la captura NO se reinicia al mover la ganancia',
+      detail: 'pid antes $capturePidBefore, ahora ${engine.capturePid}',
+    );
+    check(
+      engine.encoderPid == encoderPidBefore,
+      'el codificador NO se reinicia al mover la ganancia',
+      detail: 'pid antes $encoderPidBefore, ahora ${engine.encoderPid}',
+    );
+    check(
+      !logMessages.any((m) => m.contains('La captura de audio se detuvo')),
+      'no hay ningun corte de captura durante el ajuste',
+    );
+    check(
+      await waitFor(
+        () => server.audio.length > bytesBeforeGain + 1000,
+        timeout: const Duration(seconds: 4),
+        what: 'que el audio siga llegando al servidor',
+      ),
+      'la transmision sigue fluyendo despues del ajuste',
+      detail:
+          'antes $bytesBeforeGain bytes, ahora ${server.audio.length} bytes',
+    );
+    check(engine.snapshot.isLive, 'el motor sigue AL AIRE durante el ajuste');
+
+    // Y al subirla vuelve a subir el nivel, sin reiniciar nada.
+    final peakAfterDrop = engine.snapshot.peakDb;
+    await engine.setGain(0);
+    check(
+      await waitFor(
+        () => engine.snapshot.peakDb > peakAfterDrop + 8,
+        timeout: const Duration(seconds: 4),
+        what: 'que el vumetro vuelva a subir',
+      ),
+      'subir la ganancia tambien se refleja en el vumetro',
+      detail:
+          'antes ${peakAfterDrop.toStringAsFixed(1)} dBFS, '
+          'despues ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+    check(
+      engine.capturePid == capturePidBefore &&
+          engine.encoderPid == encoderPidBefore,
+      'ningun proceso se reinicio en todo el ajuste',
+    );
+
+    // ------------------------------------------------------------- metadatos
 
     // ------------------------------------------------------------- metadatos
     section('Metadatos (suena ahora)');
@@ -473,8 +563,29 @@ Future<void> _run() async {
       'el registro informa la salida',
     );
 
-    // El proceso de captura debe haber terminado de verdad: un FFmpeg huerfano
-    // dejaria el microfono ocupado y el proximo intento de emitir fallaria.
+    // El codificador se detiene, pero la captura sigue viva: es la misma fuente
+    // que mantiene el vumetro fuera del aire.
+    check(
+      await waitFor(
+        () => !engine.isEncoding,
+        timeout: const Duration(seconds: 5),
+        what: 'que termine el codificador',
+      ),
+      'el codificador se detiene al salir del aire',
+    );
+    check(
+      engine.isCapturing,
+      'la captura sigue viva para el vumetro fuera del aire',
+    );
+    check(
+      engine.snapshot.peakDb > -20,
+      'el vumetro sigue midiendo la misma entrada tras salir del aire',
+      detail: 'pico ${engine.snapshot.peakDb.toStringAsFixed(1)} dBFS',
+    );
+
+    // Al cerrar la app si debe terminar la captura: un FFmpeg huerfano dejaria
+    // el microfono ocupado y el proximo arranque fallaria.
+    await engine.dispose();
     final captureStopped = await waitFor(
       () => !engine.isCapturing,
       timeout: const Duration(seconds: 5),
@@ -482,7 +593,7 @@ Future<void> _run() async {
     );
     check(
       captureStopped,
-      'el proceso de captura termino (no queda huerfano)',
+      'al cerrar, el proceso de captura termina (no queda huerfano)',
       detail: 'codigo de salida: ${engine.captureExitCode}',
     );
 
