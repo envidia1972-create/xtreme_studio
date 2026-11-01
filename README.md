@@ -328,8 +328,8 @@ dentro de esa carpeta, que es la que se entrega a otra emisora.
 El `.exe` no esta firmado. Windows y Chrome suelen bloquear archivos descargados
 de internet o que contienen un `ffmpeg.exe` estatico. No es un fallo del build.
 
-1. **Verifica el ZIP** (tamano 80.018.818 bytes, SHA-256
-   `f59d330388457fb99bfc9e9dabcb9443be92d57000288206e04d8e9f6ad585c8`).
+1. **Verifica el ZIP** (tamano 80.093.894 bytes, SHA-256
+   `a1c9e098b7cfae2af8a003c502d1e0698ada4e6e43651a998d56efefc53efb14`).
    Si Chrome lo corto, volve a bajarlo con `gh run download` o elegi
    *Conservar* en las descargas de Chrome.
 2. **Desbloquealo ANTES de extraer**:
@@ -398,7 +398,7 @@ build → Run workflow** GitHub compila en `windows-latest` y deja la carpeta
 `check_toolchain.ps1`, corre `verify_core` en Windows y compila con
 `build_windows.ps1`.
 
-**Ya verificado:** run `41275328196` termino en verde; el `.exe` se genero,
+**Ya verificado:** run `41334467633` termino en verde; el `.exe` se genero,
 `verify_core` paso **187 comprobaciones**, el icono incrustado se leyo como
 `32x32` y el arranque de la app se comprobo con
 `[ok] La aplicacion arranco correctamente`. El artifact es
