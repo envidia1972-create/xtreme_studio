@@ -4,10 +4,17 @@
 #   powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1
 #
 # El icono esta incrustado en xtreme_studio.exe (Runner.rc -> app_icon.ico).
+#
+# Si el .exe esta en otra carpeta (por ejemplo, el artifact descargado):
+#   powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1 -Exe C:\XtremeStudio\xtreme_studio.exe
+param(
+    [string]$Exe = ''
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $root 'build\windows\x64\runner\Release\xtreme_studio.exe'
+$exe = if ($Exe) { $Exe } else { Join-Path $root 'build\windows\x64\runner\Release\xtreme_studio.exe' }
 if (-not (Test-Path $exe)) {
     Write-Host "ERROR: no se encontro $exe" -ForegroundColor Red
     Write-Host 'Compila primero con tool\build_windows.ps1' -ForegroundColor Yellow

@@ -8,8 +8,9 @@ Fecha del corte: **ronda 19 (icono, entradas sin seleccionar y textos)**.
 Última verificación: **373 comprobaciones** en los nueve comandos de Linux
 (`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40, etc.) y
 **20 pruebas de widgets** con `flutter test`, todas en verde. La compilación y
-arranque del `.exe` en GitHub Actions siguen vigentes de la ronda anterior. La
-interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
+arranque del `.exe` en GitHub Actions siguen vigentes (run `41275328196`,
+`verify_core` 187 en Windows, icono 32x32 y arranque correcto). La interfaz
+Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
 PulseAudio/PipeWire, por ALSA y emitió contra un servidor Icecast simulado.
 
 En esta ronda se unificó el audio en **una sola captura**: el mismo PCM alimenta
@@ -401,7 +402,7 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 ## Qué sigue bloqueado
 
 1. **El audio real en Windows no se ha probado.** El `.exe` compila y arranca
-   en GitHub Actions (run `40232577146`), y `verify_core` pasa 172
+   en GitHub Actions (run `41275328196`), y `verify_core` pasa 187
    comprobaciones en Windows, pero el runner no tiene micrófono. Falta abrir la
    app en una PC Windows con el micrófono/consola real y probar dshow, vúmetro,
    ganancia y emisión.
@@ -426,13 +427,14 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 
 ### Build verificado en GitHub Actions
 
-- Run: `40232577146` (workflow `Windows build`, `windows-latest`).
+- Run: `41275328196` (workflow `Windows build`, `windows-latest`).
 - Flutter 3.47.8, MSVC/CMake/Windows SDK, FFmpeg GPL win64 descargado por el
   workflow.
-- `verify_core`: **172 comprobaciones en verde**.
+- `verify_core`: **187 comprobaciones en verde**.
 - `flutter build windows --release`: `xtreme_studio.exe` generado en 56,7 s.
 - Arranque comprobado por el script: `[ok] La aplicacion arranco correctamente`.
-- Artifact: `xtreme_studio-windows-x64` (14 archivos, 79,5 MB con FFmpeg).
+- Artifact: `xtreme_studio-windows-x64` (14 archivos, 80,0 MB con FFmpeg).
+- Icono incrustado verificado por el script: `[ok] Icono del ejecutable: 32x32`.
 
 ### Pasos para la prueba final en Windows
 
@@ -459,7 +461,7 @@ dart run tool\verify_engine.dart
 
 Si no hay una PC Windows, `.github/workflows/windows.yml` compila en GitHub
 Actions y publica la carpeta `Release` como artifact. Ese camino ya se ejecutó
-con éxito en el run `40232577146`.
+con éxito en el run `41275328196`.
 
 Salida esperada: `build\windows\x64\runner\Release\xtreme_studio.exe`, con
 `ffmpeg.exe`, la licencia y la documentación copiadas al lado.
