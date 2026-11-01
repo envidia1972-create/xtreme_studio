@@ -43,7 +43,7 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | **Proteccion contra desplazar a otro DJ** (avisa antes de forzar) | Listo |
 | **Comprobacion de la senal publicada** (vista del oyente) | Listo |
 | Vumetro activo desde que se elige la entrada, tambien fuera del aire | Listo |
-| **Ninguna entrada marcada por defecto**; sin elegir una no se abre el microfono | Listo |
+| **Entrada predeterminada del sistema** seleccionada por defecto (`Default`) | Listo |
 | Pico retenido y RMS estables (sin parpadeo) | Listo |
 | **Ganancia** audible en el vumetro y en el stream | Listo |
 | **"Suena ahora"** por `/admin/metadata` (Icecast/Zeno.fm) | Listo |
@@ -141,9 +141,8 @@ El recorrido del audio es:
 
 Detalles:
 
-- En una instalacion nueva **no aparece ninguna entrada marcada** y no se abre
-  el microfono. El DJ tiene que elegir una en *Ajustes → Entrada de audio*; a
-  partir de ahi el vumetro queda activo todo el tiempo, tambien fuera del aire.
+- Por defecto queda seleccionada **Predeterminado del sistema (default)**. Si
+  el DJ elige otro equipo en Ajustes, se respeta esa eleccion.
 - El vumetro y los numeros funcionan **fuera del aire**, con el dispositivo
   elegido en Ajustes o el asignado a la emisora.
 - Mover la ganancia **no reinicia nada**: cambia el factor que se aplica al
@@ -211,8 +210,9 @@ Crea `~/.local/share/applications/xtreme-studio.desktop` y instala el icono en
 
 ### Acceso directo en Windows
 
-El `.exe` ya lleva el icono incrustado. Para crear el acceso directo en el
-Escritorio:
+El `.exe` ya lleva el icono incrustado y la carpeta `Release` incluye
+`app_icon.ico` por si queres elegirlo manualmente. Para crear el acceso directo
+en el Escritorio:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1

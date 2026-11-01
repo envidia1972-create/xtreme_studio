@@ -135,7 +135,9 @@ void main() {
   });
 
   group('Ajustes', () {
-    testWidgets('ninguna entrada aparece marcada por defecto', (tester) async {
+    testWidgets('por defecto queda marcada la entrada del sistema', (
+      tester,
+    ) async {
       await _setSize(tester, const Size(1280, 687));
       await tester.pumpWidget(
         _wrap(
@@ -155,14 +157,7 @@ void main() {
       final group = tester.widget<RadioGroup<String>>(
         find.byType(RadioGroup<String>),
       );
-      expect(group.groupValue, '');
-      expect(
-        find.text(
-          'Ningun dispositivo seleccionado. Elegi una entrada para activar '
-          'el vumetro y poder salir al aire.',
-        ),
-        findsOneWidget,
-      );
+      expect(group.groupValue, 'default');
       expect(tester.takeException(), isNull);
     });
     for (final size in const [Size(1280, 687), Size(960, 600)]) {

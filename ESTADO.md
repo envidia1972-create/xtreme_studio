@@ -4,7 +4,7 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 19 (icono, entradas sin seleccionar y textos)**.
+Fecha del corte: **ronda 19 (icono, entrada predeterminada y textos)**.
 Última verificación: **373 comprobaciones** en los nueve comandos de Linux
 (`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40, etc.) y
 **20 pruebas de widgets** con `flutter test`, todas en verde. La compilación y
@@ -23,7 +23,7 @@ La ronda 18 añade la protección contra el **bloqueo de pantalla** en Linux y l
 reapertura automática de la captura si el audio se queda mudo (ver más abajo).
 
 La ronda 19 agrega un **icono propio** (ventana, ejecutable de Windows y
-lanzadores), deja las **entradas de audio sin seleccionar por defecto** y
+lanzadores), deja seleccionada la **entrada predeterminada del sistema** y
 simplifica el menu de tipo de servidor a **Icecast2**. Tambien elimina toda
 comparacion con otros emisores de la interfaz y de `THIRD_PARTY.md`.
 
@@ -65,10 +65,10 @@ Capturas actualizadas: `docs/screenshots/linux-nivel-idle.png` y
 | **Detección de dispositivos ALSA** | Parseo y comandos verificados; captura real con PCM `null` |
 | **Selección automática pulse/alsa** | Verificada con las combinaciones posibles |
 | **Códec MP3 / AAC-LC / AAC+** | MP3 y AAC-LC verificados con audio real; AAC+ requiere FFmpeg con `libfdk_aac` |
-| **Entrada de audio por defecto** | **Ninguna marcada**; sin elegir una no se abre el micrófono |
+| **Entrada de audio por defecto** | **Predeterminado del sistema (default)** seleccionada |
 | **Icono y lanzador** | Icono propio en Linux y Windows; scripts para `.desktop` y acceso directo |
 | **Tipo de servidor** | El menu muestra solo **Icecast2** (sin nombres de hosting) |
-| **Pruebas de widgets reales** | **20 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entradas sin seleccionar y ausencia de desbordes de 900x600 a 1280x700 |
+| **Pruebas de widgets reales** | **20 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entrada predeterminada y ausencia de desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento

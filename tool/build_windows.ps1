@@ -316,6 +316,12 @@ if (Test-Path $outDir) {
         }
     }
     Write-Host '[ok] documentacion copiada junto al ejecutable' -ForegroundColor Green
+
+    $ico = Join-Path $root 'windows\runner\resources\app_icon.ico'
+    if (Test-Path $ico) {
+        Copy-Item $ico (Join-Path $outDir 'app_icon.ico') -Force
+        Write-Host '[ok] app_icon.ico copiado junto al ejecutable' -ForegroundColor Green
+    }
 }
 
 # ---------------------------------------------------- Archivos imprescindibles

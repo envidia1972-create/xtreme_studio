@@ -264,17 +264,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                if (widget.devices.isNotEmpty &&
-                    _selectedDeviceId().isEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Ningun dispositivo seleccionado. Elegi una entrada para '
-                    'activar el vumetro y poder salir al aire.',
-                    style: TextStyle(color: AppColors.warning, fontSize: 12),
-                  ),
-                ],
-                if (widget.devices.isNotEmpty &&
-                    _selectedDeviceId().isNotEmpty) ...[
+                if (widget.devices.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _CommandPreview(
                     deviceName: _selectedDeviceId(),
@@ -491,11 +481,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _selectedDeviceId() {
     final saved = widget.settings.lastDeviceId;
-    if (saved.isEmpty) return '';
-    for (final d in widget.devices) {
-      if (d.id == saved) return d.id;
+    if (saved.isNotEmpty) {
+      for (final d in widget.devices) {
+        if (d.id == saved) return d.id;
+      }
     }
-    return '';
+    // Sin eleccion explicita se marca la entrada predeterminada del sistema.
+    for (final d in widget.devices) {
+      if (d.id == 'default') return d.id;
+    }
+    return widget.devices.isNotEmpty ? widget.devices.first.id : '';
   }
 
   Future<void> _selectDevice(InputDevice device) async {

@@ -200,7 +200,13 @@ class _StudioHomeState extends State<StudioHome> {
     final saved = profile?.inputDeviceId.isNotEmpty == true
         ? profile!.inputDeviceId
         : _settings.lastDeviceId;
-    return saved.isEmpty ? '' : repairDeviceName(saved);
+    if (saved.isNotEmpty) return repairDeviceName(saved);
+    // Por defecto se usa la entrada "Predeterminado del sistema". En Windows
+    // dshow no existe esa entrada; en ese caso se usa la primera disponible.
+    for (final device in _devices) {
+      if (device.id == 'default') return device.id;
+    }
+    return _devices.isNotEmpty ? _devices.first.id : '';
   }
 
   /// Crea el motor si hace falta y lo deja capturando para el vumetro.
