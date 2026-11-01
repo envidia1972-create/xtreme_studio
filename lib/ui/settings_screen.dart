@@ -264,7 +264,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                if (widget.devices.isNotEmpty) ...[
+                if (widget.devices.isNotEmpty &&
+                    _selectedDeviceId().isEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ningun dispositivo seleccionado. Elegi una entrada para '
+                    'activar el vumetro y poder salir al aire.',
+                    style: TextStyle(color: AppColors.warning, fontSize: 12),
+                  ),
+                ],
+                if (widget.devices.isNotEmpty &&
+                    _selectedDeviceId().isNotEmpty) ...[
                   const SizedBox(height: 8),
                   _CommandPreview(
                     deviceName: _selectedDeviceId(),
@@ -354,6 +364,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 16),
 
+          // --- Pantalla y suspension ---
+          if (Platform.isLinux) ...[
+            _card(
+              title: 'Pantalla y suspensión',
+              subtitle:
+                  'En Linux, cuando el escritorio bloquea la pantalla cambia a '
+                  'una sesión de bloqueo: el sistema rearma los dispositivos de '
+                  'audio y la captura se queda muda aunque la app siga al aire. '
+                  'Con esto activo, la app le pide al escritorio que no bloquee '
+                  'la pantalla ni suspenda el equipo mientras está emitiendo.',
+              child: SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: settings.keepAwakeWhileLive,
+                activeThumbColor: AppColors.accent,
+                title: const Text(
+                  'No bloquear la pantalla mientras emito',
+                  style: TextStyle(fontSize: 13.5),
+                ),
+                subtitle: const Text(
+                  'Se aplica al instante, aunque ya estés al aire.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onChanged: (v) async {
+                  settings.keepAwakeWhileLive = v;
+                  await widget.onChanged(settings);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // --- Registro de diagnostico ---
           _card(
             title: 'Registro de diagnostico',
@@ -432,8 +474,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const _Bullet(
                     'Las contrasenas se guardan en un archivo privado '
                     'con permisos 0600 (solo tu usuario). Linux no ofrece '
-                    'DPAPI, asi que no hay cifrado adicional: es el mismo '
-                    'nivel de proteccion que ofrece BUTT.',
+                    'DPAPI, asi que no hay cifrado adicional: la proteccion '
+                    'depende de los permisos del sistema de archivos.',
                   ),
                 const _Bullet(
                   'Al compartir un perfil, la contrasena nunca se '
@@ -448,10 +490,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   String _selectedDeviceId() {
+    final saved = widget.settings.lastDeviceId;
+    if (saved.isEmpty) return '';
     for (final d in widget.devices) {
-      if (d.id == widget.settings.lastDeviceId) return d.id;
+      if (d.id == saved) return d.id;
     }
-    return widget.devices.isNotEmpty ? widget.devices.first.id : '';
+    return '';
   }
 
   Future<void> _selectDevice(InputDevice device) async {

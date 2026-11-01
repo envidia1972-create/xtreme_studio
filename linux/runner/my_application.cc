@@ -1,5 +1,7 @@
 #include "my_application.h"
 
+#include <initializer_list>
+
 #include <flutter_linux/flutter_linux.h>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
@@ -17,6 +19,44 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
+}
+
+// Carga el icono de la app desde el bundle (data/app_icon.png).
+//
+// Se calcula la ruta a partir de /proc/self/exe para que funcione aunque la
+// carpeta se abra desde otro directorio. Si el archivo no existe (por ejemplo,
+// al ejecutar el binario sin instalar), no pasa nada.
+static void set_window_icon(GtkWindow* window) {
+  g_autofree gchar* exe = g_file_read_link("/proc/self/exe", nullptr);
+  if (exe == nullptr) return;
+
+  g_autofree gchar* dir = g_path_get_dirname(exe);
+  g_autofree gchar* icon =
+      g_build_filename(dir, "data", "app_icon.png", nullptr);
+  if (!g_file_test(icon, G_FILE_TEST_EXISTS)) return;
+
+  g_autoptr(GError) error = nullptr;
+  g_autoptr(GdkPixbuf) source = gdk_pixbuf_new_from_file(icon, &error);
+  if (source == nullptr) {
+    g_printerr("Xtreme Studio: no se pudo cargar el icono %s: %s\n", icon,
+               error != nullptr ? error->message : "error desconocido");
+    return;
+  }
+
+  // Se pasan varios tamanos: el escritorio elige el que necesita y GTK publica
+  // `_NET_WM_ICON` (el icono que usan las barras de tareas modernas).
+  GList* icons = nullptr;
+  for (const int size : {16, 24, 32, 48, 64, 128, 256}) {
+    GdkPixbuf* scaled = gdk_pixbuf_scale_simple(
+        source, size, size, GDK_INTERP_BILINEAR);
+    if (scaled != nullptr) icons = g_list_append(icons, scaled);
+  }
+  gtk_window_set_icon_list(window, icons);
+  gtk_window_set_default_icon_list(icons);
+  for (GList* item = icons; item != nullptr; item = item->next) {
+    g_object_unref(item->data);
+  }
+  g_list_free(icons);
 }
 
 // Implements GApplication::activate.
@@ -114,6 +154,7 @@ static void my_application_activate(GApplication* application) {
   g_signal_connect_swapped(view, "first-frame", G_CALLBACK(first_frame_cb),
                            self);
   gtk_widget_realize(GTK_WIDGET(view));
+  set_window_icon(window);
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
 

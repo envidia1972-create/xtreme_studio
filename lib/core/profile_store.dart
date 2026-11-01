@@ -33,6 +33,7 @@ class AppSettings {
     this.lastDeviceId = '',
     this.recordLocally = false,
     this.recordDirectory = '',
+    this.keepAwakeWhileLive = true,
   });
 
   /// Perfil que estaba seleccionado al cerrar.
@@ -50,12 +51,22 @@ class AppSettings {
   /// Carpeta donde se guardan las grabaciones.
   String recordDirectory;
 
+  /// Evita que la pantalla se bloquee y que el equipo se suspenda mientras la
+  /// app esta al aire.
+  ///
+  /// En Linux, al bloquearse la pantalla el escritorio cambia a una sesion de
+  /// greeter: la sesion del DJ pasa a inactiva, PipeWire reconfigura los nodos
+  /// de audio y la captura se queda muda. Inhibir el bloqueo mientras se
+  /// emite es la unica forma de que el audio no se corte solo.
+  bool keepAwakeWhileLive;
+
   Map<String, dynamic> toJson() => {
     'lastProfileId': lastProfileId,
     'ffmpegPath': ffmpegPath,
     'lastDeviceId': lastDeviceId,
     'recordLocally': recordLocally,
     'recordDirectory': recordDirectory,
+    'keepAwakeWhileLive': keepAwakeWhileLive,
   };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
@@ -64,6 +75,7 @@ class AppSettings {
     lastDeviceId: json['lastDeviceId'] as String? ?? '',
     recordLocally: json['recordLocally'] as bool? ?? false,
     recordDirectory: json['recordDirectory'] as String? ?? '',
+    keepAwakeWhileLive: json['keepAwakeWhileLive'] as bool? ?? true,
   );
 }
 

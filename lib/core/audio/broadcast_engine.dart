@@ -1,8 +1,10 @@
 /// Motor de emision: une captura, ganancia, codificacion, envio y reconexion.
 ///
-/// Decision de diseno clave: **la captura de audio nunca se reinicia**. Hay un
-/// solo proceso FFmpeg que lee el microfono y entrega PCM en crudo; Dart aplica
-/// la ganancia, mide el nivel y alimenta a un segundo proceso que codifica.
+/// Decision de diseno clave: **hay una sola captura**. Un solo proceso FFmpeg
+/// lee el microfono y entrega PCM en crudo; Dart aplica la ganancia, mide el
+/// nivel y alimenta a un segundo proceso que codifica. La captura no se reinicia
+/// al entrar o salir del aire ni al mover la ganancia: solo se reabre si deja de
+/// entregar audio o si el proceso muere (ver `_recoverCapture`).
 ///
 /// Eso resuelve dos problemas de una vez:
 ///
@@ -31,6 +33,7 @@ import '../net/broadcaster.dart';
 import '../net/icecast_client.dart';
 import '../server_profile.dart';
 import '../diagnostic_log.dart';
+import '../screen_guard.dart';
 import 'ffmpeg_capture.dart';
 import 'gain_stage.dart';
 
@@ -152,9 +155,11 @@ class BroadcastEngine {
     this.recordLocally,
     this.recordDirectory,
     this.captureBackend,
+    bool keepScreenAwake = true,
     Map<String, String>? environment,
   }) : environment = environment ?? const {} {
     _gainStage.gainDb = gainDb;
+    _screenGuard = ScreenGuard(enabled: keepScreenAwake);
   }
 
   ServerProfile profile;
@@ -170,6 +175,21 @@ class BroadcastEngine {
   /// realmente se va a ejecutar.
   CaptureBackend? captureBackend;
   CaptureBackend? _effectiveBackend;
+
+  /// Evita que la pantalla se bloquee y que el equipo se suspenda al aire.
+  ///
+  /// Es un ajuste global de la app (Ajustes). Si se apaga con la emision en
+  /// curso, la inhibicion se suelta de inmediato.
+  bool get keepScreenAwake => _screenGuard.enabled;
+
+  set keepScreenAwake(bool value) {
+    if (_screenGuard.enabled == value) return;
+    _screenGuard.enabled = value;
+    if (!value && _screenGuard.isRunning) unawaited(_screenGuard.stop());
+  }
+
+  /// Inhibe el bloqueo de pantalla y la suspension mientras se emite.
+  late final ScreenGuard _screenGuard;
 
   /// Grabacion local. Si se deja en `null` se usa la del perfil (compatibilidad
   /// con versiones anteriores); la app pasa aqui los ajustes globales, que son
@@ -262,6 +282,24 @@ class BroadcastEngine {
   /// Bitrate de pico reciente, para mostrar "no llega audio" con fundamento.
   DateTime? _lastAudioAt;
 
+  /// Ultimo bloque de PCM que entrego la captura.
+  ///
+  /// Es distinto de [_lastAudioAt], que mide la salida del codificador: si la
+  /// captura se queda muda pero el codificador sigue vivo, la emision se oye
+  /// en silencio aunque el estado diga "AL AIRE". Con esta marca se detecta y
+  /// se reabre la captura.
+  DateTime? _lastPcmAt;
+
+  /// Cuando se abrio la captura actual, para vigilar el arranque.
+  DateTime? _captureStartedAt;
+
+  bool _restartingCapture = false;
+  DateTime? _lastCaptureRestartAt;
+  int _captureRestartCount = 0;
+
+  /// Momentos en que murio el proceso de captura, para no reintentar sin fin.
+  final List<DateTime> _captureDeaths = [];
+
   void _log(String level, String message) {
     // El registro en archivo es lo que permite diagnosticar un fallo que solo
     // ocurre en la maquina del DJ. Se escribe en todos los niveles.
@@ -328,6 +366,9 @@ class BroadcastEngine {
     _secondsOnAir = 0;
     _bytesSent = 0;
     _ffmpegErrors.clear();
+    _captureRestartCount = 0;
+    _lastCaptureRestartAt = null;
+    _captureDeaths.clear();
     _setState(BroadcastState.starting);
 
     DiagnosticLog.instance?.write(
@@ -367,6 +408,10 @@ class BroadcastEngine {
     if (_stopping) return false;
 
     _startTicker();
+    // Con la emision en curso se pide al escritorio que no bloquee la pantalla
+    // ni suspenda el equipo: el bloqueo reconfigura el audio del sistema y la
+    // captura se queda muda.
+    await _screenGuard.start();
     return true;
   }
 
@@ -541,6 +586,8 @@ class BroadcastEngine {
     }
 
     _capture = capture;
+    _captureStartedAt = DateTime.now();
+    _lastPcmAt = null;
     _gainStage.reset();
     _meter.reset();
     _lastMeterEmit = null;
@@ -565,9 +612,26 @@ class BroadcastEngine {
       onError: (_) {},
     );
 
-    _exitSub = capture.exitCode.asStream().listen((code) async {
+    _exitSub = capture.exitCode.asStream().listen((code) {
       if (_stopping || code == 0) return;
-      await _handleCaptureFailure(code);
+      // Si se estaba reabriendo la captura, esta salida es la del proceso que
+      // se acaba de cerrar a proposito.
+      if (_restartingCapture) return;
+      // Fuera del manejador: reabrir cancela esta misma suscripcion y no
+      // conviene esperar ese cierre desde dentro del evento.
+      if (_state == BroadcastState.live) {
+        unawaited(
+          Future.microtask(
+            () => _recoverCapture(
+              'la captura termino con codigo $code',
+              afterExit: true,
+              exitCode: code,
+            ),
+          ),
+        );
+        return;
+      }
+      unawaited(_handleCaptureFailure(code));
     });
 
     return true;
@@ -581,6 +645,8 @@ class BroadcastEngine {
     final amplified = _gainStage.process(chunk);
     if (amplified.isEmpty) return;
 
+    _lastPcmAt = DateTime.now();
+    _captureRestartCount = 0;
     _meter.feedFloat(amplified);
 
     final encoder = _encoder;
@@ -677,13 +743,92 @@ class BroadcastEngine {
     return true;
   }
 
+  /// Reabre la captura sin cortar la emision.
+  ///
+  /// Se usa cuando el proceso de captura muere o deja de entregar PCM. El
+  /// codificador y el socket **no** se tocan: los oyentes no pierden el mount y
+  /// el audio vuelve en cuanto la entrada responde otra vez.
+  ///
+  /// [afterExit] distingue las dos causas:
+  ///  - la captura **murio** (el proceso termino): se reintenta enseguida,
+  ///    porque el proceso ya no existe y esperar solo alarga el silencio;
+  ///  - la captura **se quedo muda** (sigue viva pero no entrega PCM): se
+  ///    espera un poco antes de reabrirla, para no cerrar y abrir el
+  ///    dispositivo en bucle.
+  Future<void> _recoverCapture(
+    String reason, {
+    bool afterExit = false,
+    int? exitCode,
+  }) async {
+    if (_stopping || _restartingCapture) return;
+    if (_state != BroadcastState.live) return;
+
+    final now = DateTime.now();
+
+    if (afterExit) {
+      // Tres muertes en un minuto ya no son un tropiezo del sistema: algo
+      // impide capturar de verdad. Se sale del aire con el diagnostico real.
+      _captureDeaths.removeWhere(
+        (t) => now.difference(t) > const Duration(minutes: 1),
+      );
+      _captureDeaths.add(now);
+      if (_captureDeaths.length > 3) {
+        await _handleCaptureFailure(
+          exitCode ?? -1,
+          reason: 'la captura se cerro ${_captureDeaths.length} veces seguidas',
+        );
+        return;
+      }
+    } else {
+      // Enfriamiento: si el dispositivo no responde, no se reinicia en bucle.
+      final lastRestart = _lastCaptureRestartAt;
+      if (lastRestart != null &&
+          now.difference(lastRestart) < const Duration(seconds: 5)) {
+        return;
+      }
+
+      // Se cuentan los reinicios sin audio nuevo. Cuando se agotan, la emision
+      // no tiene sentido: se sale del aire con un mensaje claro.
+      if (_captureRestartCount >= 6) {
+        await _handleCaptureFailure(
+          -1,
+          reason: 'la captura no se recupero tras varios intentos',
+        );
+        return;
+      }
+      _captureRestartCount++;
+    }
+
+    _lastCaptureRestartAt = now;
+    _restartingCapture = true;
+    try {
+      _log('warn', 'Reabriendo la captura de audio ($reason)');
+      DiagnosticLog.instance?.write(
+        'ffmpeg',
+        'reinicio de captura #$_captureRestartCount: $reason',
+      );
+      await _teardownCapture();
+      if (_stopping || _state != BroadcastState.live) return;
+
+      final wasLive = _state == BroadcastState.live;
+      final started = await _startCapture();
+      // El socket y el codificador siguen vivos: si la reapertura falla, se
+      // mantiene el estado al aire y el proximo intento vuelve a probar.
+      if (!started && wasLive && !_stopping) {
+        _setState(BroadcastState.live);
+      }
+    } finally {
+      _restartingCapture = false;
+    }
+  }
+
   /// Explica por que se detuvo la captura y deja el motor en un estado claro.
   ///
   /// Primero se usan los mensajes que FFmpeg alcanzo a escribir. Si no dicen
   /// nada util, se lanza un diagnostico de un solo disparo sobre el mismo
   /// dispositivo para obtener el motivo real, porque "termino sin explicar el
   /// motivo" no le sirve de nada al DJ.
-  Future<void> _handleCaptureFailure(int code) async {
+  Future<void> _handleCaptureFailure(int code, {String? reason}) async {
     final recorded = _ffmpegErrors.join('\n');
     DiagnosticLog.instance?.write(
       'ffmpeg',
@@ -728,7 +873,10 @@ class BroadcastEngine {
     // Si ya no se esta emitiendo, no se pisa un estado mas avanzado.
     if (_stopping) return;
 
-    _log('error', 'La captura de audio se detuvo (codigo $code). $hint');
+    _log(
+      'error',
+      'La captura de audio se detuvo (${reason ?? 'codigo $code'}). $hint',
+    );
     _setState(BroadcastState.stopped, error: hint);
 
     if (usedDiagnosis) {
@@ -743,6 +891,7 @@ class BroadcastEngine {
     await _stopEncoder();
     await _teardownCapture();
     await _teardownBroadcaster();
+    await _screenGuard.stop();
   }
 
   /// El codificador murio mientras la captura sigue viva.
@@ -768,6 +917,7 @@ class BroadcastEngine {
     await _stopEncoder();
     await _teardownBroadcaster();
     _setState(BroadcastState.stopped, error: hint);
+    await _screenGuard.stop();
   }
 
   void _startRecording() {
@@ -851,11 +1001,19 @@ class BroadcastEngine {
         _secondsOnAir++;
         // Vigilancia: si el servidor acepto la conexion pero no fluye audio,
         // el DJ tiene que enterarse.
+        // Vigilancia de la captura: si deja de entregar PCM (por ejemplo,
+        // cuando el sistema bloquea la pantalla y PipeWire rearma los nodos),
+        // se reabre sin tocar el codificador ni el socket.
+        final now = DateTime.now();
+        final pcm = _lastPcmAt ?? _captureStartedAt;
+        if (pcm != null && now.difference(pcm) > const Duration(seconds: 4)) {
+          unawaited(_recoverCapture('dejo de llegar audio de la entrada'));
+        }
+
         final last = _lastAudioAt;
-        if (last != null &&
-            DateTime.now().difference(last) > const Duration(seconds: 5)) {
+        if (last != null && now.difference(last) > const Duration(seconds: 5)) {
           _log('warn', 'No llega audio del dispositivo de entrada');
-          _lastAudioAt = DateTime.now();
+          _lastAudioAt = now;
         }
 
         // Cada 5 s se comprueba que el socket siga drenando. Un servidor que
@@ -1119,6 +1277,7 @@ class BroadcastEngine {
     // midiendo el microfono igual que antes de entrar al aire.
     _setState(BroadcastState.idle);
     _log('info', 'Saliendo del aire...');
+    await _screenGuard.stop();
 
     try {
       await _stopEncoderAndBroadcaster(
@@ -1147,6 +1306,7 @@ class BroadcastEngine {
     _reconnectTimer = null;
     await _stopEncoderAndBroadcaster(releaseMount: true);
     await _teardownCapture();
+    await _screenGuard.stop();
     await _snapshotController.close();
     await _logController.close();
   }

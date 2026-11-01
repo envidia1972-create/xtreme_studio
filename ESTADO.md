@@ -4,10 +4,11 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 17 (una sola captura de audio)**.
-Última verificación: **365 comprobaciones automáticas en Linux** (nueve
-suites), **18 pruebas de widgets** (`flutter test`) y **172 en Windows**
-(`verify_core`), con el `.exe` compilado y arrancado en GitHub Actions. La
+Fecha del corte: **ronda 19 (icono, entradas sin seleccionar y textos)**.
+Última verificación: **373 comprobaciones** en los nueve comandos de Linux
+(`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40, etc.) y
+**20 pruebas de widgets** con `flutter test`, todas en verde. La compilación y
+arranque del `.exe` en GitHub Actions siguen vigentes de la ronda anterior. La
 interfaz Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
 PulseAudio/PipeWire, por ALSA y emitió contra un servidor Icecast simulado.
 
@@ -16,6 +17,14 @@ el vúmetro y el codificador, la ganancia se aplica en Dart y moverla ya no
 reinicia FFmpeg ni corta la emisión. Antes había dos capturas (un monitor fuera
 del aire y otra al emitir) y por eso el vúmetro cambiaba de fuente al entrar al
 aire.
+
+La ronda 18 añade la protección contra el **bloqueo de pantalla** en Linux y la
+reapertura automática de la captura si el audio se queda mudo (ver más abajo).
+
+La ronda 19 agrega un **icono propio** (ventana, ejecutable de Windows y
+lanzadores), deja las **entradas de audio sin seleccionar por defecto** y
+simplifica el menu de tipo de servidor a **Icecast2**. Tambien elimina toda
+comparacion con otros emisores de la interfaz y de `THIRD_PARTY.md`.
 
 El flujo se reprodujo con la app real, tono de 440 Hz en un sink virtual y
 pulsaciones con XTest: un solo "NIVEL DE ENTRADA", misma captura antes y al
@@ -55,7 +64,10 @@ Capturas actualizadas: `docs/screenshots/linux-nivel-idle.png` y
 | **Detección de dispositivos ALSA** | Parseo y comandos verificados; captura real con PCM `null` |
 | **Selección automática pulse/alsa** | Verificada con las combinaciones posibles |
 | **Códec MP3 / AAC-LC / AAC+** | MP3 y AAC-LC verificados con audio real; AAC+ requiere FFmpeg con `libfdk_aac` |
-| **Pruebas de widgets reales** | **18 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo y ausencia de desbordes de 900x600 a 1280x700 |
+| **Entrada de audio por defecto** | **Ninguna marcada**; sin elegir una no se abre el micrófono |
+| **Icono y lanzador** | Icono propio en Linux y Windows; scripts para `.desktop` y acceso directo |
+| **Tipo de servidor** | El menu muestra solo **Icecast2** (sin nombres de hosting) |
+| **Pruebas de widgets reales** | **20 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entradas sin seleccionar y ausencia de desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
@@ -64,8 +76,8 @@ En Linux/macOS (con Flutter instalado y `PUB_CACHE` configurado). Si el SDK se
 preparó con `tool/setup_local_sdk.sh`, ejecutar antes `source .tooling/env.sh`:
 
 ```bash
-dart run tool/verify_core.dart              # 179 comprobaciones
-dart run tool/verify_engine.dart            #  50 comprobaciones (FFmpeg simulado)
+dart run tool/verify_core.dart              # 186 comprobaciones
+dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
@@ -74,7 +86,7 @@ dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio REAL; ALSA opcional)
 
-# Interfaz renderizada de verdad (no analisis estatico): 18 pruebas.
+# Interfaz renderizada de verdad (no analisis estatico): 20 pruebas.
 flutter test
 ```
 
@@ -307,6 +319,53 @@ genera `.tooling/env.sh`. No toca el HOME del usuario.
 
 ---
 
+## Ronda 18: la emisión sobrevive al bloqueo de pantalla
+
+Reporte del DJ en Linux: al dejar el equipo sin actividad, la pantalla se
+bloqueaba y el audio de la app se detenía. Al desbloquear, la emisión seguía
+"AL AIRE" pero muda.
+
+**Causa.** En este equipo el escritorio es XFCE con `light-locker`. Al
+bloquearse la pantalla, el bloqueador cambia a una sesión de *greeter* (otra VT).
+La sesión del DJ pasa a inactiva, el grafo de PipeWire se rearma (se vio
+`si-standard-link ... not valid anymore`, luego `pipewire-pulse: source not
+ready`) y el FFmpeg de captura queda leyendo un nodo que ya no entrega audio.
+El proceso no muere: se queda escribiendo PCM repetido y llenando el registro
+con `non monotonically increasing dts`. La app no lo detectaba porque vigilaba
+la **salida** del codificador, que seguía viva.
+
+Se ataca por dos lados, porque ninguno basta solo:
+
+1. **Evitar el disparador.** Mientras hay emisión, `lib/core/screen_guard.dart`
+   pide al escritorio que no active el protector de pantalla. El detalle que
+   costó una prueba: la inhibición por D-Bus está atada a la **conexión** que la
+   pide, así que un `gdbus call ... Inhibit` suelto se pierde en cuanto el
+   proceso termina (light-locker lo elimina al ver que el llamante se
+   desconectó). Por eso se usan los comandos que se quedan vivos mientras dura
+   la emisión: `light-locker-command --inhibit` (XFCE/light-locker, llama a
+   `XScreenSaverSuspend`), `xfce4-screensaver-command --inhibit`,
+   `kde-inhibit ...` o `gnome-session-inhibit ... sleep infinity`; el `gdbus`
+   queda solo como último recurso. Además se bloquea la suspensión por
+   inactividad con `systemd-inhibit --what=idle:sleep ... sleep infinity`. Al
+   salir del aire se matan esos procesos y se suelta todo.
+2. **Recuperarse si pasa igual.** El motor ahora marca `_lastPcmAt` con la
+   **entrada** (no la salida). Si la captura deja de entregar PCM durante 4 s,
+   o si el proceso de captura muere, se reabre **sin tocar el codificador ni el
+   socket**: los oyentes no pierden el mount y el audio vuelve solo. Hay
+   enfriamiento de 5 s entre reintentos por silencio, tope de 6, y si el proceso
+   muere 4 veces en un minuto se sale del aire con el diagnóstico real (un
+   dispositivo desenchufado no se arregla reintentando).
+
+El ajuste vive en **Ajustes > Pantalla y suspensión** (solo Linux) y viene
+activado. Se puede apagar si el DJ prefiere que la pantalla se bloquee; en ese
+caso queda la recuperación automática de la captura. Se aplica al instante,
+también con la emisión en curso.
+
+Nota: en Windows el interruptor no se muestra porque no se reprodujo allí el
+problema. Si apareciera, el reinicio automático de captura ya cubre el caso.
+
+---
+
 ## Correcciones de la ronda 14 (lo que reportó el DJ)
 
 La prueba con Zeno.fm destapó cuatro problemas reales:
@@ -536,3 +595,20 @@ Ronda 17 (una sola captura):
 - `tool/fake_ffmpeg.c` y `tools/fake_ffmpeg` — doble de FFmpeg para ambos roles.
 - `tool/verify_core.dart`, `tool/verify_engine.dart`, `tool/verify_linux_audio.dart`
   y `tool/verify_ffmpeg_discovery.dart` — pruebas de la nueva arquitectura.
+
+Ronda 18 (bloqueo de pantalla):
+
+- `lib/core/screen_guard.dart` — **nuevo**: inhibe el bloqueo de pantalla con
+  `light-locker-command --inhibit` (o `xfce4-screensaver-command`,
+  `kde-inhibit`, `gnome-session-inhibit`, con `gdbus` de último recurso) y la
+  suspensión con `systemd-inhibit`; nunca lanza si el escritorio no lo soporta.
+- `lib/core/audio/broadcast_engine.dart` — `keepScreenAwake` (getter/setter),
+  `_recoverCapture`, marcas `_lastPcmAt`/`_captureStartedAt`, límites de
+  reintento y `_handleCaptureFailure` con motivo.
+- `lib/core/profile_store.dart` — `AppSettings.keepAwakeWhileLive` (activado de
+  fábrica) persistido en `settings.json`.
+- `lib/main.dart` — pasa el ajuste al motor y lo actualiza en caliente.
+- `lib/ui/settings_screen.dart` — tarjeta "Pantalla y suspensión" (solo Linux).
+- `tool/verify_core.dart`, `tool/verify_engine.dart` — cookie de D-Bus,
+  persistencia del ajuste y reapertura de captura sin cortar la emisión.
+- `tool/verify_linux_audio.dart` — las pruebas no inhiben la pantalla.

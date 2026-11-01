@@ -895,7 +895,7 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                                   'leerla.'
                             : 'Se guarda en un archivo privado con permisos '
                                   '0600 (solo tu usuario). Linux no tiene DPAPI: '
-                                  'igual que BUTT, no hay cifrado adicional.',
+                                  'no hay cifrado adicional.',
                         style: const TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 11.5,

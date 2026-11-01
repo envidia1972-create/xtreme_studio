@@ -21,6 +21,7 @@ import 'package:xtreme_studio/core/diagnostic_log.dart';
 import 'package:xtreme_studio/core/net/icecast_client.dart';
 import 'package:xtreme_studio/core/net/shoutcast_client.dart';
 import 'package:xtreme_studio/core/profile_store.dart';
+import 'package:xtreme_studio/core/screen_guard.dart';
 import 'package:xtreme_studio/core/secret_store.dart';
 import 'package:xtreme_studio/core/server_profile.dart';
 
@@ -137,6 +138,7 @@ Future<void> main() async {
   await _captura();
   await _cifrado();
   await _persistencia();
+  await _pantalla();
   await _perfil();
 
   stdout.writeln('');
@@ -1580,7 +1582,8 @@ Future<void> _persistencia() async {
       ..ffmpegPath = r'C:\ffmpeg\bin\ffmpeg.exe'
       ..lastDeviceId = 'Microfono (Realtek)'
       ..recordLocally = true
-      ..recordDirectory = r'C:\Grabaciones';
+      ..recordDirectory = r'C:\Grabaciones'
+      ..keepAwakeWhileLive = false;
     await store.saveSettings(settings);
 
     final reloaded = await store.loadSettings();
@@ -1596,6 +1599,14 @@ Future<void> _persistencia() async {
       reloaded.recordLocally &&
           reloaded.recordDirectory == settings.recordDirectory,
       'la configuracion de grabacion se conserva',
+    );
+    check(
+      !reloaded.keepAwakeWhileLive,
+      'se recuerda si el DJ quiere evitar el bloqueo de pantalla',
+    );
+    check(
+      AppSettings().keepAwakeWhileLive,
+      'evitar el bloqueo viene activado de fabrica',
     );
     check(
       reloaded.lastProfileId == 'abc',
@@ -1616,6 +1627,41 @@ Future<void> _persistencia() async {
   } finally {
     await temp.delete(recursive: true);
   }
+}
+
+Future<void> _pantalla() async {
+  section('Bloqueo de pantalla y suspension');
+
+  // gdbus responde `(uint32 42, )`; dbus-send responde con una cabecera.
+  check(
+    ScreenGuard.parseCookie('(uint32 42, )') == 42,
+    'se lee el cookie que devuelve gdbus',
+  );
+  check(
+    ScreenGuard.parseCookie(
+          'method return time=1.2 sender=:1.52 -> destination=:1.52 '
+          'serial=9 reply_serial=2\n   uint32 7',
+        ) ==
+        7,
+    'se lee el cookie que devuelve dbus-send',
+  );
+  check(
+    ScreenGuard.parseCookie('(true,)') == null,
+    'una respuesta sin cookie no se confunde con un numero',
+  );
+  check(
+    ScreenGuard.parseCookie('') == null,
+    'una respuesta vacia no rompe la lectura del cookie',
+  );
+
+  // Con el ajuste apagado no se lanza ningun comando externo.
+  final apagado = ScreenGuard(enabled: false);
+  await apagado.start();
+  check(
+    !apagado.isRunning,
+    'con el ajuste apagado no se inhibe el bloqueo de pantalla',
+  );
+  await apagado.stop();
 }
 
 Future<void> _perfil() async {

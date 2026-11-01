@@ -271,6 +271,7 @@ Future<void> _run() async {
       captureBackend: backend,
       recordLocally: true,
       recordDirectory: recordDir.path,
+      keepScreenAwake: false,
     );
     final logs = <String>[];
     engine.logs.listen((e) => logs.add('[${e.level}] ${e.message}'));
@@ -475,6 +476,7 @@ Future<void> _run() async {
       ffmpegPath: ffmpegPath,
       deviceName: monitor.id,
       captureBackend: backend,
+      keepScreenAwake: false,
     );
     aacEngine.logs.listen((e) {});
     check(
@@ -614,6 +616,7 @@ Future<void> _testAlsaSilence() async {
       deviceName: 'null',
       captureBackend: CaptureBackend.alsa,
       recordDirectory: temp.path,
+      keepScreenAwake: false,
     );
     engine.logs.listen((e) {});
 

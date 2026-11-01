@@ -1,12 +1,11 @@
 # Xtreme Studio
 
-Consola de emision **multi-emisora** para radio, estilo BUTT pero con marca
-propia: cada DJ carga las credenciales de **su** servidor (el tuyo o el de
+Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ carga las credenciales de **su** servidor (el tuyo o el de
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**365
-> comprobaciones automaticas en este equipo** en nueve suites, mas **18 pruebas
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**373
+> comprobaciones automaticas en este equipo** en nueve suites, mas **20 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
 > PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
 > vumetro y el codificador: mover la ganancia se aplica en vivo, sin reiniciar
@@ -43,7 +42,8 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | **Exportacion de perfiles sin contrasena en claro** | Listo |
 | **Proteccion contra desplazar a otro DJ** (avisa antes de forzar) | Listo |
 | **Comprobacion de la senal publicada** (vista del oyente) | Listo |
-| Vumetro de entrada **siempre activo**, tambien fuera del aire | Listo |
+| Vumetro activo desde que se elige la entrada, tambien fuera del aire | Listo |
+| **Ninguna entrada marcada por defecto**; sin elegir una no se abre el microfono | Listo |
 | Pico retenido y RMS estables (sin parpadeo) | Listo |
 | **Ganancia** audible en el vumetro y en el stream | Listo |
 | **"Suena ahora"** por `/admin/metadata` (Icecast/Zeno.fm) | Listo |
@@ -141,6 +141,9 @@ El recorrido del audio es:
 
 Detalles:
 
+- En una instalacion nueva **no aparece ninguna entrada marcada** y no se abre
+  el microfono. El DJ tiene que elegir una en *Ajustes → Entrada de audio*; a
+  partir de ahi el vumetro queda activo todo el tiempo, tambien fuera del aire.
 - El vumetro y los numeros funcionan **fuera del aire**, con el dispositivo
   elegido en Ajustes o el asignado a la emisora.
 - Mover la ganancia **no reinicia nada**: cambia el factor que se aplica al
@@ -183,6 +186,41 @@ separar en una fase siguiente.
 La app anuncia el `Content-Type` correcto (`audio/mpeg`, `audio/aac` o
 `audio/aacp`) y mantiene el flujo limpio: sin etiquetas ID3 ni cabeceras Xing al
 inicio del MP3, y sin bloques de metadatos dentro del audio.
+
+---
+
+## Icono y lanzador
+
+El icono de la app es `assets/icon/app_icon.png` (micrófono sobre el rojo de
+"al aire"). Se usa en:
+
+- **Linux:** `linux/runner/resources/app_icon.png` se copia al bundle y la
+  ventana lo carga como icono de GTK.
+- **Windows:** `windows/runner/resources/app_icon.ico` es un ICO multi-tamano
+  incrustado en `xtreme_studio.exe` por `Runner.rc`.
+
+### Lanzador en Linux
+
+```bash
+tool/install_linux_shortcut.sh
+```
+
+Crea `~/.local/share/applications/xtreme-studio.desktop` y instala el icono en
+`~/.local/share/icons/hicolor/512x512/apps/xtreme-studio.png`. Despues busca
+**Xtreme Studio** en el menu de aplicaciones. No necesita `sudo`.
+
+### Acceso directo en Windows
+
+El `.exe` ya lleva el icono incrustado. Para crear el acceso directo en el
+Escritorio:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1
+```
+
+Tambien se puede hacer a mano: clic derecho en `xtreme_studio.exe` → *Crear
+acceso directo* → moverlo al Escritorio. El acceso directo toma el icono del
+ejecutable.
 
 ---
 
@@ -414,6 +452,44 @@ Detalles que se resolvieron para Linux:
 
 ---
 
+## La pantalla se bloquea y el audio se corta (Linux)
+
+Con XFCE + `light-locker` (y con GNOME/KDE de forma parecida), al bloquearse la
+pantalla el escritorio cambia a la sesión de bloqueo. La sesión del DJ pasa a
+inactiva, PipeWire rearma sus nodos (`si-standard-link ... not valid anymore`,
+`pipewire-pulse: source not ready`) y el FFmpeg de captura se queda leyendo un
+nodo que ya no entrega audio. La app seguía diciendo "AL AIRE" pero muda.
+
+La ronda 18 lo resuelve en dos capas:
+
+1. **No dejar que se bloquee.** Mientras hay emisión, la app pide al escritorio
+   que no active el protector (`light-locker-command --inhibit` en XFCE,
+   `xfce4-screensaver-command`, `kde-inhibit` o `gnome-session-inhibit` según el
+   escritorio) y bloquea la suspensión por inactividad
+   (`systemd-inhibit --what=idle:sleep`). Al salir del aire se sueltan las dos
+   inhibiciones. Está en **Ajustes > Pantalla y suspensión** y viene activado;
+   si el escritorio no expone la interfaz, la app sigue funcionando igual.
+
+   > Ojo con la inhibición por D-Bus: está atada a la conexión que la pide. Un
+   > `gdbus call ... Inhibit` aislado se pierde al cerrarse el proceso. Por eso
+   > la app usa comandos que se quedan vivos mientras emite.
+2. **Reabrir la captura si se queda muda.** El motor vigila el PCM de
+   **entrada**. Si pasan 4 s sin PCM, o si el proceso de captura muere, cierra
+   solo la captura y la vuelve a abrir **sin tocar el codificador ni el socket**:
+   el mount no se pierde y el audio vuelve solo. Si el dispositivo no responde
+   tras varios intentos, se sale del aire con el diagnóstico habitual en vez de
+   quedarse en silencio.
+
+El registro lo deja claro: busca `pantalla: bloqueo inhibido` al salir al aire y
+`Reabriendo la captura de audio` si hubo que recuperarla.
+
+> El `ffmpeg` del sistema y el que se empaqueta con la app no necesitan nada
+> especial para esto: la inhibición usa las herramientas del escritorio
+> (`light-locker-command`, `systemd-inhibit`, …), que ya vienen con la
+> distribución.
+
+---
+
 ## Verificar el nucleo (sin compilar)
 
 No necesitan Flutter ni internet: levantan un **servidor Icecast simulado** en
@@ -423,8 +499,8 @@ memoria y comprueban el comportamiento real del protocolo.
 # Si usaste setup_local_sdk.sh:
 # source .tooling/env.sh
 
-dart run tool/verify_core.dart              # 179 comprobaciones
-dart run tool/verify_engine.dart            #  50 comprobaciones (FFmpeg simulado)
+dart run tool/verify_core.dart              # 186 comprobaciones
+dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
@@ -457,7 +533,8 @@ actualizacion de metadatos por `/admin/metadata`, Shoutcast v1/v2
 contra un servidor simulado (caida y metadatos), red estancada, TLS con
 certificado autofirmado, vumetros, linea de comandos de FFmpeg, cifrado y
 persistencia (incluida la comprobacion de que **la contrasena nunca queda en
-texto plano en disco ni al exportar**).
+texto plano en disco ni al exportar**), y el ajuste de pantalla (el cookie que
+devuelve D-Bus y su persistencia).
 
 `verify_ffmpeg_discovery` comprueba donde busca FFmpeg la app: junto al
 ejecutable, en la carpeta `tools/` del proyecto y subiendo por los directorios
@@ -581,11 +658,13 @@ ningun DJ**.
 ```
 .github/workflows/windows.yml  Compilacion del .exe en GitHub Actions
 linux/                    Runner de Flutter para Linux (GTK)
+assets/icon/              Icono maestro de la app (PNG)
 lib/
   core/
     server_profile.dart      Modelo de emisora (protocolo, calidad, metadatos)
     secret_store.dart        DPAPI (Windows) o archivo 0600 (Linux/macOS)
     profile_store.dart       Persistencia en %APPDATA%\XtremeStudio o ~/.xtreme_studio
+    screen_guard.dart        Evita el bloqueo de pantalla y la suspension al emitir
     net/
       icecast_client.dart    Cliente Icecast 2 + metadatos por API
       shoutcast_client.dart  Cliente Shoutcast v1/v2 (handshake propio)
@@ -598,7 +677,7 @@ lib/
     theme.dart               Paleta pensada para cabina
     broadcast_screen.dart    Pantalla principal (ENTRAR/SALIR DEL AIRE)
     profiles_screen.dart     Gestor de emisoras
-    settings_screen.dart     FFmpeg, dispositivo, grabacion
+    settings_screen.dart     FFmpeg, dispositivo, grabacion, pantalla
     widgets/vu_meter.dart    Vumetro dibujado a mano
 test/
   broadcast_screen_test.dart Pruebas reales de la pantalla principal (11)
@@ -611,19 +690,21 @@ tool/
   setup_local_sdk.sh        SDK de Flutter local para Linux (SDK de solo lectura)
   demo_icecast.dart         Icecast minimo para probar la app en local
   diagnose_devices.dart     Diagnostico de deteccion de dispositivos de audio
-  verify_core.dart          Verificacion del nucleo (171 comprobaciones)
+  verify_core.dart          Verificacion del nucleo (186 comprobaciones)
   verify_ui.dart            Verificacion de la interfaz (20 comprobaciones)
-  verify_ffmpeg_discovery.dart  Deteccion de FFmpeg (20 comprobaciones)
+  verify_ffmpeg_discovery.dart  Deteccion de FFmpeg (21 comprobaciones)
   verify_signal.dart        Monitor de senal (23 comprobaciones)
   verify_occupied_mount.dart Proteccion del mount ocupado (14 comprobaciones)
   verify_server_detect.dart Deteccion del tipo de servidor (15 comprobaciones)
   verify_widget_arguments.dart  Contrato de argumentos de widgets (3)
-  verify_engine.dart        Integracion del motor de emision (37 comprobaciones)
-  verify_linux_audio.dart   Audio real Pulse/AAC/ALSA (32 comprobaciones)
+  verify_engine.dart        Integracion del motor de emision (51 comprobaciones)
+  verify_linux_audio.dart   Audio real Pulse/AAC/ALSA (40 comprobaciones)
   probe_icecast.dart        Sonda de handshake contra un servidor real
   probe_signal.dart         Sonda de senal (solo lectura) contra un servidor real
   fake_ffmpeg.c             FFmpeg falso para las pruebas del motor
   build_fake_ffmpeg.ps1     Compila fake_ffmpeg.exe en Windows
+  install_linux_shortcut.sh Crea el lanzador Linux con icono
+  create_windows_shortcut.ps1 Crea el acceso directo Windows con icono
 docs/
   screenshots/              Capturas reales de la app en Linux
 ```
@@ -691,7 +772,7 @@ anterior por timeout.
   y a la maquina: copiar ese archivo a otra PC no revela nada. En Linux/macOS
   no existe DPAPI, asi que se guarda en un archivo privado con permisos `0600`
   y la interfaz **avisa** de que no hay cifrado adicional (es el mismo nivel de
-  proteccion que ofrece BUTT).
+  proteccion que dan los permisos del sistema de archivos).
 - Al **exportar** un perfil la contrasena no se incluye. Aunque se pida
   incluirla, la API nunca escribe la clave en claro: solo agrega el blob
   protegido por DPAPI cuando el sistema lo soporta.

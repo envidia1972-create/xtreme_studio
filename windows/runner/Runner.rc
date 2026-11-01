@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.xtreme.studio" "\0"
-            VALUE "FileDescription", "xtreme_studio" "\0"
+            VALUE "CompanyName", "Xtreme Studio" "\0"
+            VALUE "FileDescription", "Xtreme Studio - consola de emision" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "xtreme_studio" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.xtreme.studio. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Xtreme Studio. All rights reserved." "\0"
             VALUE "OriginalFilename", "xtreme_studio.exe" "\0"
-            VALUE "ProductName", "xtreme_studio" "\0"
+            VALUE "ProductName", "Xtreme Studio" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

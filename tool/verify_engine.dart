@@ -231,6 +231,8 @@ Future<void> _run() async {
     // exactamente esa ruta.
     recordLocally: true,
     recordDirectory: recordDir.path,
+    // El motor no debe inhibir la pantalla durante las pruebas.
+    keepScreenAwake: false,
     environment: {'FAKEFFMPEG_ARGS_FILE': argsFile.path},
   );
 
@@ -627,11 +629,13 @@ Future<void> _run() async {
       ),
     );
 
+    final failureLogs = <String>[];
     final failureEngine = BroadcastEngine(
       profile: failureProfile,
       ffmpegPath: fakeFfmpeg.absolute.path,
       deviceName: 'Microfono Falso',
       captureBackend: backend,
+      keepScreenAwake: false,
       environment: {
         'FAKEFFMPEG_ARGS_FILE': argsFile.path,
         // La captura normal se detiene sola a los 800 ms...
@@ -640,10 +644,22 @@ Future<void> _run() async {
         'FAKEFFMPEG_DIAGNOSE_MESSAGE': mensajeReal,
       },
     );
-    failureEngine.logs.listen((e) {});
+    failureEngine.logs.listen((e) => failureLogs.add(e.message));
 
     final wentLive = await failureEngine.goLive();
     check(wentLive, 'el motor entra al aire antes de fallar la captura');
+
+    // La primera muerte no debe cortar la emision: el motor reabre la captura
+    // y sigue al aire (el socket y el codificador no se tocan). Solo despues
+    // de varias muertes seguidas se rinde y explica el motivo.
+    check(
+      await waitFor(
+        () => failureLogs.any((m) => m.contains('Reabriendo la captura')),
+        timeout: const Duration(seconds: 10),
+        what: 'que el motor reabra la captura sin salir del aire',
+      ),
+      'una captura que muere se reabre sin cortar la emision',
+    );
 
     // Esperar a que la captura muera y el motor explique el motivo.
     //

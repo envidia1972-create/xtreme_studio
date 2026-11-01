@@ -362,6 +362,21 @@ if (Test-Path $exe) {
     Write-Host "    & `"$exe`""
     Write-Host ''
 
+    # Comprobacion del icono incrustado en el .exe.
+    try {
+        Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+        $appIcon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe)
+        if ($null -ne $appIcon -and $appIcon.Width -ge 16) {
+            Write-Host "[ok] Icono del ejecutable: $($appIcon.Width)x$($appIcon.Height)" -ForegroundColor Green
+        }
+        else {
+            Write-Host '[aviso] No se pudo leer el icono incrustado.' -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host '[aviso] No se pudo comprobar el icono incrustado.' -ForegroundColor Yellow
+    }
+
     # Comprobacion final: que la app realmente arranque. Un fallo aqui es lo que
     # convierte "compilo bien" en "no abre", y es dificil de diagnosticar a mano.
     Write-Host 'Comprobando que la aplicacion arranque...'

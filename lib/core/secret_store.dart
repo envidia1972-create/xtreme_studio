@@ -43,8 +43,8 @@ SecretStore createSecretStore({Directory? directory}) {
   }
   // En Linux/macOS no existe DPAPI. Se usa un backend honesto: guarda la
   // contrasena en un archivo aparte con permisos de solo lectura para el
-  // usuario (0600), que es lo mismo que hace BUTT con su buttrc. No se finge
-  // cifrado: `isSecure` devuelve false y la interfaz lo avisa.
+  // usuario (0600). No se finge cifrado: `isSecure` devuelve false y la
+  // interfaz lo avisa.
   return PermissionsSecretStore();
 }
 
@@ -206,8 +206,8 @@ class UnavailableSecretStore implements SecretStore {
 ///
 /// No hay un almacen de claves comun a todas las distribuciones que se pueda
 /// usar sin dependencias nativas, asi que se guarda el secreto marcado y con
-/// permisos 0600. Es el mismo nivel de proteccion que ofrece BUTT, y es honesto
-/// con el usuario: [isSecure] es `false` y la interfaz lo indica.
+/// permisos 0600. Es honesto con el usuario: [isSecure] es `false` y la
+/// interfaz lo indica.
 ///
 /// El prefijo permite distinguir el formato y fallar de forma limpia si el
 /// archivo se manipula.

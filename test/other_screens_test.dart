@@ -129,7 +129,42 @@ void main() {
     });
   });
 
+  test('la etiqueta del tipo Icecast es solo Icecast2', () {
+    expect(ServerProtocol.icecast2.label, 'Icecast2');
+    expect(ServerProtocol.icecast2.shortLabel, 'Icecast2');
+  });
+
   group('Ajustes', () {
+    testWidgets('ninguna entrada aparece marcada por defecto', (tester) async {
+      await _setSize(tester, const Size(1280, 687));
+      await tester.pumpWidget(
+        _wrap(
+          SettingsScreen(
+            settings: AppSettings(),
+            devices: _devices,
+            captureBackend: CaptureBackend.pulse,
+            ffmpegPath: '',
+            onChanged: (_) async {},
+            onRefreshDevices: () async {},
+            onMessage: (_, {bool isError = false}) {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final group = tester.widget<RadioGroup<String>>(
+        find.byType(RadioGroup<String>),
+      );
+      expect(group.groupValue, '');
+      expect(
+        find.text(
+          'Ningun dispositivo seleccionado. Elegi una entrada para activar '
+          'el vumetro y poder salir al aire.',
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
     for (final size in const [Size(1280, 687), Size(960, 600)]) {
       testWidgets(
         'no desborda en ${size.width.toInt()}x${size.height.toInt()}',

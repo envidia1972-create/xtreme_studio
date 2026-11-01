@@ -193,17 +193,14 @@ class _StudioHomeState extends State<StudioHome> {
 
   /// Dispositivo que se usara para monitorear o salir al aire.
   ///
-  /// Orden: microfono del perfil, dispositivo de Ajustes y, por ultimo, el
-  /// primero que reporte el sistema.
+  /// Solo cuenta una eleccion explicita: el microfono asignado a la emisora o
+  /// el elegido en Ajustes. Si no hay ninguno, no se abre ninguna entrada.
   String _chosenDeviceId() {
     final profile = _activeProfile;
     final saved = profile?.inputDeviceId.isNotEmpty == true
         ? profile!.inputDeviceId
         : _settings.lastDeviceId;
-    final id = saved.isNotEmpty
-        ? saved
-        : (_devices.isNotEmpty ? _devices.first.id : '');
-    return repairDeviceName(id);
+    return saved.isEmpty ? '' : repairDeviceName(saved);
   }
 
   /// Crea el motor si hace falta y lo deja capturando para el vumetro.
@@ -216,6 +213,12 @@ class _StudioHomeState extends State<StudioHome> {
     if (profile == null || _ffmpegPath.isEmpty) return null;
 
     final device = _chosenDeviceId();
+    if (device.isEmpty) {
+      // Sin una entrada elegida no se abre el microfono por defecto: el DJ
+      // tiene que elegirla en Ajustes.
+      await _disposeEngine();
+      return null;
+    }
     final backend = _captureBackend;
     var engine = _engine;
 
@@ -238,6 +241,8 @@ class _StudioHomeState extends State<StudioHome> {
         // La grabacion es un ajuste global de la app (Ajustes), no del perfil.
         recordLocally: _settings.recordLocally,
         recordDirectory: _settings.recordDirectory,
+        // Evita que el bloqueo de pantalla corte el audio de la emision.
+        keepScreenAwake: _settings.keepAwakeWhileLive,
       );
       _log.clear();
       _attachEngine(engine);
@@ -250,6 +255,7 @@ class _StudioHomeState extends State<StudioHome> {
       }
       engine.recordLocally = _settings.recordLocally;
       engine.recordDirectory = _settings.recordDirectory;
+      engine.keepScreenAwake = _settings.keepAwakeWhileLive;
     }
     return engine;
   }
@@ -356,6 +362,13 @@ class _StudioHomeState extends State<StudioHome> {
       );
       return;
     }
+    if (_chosenDeviceId().isEmpty) {
+      _showMessage(
+        'Elegi un dispositivo de entrada en Ajustes antes de salir al aire.',
+        isError: true,
+      );
+      return;
+    }
 
     // Cada intento de salir al aire puede volver a necesitar el aviso por falta
     // de dispositivo: si no se reinicia, solo se mostraria la primera vez.
@@ -379,11 +392,7 @@ class _StudioHomeState extends State<StudioHome> {
     // Orden de preferencia: el microfono asignado a esta emisora, luego el
     // elegido en Ajustes y, por ultimo, el primero disponible. Asi una radio
     // concreta puede usar su propio equipo sin cambiar el ajuste global.
-    final chosen = profile.inputDeviceId.isNotEmpty
-        ? profile.inputDeviceId
-        : (_settings.lastDeviceId.isNotEmpty
-              ? _settings.lastDeviceId
-              : (_devices.isNotEmpty ? _devices.first.id : ''));
+    final chosen = _chosenDeviceId();
 
     if (_devices.isNotEmpty && chosen.isNotEmpty) {
       // Se repara por si quedo un nombre mal codificado de una version anterior.
@@ -769,6 +778,8 @@ class _StudioHomeState extends State<StudioHome> {
                         ffmpegPath: _ffmpegPath,
                         onChanged: (s) async {
                           setState(() => _settings = s);
+                          // Se aplica al instante si ya se esta al aire.
+                          _engine?.keepScreenAwake = s.keepAwakeWhileLive;
                           await _saveSettings();
                         },
                         onRefreshDevices: refreshDevices,

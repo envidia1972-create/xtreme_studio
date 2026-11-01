@@ -75,10 +75,9 @@ Ninguna obliga a publicar el codigo de la aplicacion.
 
 ## Marcas
 
-**Xtreme Studio es una implementacion propia.** No deriva de BUTT ni de ningun
-otro emisor existente: BUTT es GPL v3, y derivar de el habria obligado a liberar
-el codigo de esta app. El cliente de Icecast y Shoutcast esta escrito desde cero
-a partir de la documentacion publica de esos protocolos.
+**Xtreme Studio es una implementacion propia.** El cliente de Icecast y
+Shoutcast esta escrito desde cero a partir de la documentacion publica de esos
+protocolos.
 
-Los nombres *Icecast*, *SHOUTcast*, *AzuraCast*, *Zeno.fm* y *BUTT* pertenecen a
-sus respectivos titulares y se mencionan solo para indicar compatibilidad.
+Los nombres *Icecast*, *SHOUTcast*, *AzuraCast* y *Zeno.fm* pertenecen a sus
+respectivos titulares y se mencionan solo para indicar compatibilidad.

@@ -22,13 +22,13 @@ extension ServerProtocolInfo on ServerProtocol {
   };
 
   String get label => switch (this) {
-    ServerProtocol.icecast2 => 'Icecast 2 / AzuraCast / Zeno.fm',
+    ServerProtocol.icecast2 => 'Icecast2',
     ServerProtocol.shoutcast1 => 'Shoutcast v1',
     ServerProtocol.shoutcast2 => 'Shoutcast v2',
   };
 
   String get shortLabel => switch (this) {
-    ServerProtocol.icecast2 => 'Icecast 2',
+    ServerProtocol.icecast2 => 'Icecast2',
     ServerProtocol.shoutcast1 => 'Shoutcast v1',
     ServerProtocol.shoutcast2 => 'Shoutcast v2',
   };
