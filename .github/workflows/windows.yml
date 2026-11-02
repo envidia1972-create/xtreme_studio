@@ -31,6 +31,14 @@ jobs:
           $exe = Get-ChildItem ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1
           New-Item -ItemType Directory -Force tools | Out-Null
           Copy-Item $exe.FullName tools\ffmpeg.exe
+          $play = Get-ChildItem ffmpeg -Recurse -Filter ffplay.exe | Select-Object -First 1
+          if ($play) {
+            Copy-Item $play.FullName tools\ffplay.exe
+            Write-Host "[ok] ffplay para cue: $($play.FullName)"
+          }
+          else {
+            Write-Host '[aviso] La build de FFmpeg no trae ffplay.exe.' -ForegroundColor Yellow
+          }
           & tools\ffmpeg.exe -hide_banner -version | Select-Object -First 1
 
       - name: Dependencias Dart
