@@ -382,8 +382,8 @@ dentro de esa carpeta, que es la que se entrega a otra emisora.
 El `.exe` no esta firmado. Windows y Chrome suelen bloquear archivos descargados
 de internet o que contienen un `ffmpeg.exe` estatico. No es un fallo del build.
 
-1. **Verifica el ZIP** (tamano 80.093.894 bytes, SHA-256
-   `a1c9e098b7cfae2af8a003c502d1e0698ada4e6e43651a998d56efefc53efb14`).
+1. **Verifica el ZIP** (tamano 148.823.472 bytes, SHA-256
+   `1e2c5a449ed79abe06e3780b7efb1ec7653563599e8e298b1d48b469e1762727`).
    Si Chrome lo corto, volve a bajarlo con `gh run download` o elegi
    *Conservar* en las descargas de Chrome.
 2. **Desbloquealo ANTES de extraer**:
@@ -452,10 +452,10 @@ build → Run workflow** GitHub compila en `windows-latest` y deja la carpeta
 `check_toolchain.ps1`, corre `verify_core` en Windows y compila con
 `build_windows.ps1`.
 
-**Ya verificado:** run `41334467633` termino en verde; el `.exe` se genero,
-`verify_core` paso **187 comprobaciones**, el icono incrustado se leyo como
-`32x32` y el arranque de la app se comprobo con
-`[ok] La aplicacion arranco correctamente`. El artifact es
+**Ya verificado:** run `41377044078` termino en verde; el `.exe` se genero,
+`verify_core` paso **187 comprobaciones**, `verify_soundboard` **17**, el icono
+incrustado se leyo como `32x32`, `ffplay.exe` se copio para el cue local y el
+arranque de la app se comprobo con `[ok] La aplicacion arranco correctamente`. El artifact es
 `xtreme_studio-windows-x64` (incluye `ffmpeg.exe`).
 
 ### FFmpeg
