@@ -44,6 +44,9 @@ jobs:
       - name: Pruebas del nucleo (Windows)
         run: dart run tool/verify_core.dart
 
+      - name: Pruebas del soundboard
+        run: dart run tool/verify_soundboard.dart
+
       - name: Compilar
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tool/build_windows.ps1

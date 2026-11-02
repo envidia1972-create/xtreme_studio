@@ -4,8 +4,8 @@ Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ c
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**373
-> comprobaciones automaticas en este equipo** en nueve suites, mas **20 pruebas
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**397
+> comprobaciones automaticas en este equipo** en diez suites, mas **22 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
 > PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
 > vumetro y el codificador: mover la ganancia se aplica en vivo, sin reiniciar
@@ -56,7 +56,10 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | Captura real por **PulseAudio/PipeWire** | Verificada de punta a punta |
 | Captura por **ALSA** | Captura real verificada con el PCM `null`; falta hardware/microfono ALSA |
 | Interfaz Flutter en Windows | Compilada y arrancada en GitHub Actions; audio real pendiente |
-| Soundboard, notificaciones push, panel web | Pendiente (fases siguientes) |
+| **Soundboard de 8 pads** con mezcla en vivo y cue local | Listo (fase 1) |
+| Teclas **1-8 / F1-F8**, ducking, loop, volumen master y por pad | Listo |
+| **Monitoreo completo de la mezcla** por auriculares | Pendiente (fase siguiente) |
+| Notificaciones push y panel web | Pendiente (fases siguientes) |
 
 ## Asi se ve en Linux
 
@@ -228,6 +231,57 @@ powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1 `
 Tambien se puede hacer a mano: clic derecho en `xtreme_studio.exe` → *Crear
 acceso directo* → moverlo al Escritorio. El acceso directo toma el icono del
 ejecutable.
+
+---
+
+## Soundboard (fase 1)
+
+La pestaña **Soundboard** tiene ocho pads con jingles, mezcla en vivo y cue local.
+
+![Soundboard en Linux](docs/screenshots/linux-soundboard.png)
+
+### Cómo se usa
+
+- **Fuera del aire:** tocar un pad reproduce el jingle por **cue local**, solo en
+  el equipo del DJ. No se envía al servidor.
+- **Al aire:** el pad se mezcla con el micrófono antes del vúmetro y del
+  codificador. El jingle sale por el stream y también queda en la grabación.
+- El botón de **auriculares** de cada pad hace cue local en cualquier momento.
+- **DETENER TODO** corta los jingles y el cue.
+- **Master** controla el volumen de los jingles; **Ducking** baja el micrófono
+  entre −40 y 0 dB cuando suena un pad con ducking activado.
+- **Cue también al aire** permite escuchar el jingle en el equipo mientras se
+  emite. Está apagado por defecto para evitar realimentación si el micrófono
+  capta los altavoces.
+- Teclas **1-8** o **F1-F8** con la app enfocada. Si el foco está en un campo de
+  texto, las teclas escriben normalmente y no disparan pads.
+
+### Archivos y persistencia
+
+Los jingles se copian a:
+
+- Linux: `~/.xtreme_studio/soundboard/files/`
+- Windows: `%APPDATA%\XtremeStudio\soundboard\files\`
+
+Se pueden agregar de dos formas:
+
+1. **Agregar** → pegar la ruta completa de un MP3, WAV, OGG, FLAC, M4A, AAC u
+   OPUS.
+2. Copiar los archivos a la carpeta, pulsar **Abrir carpeta** y después
+   **Recargar**.
+
+La configuración (nombre, tecla, volumen, loop, ducking y master) se guarda en
+`soundboard.json`. Los archivos se decodifican a la frecuencia y canales del
+perfil activo.
+
+### Cue local
+
+- **Linux:** usa FFmpeg con salida PulseAudio o ALSA.
+- **Windows:** usa `ffplay.exe`, que el build copia junto a `ffmpeg.exe`. Si no
+  está, la app avisa que el cue no está disponible.
+- El cue no pasa por el vúmetro ni por el stream; es una salida independiente.
+- El **monitoreo completo** de la mezcla por auriculares queda para la fase
+  siguiente: hoy el cue reproduce el jingle, no la mezcla micrófono + jingles.
 
 ---
 
@@ -516,8 +570,9 @@ dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio real; ALSA opcional)
+dart run tool/verify_soundboard.dart        #  24 (mezcla, store, decoder y cue)
 
-# Interfaz renderizada de verdad (18 pruebas: estados, colores y desbordes).
+# Interfaz renderizada de verdad (22 pruebas: estados, colores y desbordes).
 flutter test
 ```
 
@@ -707,6 +762,7 @@ tool/
   verify_widget_arguments.dart  Contrato de argumentos de widgets (3)
   verify_engine.dart        Integracion del motor de emision (51 comprobaciones)
   verify_linux_audio.dart   Audio real Pulse/AAC/ALSA (40 comprobaciones)
+  verify_soundboard.dart    Mezcla, persistencia, decoder y cue (24)
   probe_icecast.dart        Sonda de handshake contra un servidor real
   probe_signal.dart         Sonda de senal (solo lectura) contra un servidor real
   fake_ffmpeg.c             FFmpeg falso para las pruebas del motor

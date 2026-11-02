@@ -36,6 +36,7 @@ import '../diagnostic_log.dart';
 import '../screen_guard.dart';
 import 'ffmpeg_capture.dart';
 import 'gain_stage.dart';
+import 'soundboard.dart';
 
 /// Estado del motor, tal como se muestra en pantalla.
 enum BroadcastState {
@@ -155,6 +156,7 @@ class BroadcastEngine {
     this.recordLocally,
     this.recordDirectory,
     this.captureBackend,
+    this.soundboard,
     bool keepScreenAwake = true,
     Map<String, String>? environment,
   }) : environment = environment ?? const {} {
@@ -175,6 +177,10 @@ class BroadcastEngine {
   /// realmente se va a ejecutar.
   CaptureBackend? captureBackend;
   CaptureBackend? _effectiveBackend;
+
+  /// Mezclador de jingles. Es el mismo objeto que usa la pantalla Soundboard:
+  /// asi el vumetro, el stream y la grabacion ven exactamente la misma mezcla.
+  final SoundboardMixer? soundboard;
 
   /// Evita que la pantalla se bloquee y que el equipo se suspenda al aire.
   ///
@@ -645,14 +651,17 @@ class BroadcastEngine {
     final amplified = _gainStage.process(chunk);
     if (amplified.isEmpty) return;
 
+    final mixed = soundboard?.mix(amplified) ?? amplified;
+    if (mixed.isEmpty) return;
+
     _lastPcmAt = DateTime.now();
     _captureRestartCount = 0;
-    _meter.feedFloat(amplified);
+    _meter.feedFloat(mixed);
 
     final encoder = _encoder;
     if (encoder != null) {
       try {
-        encoder.stdin.add(amplified);
+        encoder.stdin.add(mixed);
       } catch (e) {
         _log('warn', 'No se pudo entregar audio al codificador: $e');
       }
@@ -1265,6 +1274,7 @@ class BroadcastEngine {
   /// hace despues, con limites de tiempo. Si algo se cuelga, no puede dejar al
   /// DJ atrapado con una emision que sigue sonando y un boton que no responde.
   Future<void> goOffAir({bool releaseMount = true}) async {
+    soundboard?.stopAll();
     if (_state == BroadcastState.idle && _encoder == null) return;
     _stopping = true;
 
@@ -1299,6 +1309,7 @@ class BroadcastEngine {
 
   /// Cierra todo: encoder, socket y captura.
   Future<void> dispose() async {
+    soundboard?.stopAll();
     _stopping = true;
     _ticker?.cancel();
     _ticker = null;

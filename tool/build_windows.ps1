@@ -286,9 +286,25 @@ if ($ffmpeg -and (Test-Path $outDir)) {
         Write-Host '[ok] ffmpeg.exe copiado junto al ejecutable' -ForegroundColor Green
     }
 
+    # ffplay.exe es el reproductor de cue local en Windows (ffmpeg.exe no
+    # tiene salida de audio WASAPI propia en esta build).
+    $ffmpegDir = Split-Path -Parent $ffmpeg
+    $ffplayCandidates = @(
+        (Join-Path $ffmpegDir 'ffplay.exe'),
+        (Join-Path $root 'tools\ffplay.exe'),
+        (Join-Path $root 'tools\ffmpeg\bin\ffplay.exe')
+    )
+    $ffplay = $ffplayCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($ffplay) {
+        Copy-Item $ffplay (Join-Path $outDir 'ffplay.exe') -Force
+        Write-Host '[ok] ffplay.exe copiado para el cue local' -ForegroundColor Green
+    }
+    else {
+        Write-Host '[aviso] No se encontro ffplay.exe: el cue local no estara disponible.' -ForegroundColor Yellow
+    }
+
     # La licencia de FFmpeg debe acompanar al binario si se redistribuye la app.
     # Se busca junto al ffmpeg de origen (las builds de gyan/BtbN traen LICENSE).
-    $ffmpegDir = Split-Path -Parent $ffmpeg
     foreach ($lic in @('LICENSE', 'LICENSE.txt', 'LICENSE.md')) {
         $src = Join-Path $ffmpegDir $lic
         if (Test-Path $src) {

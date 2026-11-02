@@ -13,8 +13,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xtreme_studio/core/audio/ffmpeg_capture.dart';
 import 'package:xtreme_studio/core/profile_store.dart';
 import 'package:xtreme_studio/core/server_profile.dart';
+import 'package:xtreme_studio/core/soundboard_controller.dart';
+import 'package:xtreme_studio/core/soundboard_store.dart';
 import 'package:xtreme_studio/ui/profiles_screen.dart';
 import 'package:xtreme_studio/ui/settings_screen.dart';
+import 'package:xtreme_studio/ui/soundboard_screen.dart';
 import 'package:xtreme_studio/ui/theme.dart';
 
 const _devices = [
@@ -132,6 +135,36 @@ void main() {
   test('la etiqueta del tipo Icecast es solo Icecast2', () {
     expect(ServerProtocol.icecast2.label, 'Icecast2');
     expect(ServerProtocol.icecast2.shortLabel, 'Icecast2');
+  });
+
+  group('Soundboard', () {
+    for (final size in const [Size(1280, 687), Size(960, 600)]) {
+      testWidgets(
+        'no desborda en ${size.width.toInt()}x${size.height.toInt()}',
+        (tester) async {
+          await _setSize(tester, size);
+          final store = SoundboardStore(_store(tester).base);
+          final controller = SoundboardController(store: store);
+          addTearDown(controller.dispose);
+          await controller.init();
+          await tester.pumpWidget(
+            _wrap(
+              SoundboardScreen(
+                controller: controller,
+                live: false,
+                onMessage: (_, {bool isError = false}) {},
+              ),
+            ),
+          );
+          await tester.pump();
+
+          expect(find.text('Soundboard'), findsOneWidget);
+          expect(find.text('Pad libre'), findsNWidgets(8));
+          expect(find.text('DETENER TODO'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   });
 
   group('Ajustes', () {

@@ -4,10 +4,11 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 19 (icono, entrada predeterminada y textos)**.
-Última verificación: **373 comprobaciones** en los nueve comandos de Linux
-(`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40, etc.) y
-**20 pruebas de widgets** con `flutter test`, todas en verde. La compilación y
+Fecha del corte: **ronda 20 (soundboard fase 1 y cue local)**.
+Última verificación: **397 comprobaciones** en los diez comandos de Linux
+(`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40,
+`verify_soundboard` 24, etc.) y **22 pruebas de widgets** con `flutter test`,
+todas en verde. La compilación y
 arranque del `.exe` en GitHub Actions siguen vigentes (run `41334467633`,
 `verify_core` 187 en Windows, icono 32x32 y arranque correcto). La interfaz
 Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
@@ -26,6 +27,11 @@ La ronda 19 agrega un **icono propio** (ventana, ejecutable de Windows y
 lanzadores), deja seleccionada la **entrada predeterminada del sistema** y
 simplifica el menu de tipo de servidor a **Icecast2**. Tambien elimina toda
 comparacion con otros emisores de la interfaz y de `THIRD_PARTY.md`.
+
+La ronda 20 implementa la **fase 1 del soundboard**: ocho pads, mezcla en vivo
+antes del vúmetro/codificador, ducking, loop, teclas 1-8/F1-F8, persistencia y
+**cue local** por FFmpeg (Linux) o `ffplay` (Windows). El monitoreo completo de
+la mezcla queda para la fase siguiente.
 
 El flujo se reprodujo con la app real, tono de 440 Hz en un sink virtual y
 pulsaciones con XTest: un solo "NIVEL DE ENTRADA", misma captura antes y al
@@ -68,7 +74,10 @@ Capturas actualizadas: `docs/screenshots/linux-nivel-idle.png` y
 | **Entrada de audio por defecto** | **Predeterminado del sistema (default)** seleccionada |
 | **Icono y lanzador** | Icono propio en Linux y Windows; scripts para `.desktop` y acceso directo |
 | **Tipo de servidor** | El menu muestra solo **Icecast2** (sin nombres de hosting) |
-| **Pruebas de widgets reales** | **20 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entrada predeterminada y ausencia de desbordes de 900x600 a 1280x700 |
+| **Soundboard** | 8 pads, mezcla en vivo, cue local, ducking, loop y teclas 1-8 / F1-F8 |
+| **Persistencia del soundboard** | `soundboard.json` + archivos en la carpeta de datos |
+| **Cue local** | Linux por FFmpeg Pulse/ALSA; Windows por `ffplay.exe` |
+| **Pruebas de widgets reales** | **22 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entrada predeterminada, soundboard y desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
@@ -86,8 +95,9 @@ dart run tool/verify_server_detect.dart     #  15 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio REAL; ALSA opcional)
+dart run tool/verify_soundboard.dart        #  24 (mezcla, store, decoder y cue)
 
-# Interfaz renderizada de verdad (no analisis estatico): 20 pruebas.
+# Interfaz renderizada de verdad (no analisis estatico): 22 pruebas.
 flutter test
 ```
 
@@ -525,11 +535,9 @@ dart run tool/probe_signal.dart    # comprueba que el mount se sirve
 
 Del plan original, sin empezar:
 
-- **Soundboard** con teclas rápidas (jingles, cortinas). Requiere mezclar audio
-  en vivo, que hoy no está implementado: la app captura, codifica y envía, pero
-  no mezcla dos fuentes.
-- **Escuchar la propia señal** (monitoreo). Se retiró el ajuste porque nunca se
-  implementó; requeriría decodificar el MP3 de salida.
+- **Monitoreo completo** de la mezcla por auriculares. El soundboard fase 1 ya
+  mezcla jingles y tiene cue local, pero el cue reproduce el jingle, no la
+  mezcla completa con el micrófono.
 - **API de administración** de AzuraCast/Icecast (expulsar a un DJ, consultar
   quién está al aire). Las credenciales `adminUsername`/`adminPassword` se usan
   solo como respaldo para actualizar el título, y todavía no hay controles en la

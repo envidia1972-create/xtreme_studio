@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/audio/broadcast_engine.dart';
 import 'core/audio/ffmpeg_capture.dart';
@@ -8,9 +9,12 @@ import 'core/diagnostic_log.dart';
 import 'core/net/stream_health.dart';
 import 'core/profile_store.dart';
 import 'core/server_profile.dart';
+import 'core/soundboard_controller.dart';
+import 'core/soundboard_store.dart';
 import 'ui/broadcast_screen.dart';
 import 'ui/profiles_screen.dart';
 import 'ui/settings_screen.dart';
+import 'ui/soundboard_screen.dart';
 import 'ui/theme.dart';
 
 void main() {
@@ -45,6 +49,7 @@ class StudioHome extends StatefulWidget {
 
 class _StudioHomeState extends State<StudioHome> {
   final ProfileStore _store = ProfileStore();
+  late final SoundboardController _soundboard;
 
   List<ServerProfile> _profiles = [];
   AppSettings _settings = AppSettings();
@@ -86,6 +91,11 @@ class _StudioHomeState extends State<StudioHome> {
   @override
   void initState() {
     super.initState();
+    _soundboard = SoundboardController(
+      store: SoundboardStore(_store.base),
+      backend: CaptureBackend.forPlatform(),
+    );
+    HardwareKeyboard.instance.addHandler(_handleSoundboardKey);
     _bootstrap();
   }
 
@@ -96,6 +106,7 @@ class _StudioHomeState extends State<StudioHome> {
     await DiagnosticLog.open();
     DiagnosticLog.instance?.write('app', 'iniciando Xtreme Studio');
 
+    await _soundboard.init();
     final settings = await _store.loadSettings();
     final profiles = await _store.load();
     final ffmpeg = await ProfileStore.findFfmpeg(settings.ffmpegPath);
@@ -129,6 +140,14 @@ class _StudioHomeState extends State<StudioHome> {
       _availableCodecs = codecs;
       _loading = false;
     });
+    unawaited(
+      _soundboard.configure(
+        ffmpegPath: ffmpeg,
+        backend: _captureBackend ?? CaptureBackend.forPlatform(),
+        sampleRate: active?.audio.sampleRate ?? 44100,
+        channels: active?.audio.channels ?? 2,
+      ),
+    );
 
     if (ffmpeg.isNotEmpty) {
       await refreshDevices();
@@ -185,6 +204,14 @@ class _StudioHomeState extends State<StudioHome> {
       _devices = devices;
       _captureBackend = backend;
     });
+    unawaited(
+      _soundboard.configure(
+        ffmpegPath: _ffmpegPath,
+        backend: backend,
+        sampleRate: _activeProfile?.audio.sampleRate ?? 44100,
+        channels: _activeProfile?.audio.channels ?? 2,
+      ),
+    );
 
     // Se limpia el dispositivo guardado si no esta entre los reales.
     await _clearStaleDeviceSelection();
@@ -244,6 +271,7 @@ class _StudioHomeState extends State<StudioHome> {
         gainDb: profile.gainDb,
         deviceName: device,
         captureBackend: backend,
+        soundboard: _soundboard.mixer,
         // La grabacion es un ajuste global de la app (Ajustes), no del perfil.
         recordLocally: _settings.recordLocally,
         recordDirectory: _settings.recordDirectory,
@@ -338,6 +366,14 @@ class _StudioHomeState extends State<StudioHome> {
       _ffmpegPath = ffmpeg;
       _availableCodecs = codecs;
     });
+    unawaited(
+      _soundboard.configure(
+        ffmpegPath: ffmpeg,
+        backend: _captureBackend ?? CaptureBackend.forPlatform(),
+        sampleRate: _activeProfile?.audio.sampleRate ?? 44100,
+        channels: _activeProfile?.audio.channels ?? 2,
+      ),
+    );
     await refreshDevices();
   }
 
@@ -418,6 +454,7 @@ class _StudioHomeState extends State<StudioHome> {
 
     final ok = await engine.goLive();
     if (ok) {
+      _soundboard.setLive(true);
       // El "suena ahora" escrito antes de salir al aire se instala ahora.
       if (_pendingTrack.isNotEmpty) await engine.setTrack(_pendingTrack);
       if (!mounted) return;
@@ -434,6 +471,7 @@ class _StudioHomeState extends State<StudioHome> {
       if (confirmed) {
         final forced = await engine.goLive(force: true);
         if (forced) {
+          _soundboard.setLive(true);
           if (_pendingTrack.isNotEmpty) await engine.setTrack(_pendingTrack);
           if (mounted) _startSignalMonitoring(profile);
           return;
@@ -595,6 +633,7 @@ class _StudioHomeState extends State<StudioHome> {
   /// El motor y su captura siguen vivos: el vumetro no se apaga y el proximo
   /// "entrar al aire" engancha el codificador sin reabrir el microfono.
   Future<void> _goOffAir() async {
+    _soundboard.setLive(false);
     final engine = _engine;
     if (engine == null) return;
     _stopSignalMonitoring();
@@ -611,6 +650,7 @@ class _StudioHomeState extends State<StudioHome> {
   /// avisa que hay que elegir uno.
   void _reactToCaptureFailure(BroadcastSnapshot snapshot) {
     if (snapshot.state != BroadcastState.stopped) return;
+    _soundboard.setLive(false);
     final error = snapshot.lastError ?? '';
     if (error.isEmpty) return;
     if (!error.contains('dispositivo')) return;
@@ -709,11 +749,80 @@ class _StudioHomeState extends State<StudioHome> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleSoundboardKey);
     _stopSignalMonitoring();
     _snapshotSub?.cancel();
     _logSub?.cancel();
     _engine?.dispose();
+    _soundboard.dispose();
     super.dispose();
+  }
+
+  static final Map<String, LogicalKeyboardKey> _padKeys = {
+    '1': LogicalKeyboardKey.digit1,
+    '2': LogicalKeyboardKey.digit2,
+    '3': LogicalKeyboardKey.digit3,
+    '4': LogicalKeyboardKey.digit4,
+    '5': LogicalKeyboardKey.digit5,
+    '6': LogicalKeyboardKey.digit6,
+    '7': LogicalKeyboardKey.digit7,
+    '8': LogicalKeyboardKey.digit8,
+    'F1': LogicalKeyboardKey.f1,
+    'F2': LogicalKeyboardKey.f2,
+    'F3': LogicalKeyboardKey.f3,
+    'F4': LogicalKeyboardKey.f4,
+    'F5': LogicalKeyboardKey.f5,
+    'F6': LogicalKeyboardKey.f6,
+    'F7': LogicalKeyboardKey.f7,
+    'F8': LogicalKeyboardKey.f8,
+  };
+
+  static final Map<String, LogicalKeyboardKey> _numpadKeys = {
+    '1': LogicalKeyboardKey.numpad1,
+    '2': LogicalKeyboardKey.numpad2,
+    '3': LogicalKeyboardKey.numpad3,
+    '4': LogicalKeyboardKey.numpad4,
+    '5': LogicalKeyboardKey.numpad5,
+    '6': LogicalKeyboardKey.numpad6,
+    '7': LogicalKeyboardKey.numpad7,
+    '8': LogicalKeyboardKey.numpad8,
+  };
+
+  bool _isEditingText() {
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context == null) return false;
+    if (context.widget is EditableText) return true;
+    return context.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  /// Atajos del soundboard: 1-8, F1-F8 y el teclado numerico.
+  ///
+  /// Se instala en `HardwareKeyboard` para que funcione en cualquier pantalla
+  /// mientras la app tenga el foco. Si el foco esta en un campo de texto se
+  /// devuelve `false` y la tecla sigue su curso normal (escribir).
+  bool _handleSoundboardKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (_loading || _soundboard.pads.isEmpty) return false;
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isAltPressed ||
+        keyboard.isMetaPressed) {
+      return false;
+    }
+    if (_isEditingText()) return false;
+
+    for (final pad in _soundboard.pads) {
+      if (!pad.assigned || pad.keyLabel.isEmpty) continue;
+      final target = _padKeys[pad.keyLabel.toUpperCase()];
+      if (target == null) continue;
+      final numpad = _numpadKeys[pad.keyLabel];
+      if (event.logicalKey == target ||
+          (numpad != null && event.logicalKey == numpad)) {
+        unawaited(_soundboard.triggerPad(pad));
+        return true;
+      }
+    }
+    return false;
   }
 
   @override
@@ -773,6 +882,16 @@ class _StudioHomeState extends State<StudioHome> {
                             _settings.lastProfileId = active?.id ?? '';
                           });
                           await _saveProfiles();
+                          unawaited(
+                            _soundboard.configure(
+                              ffmpegPath: _ffmpegPath,
+                              backend:
+                                  _captureBackend ??
+                                  CaptureBackend.forPlatform(),
+                              sampleRate: active?.audio.sampleRate ?? 44100,
+                              channels: active?.audio.channels ?? 2,
+                            ),
+                          );
                           await _startPreview();
                         },
                         onMessage: _showMessage,
@@ -789,6 +908,11 @@ class _StudioHomeState extends State<StudioHome> {
                           await _saveSettings();
                         },
                         onRefreshDevices: refreshDevices,
+                        onMessage: _showMessage,
+                      ),
+                      SoundboardScreen(
+                        controller: _soundboard,
+                        live: isLive,
                         onMessage: _showMessage,
                       ),
                     ],
@@ -933,6 +1057,7 @@ class _SideNav extends StatelessWidget {
       (Icons.podcasts, 'Emision'),
       (Icons.dns_outlined, 'Emisoras'),
       (Icons.settings_outlined, 'Ajustes'),
+      (Icons.library_music, 'Soundboard'),
     ];
 
     return Container(
@@ -950,7 +1075,7 @@ class _SideNav extends StatelessWidget {
               icon: items[i].$1,
               label: items[i].$2,
               selected: index == i,
-              enabled: !locked || i == 0,
+              enabled: !locked || i == 0 || i == 3,
               onTap: () => onSelect(i),
             ),
           const Spacer(),
