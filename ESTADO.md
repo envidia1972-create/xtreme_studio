@@ -5,7 +5,7 @@ quien lo retome (o el propio autor dentro de un mes) necesita saber **exactament
 dónde está el corte** sin reconstruirlo desde cero.
 
 Fecha del corte: **ronda 20 (soundboard fase 1 y cue local)**.
-Última verificación: **424 comprobaciones** en los diez comandos de Linux
+Última verificación: **426 comprobaciones** en los diez comandos de Linux
 (`verify_core` 209, `verify_engine` 51, `verify_linux_audio` 40,
 `verify_soundboard` 25, etc.) y **22 pruebas de widgets** con `flutter test`,
 todas en verde. La compilación y
@@ -103,7 +103,7 @@ preparó con `tool/setup_local_sdk.sh`, ejecutar antes `source .tooling/env.sh`:
 dart run tool/verify_core.dart              # 209 comprobaciones
 dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
-dart run tool/verify_signal.dart            #  23 comprobaciones
+dart run tool/verify_signal.dart            #  25 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
 dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones

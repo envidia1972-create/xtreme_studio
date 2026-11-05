@@ -4,7 +4,7 @@ Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ c
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**424
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**426
 > comprobaciones automaticas en este equipo** en diez suites, mas **22 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
 > PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
@@ -568,7 +568,7 @@ memoria y comprueban el comportamiento real del protocolo.
 dart run tool/verify_core.dart              # 209 comprobaciones
 dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
-dart run tool/verify_signal.dart            #  23 comprobaciones
+dart run tool/verify_signal.dart            #  25 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
 dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
@@ -721,6 +721,17 @@ puerto base + 1**. En ese caso el boton *Detectar tipo* puede ver Liquidsoap y
 sugerir Icecast2 aunque la publicacion real sea Shoutcast. Si BUTT te funciona
 como Shoutcast, deja el perfil en **Shoutcast v2** con el puerto base.
 
+### El aviso 404 de "los oyentes reciben"
+
+Ese aviso viene del **monitor de senal**, no de la conexion de publicacion. En
+Shoutcast la app no puede deducir la URL de escucha (el puerto base puede ser un
+harbor de Liquidsoap, y el stream puede estar en otro puerto o ruta). Por eso
+ahora, si el perfil es Shoutcast y no tiene **URL de escucha**, el monitor no
+inventa una URL ni repite el 404 cada 30 segundos.
+
+Cargá en el perfil la **URL de escucha** que muestra el panel de Asura (o el
+reproductor que uses). A partir de ahi el monitor comprueba la senal real.
+
 ### Sonda contra un servidor real
 
 ```bash
@@ -785,7 +796,7 @@ tool/
   verify_core.dart          Verificacion del nucleo (209 comprobaciones)
   verify_ui.dart            Verificacion de la interfaz (20 comprobaciones)
   verify_ffmpeg_discovery.dart  Deteccion de FFmpeg (21 comprobaciones)
-  verify_signal.dart        Monitor de senal (23 comprobaciones)
+  verify_signal.dart        Monitor de senal (25 comprobaciones)
   verify_occupied_mount.dart Proteccion del mount ocupado (14 comprobaciones)
   verify_server_detect.dart Deteccion del tipo de servidor (18 comprobaciones)
   verify_widget_arguments.dart  Contrato de argumentos de widgets (3)

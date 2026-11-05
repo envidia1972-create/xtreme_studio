@@ -23,7 +23,9 @@ void check(bool ok, String description, {String? detail}) {
     stdout.writeln('  [ok]   $description');
   } else {
     _failures.add(description);
-    stdout.writeln('  [FALLA] $description${detail != null ? ' -> $detail' : ''}');
+    stdout.writeln(
+      '  [FALLA] $description${detail != null ? ' -> $detail' : ''}',
+    );
   }
 }
 
@@ -68,7 +70,9 @@ class FakeStreamServer {
       final buffer = <int>[];
       await for (final data in socket) {
         buffer.addAll(data);
-        if (latin1.decode(buffer, allowInvalid: true).contains('\r\n\r\n')) break;
+        if (latin1.decode(buffer, allowInvalid: true).contains('\r\n\r\n')) {
+          break;
+        }
       }
       final text = latin1.decode(buffer, allowInvalid: true);
       final firstLine = text.split('\r\n').first;
@@ -102,8 +106,7 @@ class FakeStreamServer {
         ..write('Server: fake-icecast\r\n');
       if (redirectTo != null) {
         headers.write('Location: $redirectTo\r\n');
-      }
-      else if (contentType.isNotEmpty) {
+      } else if (contentType.isNotEmpty) {
         headers.write('Content-Type: $contentType\r\n');
       }
       headers.write('Content-Length: 0\r\n');
@@ -122,7 +125,11 @@ class FakeStreamServer {
   }
 }
 
-ServerProfile profileFor(int port, {String mount = '/stream', String publicUrl = ''}) {
+ServerProfile profileFor(
+  int port, {
+  String mount = '/stream',
+  String publicUrl = '',
+}) {
   final p = ServerProfile(
     id: 'x',
     name: 'Radio',
@@ -142,7 +149,12 @@ Future<void> main() async {
   // ------------------------------------------------------------- URL de escucha
   section('URL de escucha');
 
-  final withPublic = ServerProfile(id: 'a', name: 'R', host: 'radio.fm', publicUrl: 'https://radio.fm/en-vivo');
+  final withPublic = ServerProfile(
+    id: 'a',
+    name: 'R',
+    host: 'radio.fm',
+    publicUrl: 'https://radio.fm/en-vivo',
+  );
   final monitorA = StreamHealthMonitor(profile: withPublic);
   check(
     monitorA.resolveListenerUrl()?.toString() == 'https://radio.fm/en-vivo',
@@ -150,12 +162,37 @@ Future<void> main() async {
     detail: monitorA.resolveListenerUrl().toString(),
   );
 
-  final derived = ServerProfile(id: 'b', name: 'R', host: 'stream.zeno.fm', port: 8000, mount: 'miradio');
+  final derived = ServerProfile(
+    id: 'b',
+    name: 'R',
+    host: 'stream.zeno.fm',
+    port: 8000,
+    mount: 'miradio',
+  );
   final monitorB = StreamHealthMonitor(profile: derived);
   check(
-    monitorB.resolveListenerUrl()?.toString() == 'http://stream.zeno.fm:8000/miradio',
+    monitorB.resolveListenerUrl()?.toString() ==
+        'http://stream.zeno.fm:8000/miradio',
     'sin URL publica, se deduce del host, puerto y mount',
     detail: monitorB.resolveListenerUrl().toString(),
+  );
+
+  final shoutcast = ServerProfile(
+    id: 'sc',
+    name: 'R',
+    host: 'radio.fm',
+    port: 8885,
+    protocol: ServerProtocol.shoutcast2,
+  );
+  check(
+    StreamHealthMonitor(profile: shoutcast).resolveListenerUrl() == null,
+    'Shoutcast sin URL publica no inventa un puerto de escucha',
+  );
+  shoutcast.publicUrl = 'https://radio.fm/en-vivo';
+  check(
+    StreamHealthMonitor(profile: shoutcast).resolveListenerUrl()?.toString() ==
+        'https://radio.fm/en-vivo',
+    'Shoutcast usa la URL publica cuando el hosting la provee',
   );
 
   final noHost = ServerProfile(id: 'c', name: 'R', host: '');
@@ -173,62 +210,94 @@ Future<void> main() async {
     profile: profileFor(server.port),
     timeout: const Duration(seconds: 5),
   ).check();
-  check(result.isHealthy, 'un 200 con audio/mpeg se considera publicada',
-      detail: result.message);
-  check(server.lastMethod == 'GET',
-      'se usa GET (no HEAD) porque hay hostings que rechazan HEAD',
-      detail: 'metodo: ${server.lastMethod}');
-  check(server.lastPath == '/stream', 'se pide el mount del perfil',
-      detail: 'ruta: ${server.lastPath}');
+  check(
+    result.isHealthy,
+    'un 200 con audio/mpeg se considera publicada',
+    detail: result.message,
+  );
+  check(
+    server.lastMethod == 'GET',
+    'se usa GET (no HEAD) porque hay hostings que rechazan HEAD',
+    detail: 'metodo: ${server.lastMethod}',
+  );
+  check(
+    server.lastPath == '/stream',
+    'se pide el mount del perfil',
+    detail: 'ruta: ${server.lastPath}',
+  );
   await server.stop();
 
   // Caso real de Zeno.fm: rechaza HEAD con 405 pero sirve el audio con GET.
   // Este caso obligo a usar GET; si alguien lo cambia a HEAD, esta prueba falla.
-  server = FakeStreamServer(status: 200, contentType: 'audio/aac', rejectHead: true);
+  server = FakeStreamServer(
+    status: 200,
+    contentType: 'audio/aac',
+    rejectHead: true,
+  );
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.isHealthy,
-      'un servidor que rechaza HEAD pero sirve GET se considera publicada',
-      detail: result.message);
-  check(server.lastMethod == 'GET',
-      'la peticion usada fue GET, no HEAD',
-      detail: 'metodo: ${server.lastMethod}');
+  check(
+    result.isHealthy,
+    'un servidor que rechaza HEAD pero sirve GET se considera publicada',
+    detail: result.message,
+  );
+  check(
+    server.lastMethod == 'GET',
+    'la peticion usada fue GET, no HEAD',
+    detail: 'metodo: ${server.lastMethod}',
+  );
   await server.stop();
 
   // Icecast real suele declarar audio/aac, ogg, etc.
   server = FakeStreamServer(status: 200, contentType: 'audio/aac');
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.isHealthy, 'un 200 con audio/aac tambien es valido',
-      detail: result.message);
+  check(
+    result.isHealthy,
+    'un 200 con audio/aac tambien es valido',
+    detail: result.message,
+  );
   await server.stop();
 
   // Servidor que no declara content-type: se acepta pero se informa.
   server = FakeStreamServer(status: 200, contentType: '');
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.isHealthy,
-      'un 200 sin content-type se acepta (algunos servidores no lo declaran)',
-      detail: result.message);
+  check(
+    result.isHealthy,
+    'un 200 sin content-type se acepta (algunos servidores no lo declaran)',
+    detail: result.message,
+  );
   await server.stop();
 
   section('Fallos que debe detectar');
 
-  server = FakeStreamServer(status: 404, reason: 'Not Found', contentType: 'text/plain');
+  server = FakeStreamServer(
+    status: 404,
+    reason: 'Not Found',
+    contentType: 'text/plain',
+  );
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.status == SignalStatus.noSource,
-      'un 404 se interpreta como "no hay fuente en el mount"',
-      detail: result.message);
-  check(result.status.isProblem, 'ese estado se marca como problema para el DJ');
+  check(
+    result.status == SignalStatus.noSource,
+    'un 404 se interpreta como "no hay fuente en el mount"',
+    detail: result.message,
+  );
+  check(
+    result.status.isProblem,
+    'ese estado se marca como problema para el DJ',
+  );
   await server.stop();
 
   server = FakeStreamServer(status: 401, reason: 'Unauthorized');
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.status == SignalStatus.noSource,
-      'un 401 se interpreta como mount protegido',
-      detail: result.message);
+  check(
+    result.status == SignalStatus.noSource,
+    'un 401 se interpreta como mount protegido',
+    detail: result.message,
+  );
   await server.stop();
 
   // Puerto cerrado: nadie escucha ahi.
@@ -240,9 +309,11 @@ Future<void> main() async {
     profile: profileFor(closedPort),
     timeout: const Duration(seconds: 4),
   ).check();
-  check(result.status == SignalStatus.unreachable,
-      'un puerto cerrado se detecta como servidor inalcanzable',
-      detail: result.message);
+  check(
+    result.status == SignalStatus.unreachable,
+    'un puerto cerrado se detecta como servidor inalcanzable',
+    detail: result.message,
+  );
   await server.stop();
 
   // Servidor que acepta la conexion y nunca responde.
@@ -252,9 +323,11 @@ Future<void> main() async {
     profile: profileFor(server.port),
     timeout: const Duration(seconds: 2),
   ).check();
-  check(result.status == SignalStatus.unreachable,
-      'un servidor que no responde se detecta por timeout',
-      detail: result.message);
+  check(
+    result.status == SignalStatus.unreachable,
+    'un servidor que no responde se detecta por timeout',
+    detail: result.message,
+  );
   await server.stop();
 
   section('Casos que NO deben alarmar al DJ');
@@ -263,31 +336,43 @@ Future<void> main() async {
   server = FakeStreamServer(status: 405, reason: 'Method Not Allowed');
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.status == SignalStatus.unexpected,
-      'un 405 no se confunde con falta de fuente',
-      detail: result.message);
-  check(!result.status.isProblem,
-      'un 405 NO alarma al DJ: es "no pude comprobar", no un fallo');
+  check(
+    result.status == SignalStatus.unexpected,
+    'un 405 no se confunde con falta de fuente',
+    detail: result.message,
+  );
+  check(
+    !result.status.isProblem,
+    'un 405 NO alarma al DJ: es "no pude comprobar", no un fallo',
+  );
   await server.stop();
 
   // 200 pero es una pagina web, no un stream.
   server = FakeStreamServer(status: 200, contentType: 'text/html');
   await server.start();
   result = await StreamHealthMonitor(profile: profileFor(server.port)).check();
-  check(result.status == SignalStatus.unexpected,
-      'un 200 con text/html avisa que la URL no es el stream',
-      detail: result.message);
-  check(!result.status.isProblem,
-      'una URL mal cargada no se reporta como caida de la emision');
+  check(
+    result.status == SignalStatus.unexpected,
+    'un 200 con text/html avisa que la URL no es el stream',
+    detail: result.message,
+  );
+  check(
+    !result.status.isProblem,
+    'una URL mal cargada no se reporta como caida de la emision',
+  );
   await server.stop();
 
   // Sin configuracion: no debe intentar nada.
   result = await StreamHealthMonitor(profile: noHost).check();
-  check(result.status == SignalStatus.notConfigured,
-      'sin URL no se hace peticion y se explica por que',
-      detail: result.message);
-  check(!result.status.isProblem,
-      'la falta de URL no se trata como fallo de emision');
+  check(
+    result.status == SignalStatus.notConfigured,
+    'sin URL no se hace peticion y se explica por que',
+    detail: result.message,
+  );
+  check(
+    !result.status.isProblem,
+    'la falta de URL no se trata como fallo de emision',
+  );
 
   // ------------------------------------------------------------- redirecciones
   section('Redirecciones (Zeno.fm y otros CDN)');
@@ -306,12 +391,16 @@ Future<void> main() async {
     profile: profileFor(redirector.port),
     timeout: const Duration(seconds: 6),
   ).check();
-  check(result.isHealthy,
-      'sigue la redireccion del CDN y confirma el audio',
-      detail: result.message);
-  check(target.requests >= 1,
-      'la peticion llego al destino de la redireccion',
-      detail: 'peticiones al destino: ${target.requests}');
+  check(
+    result.isHealthy,
+    'sigue la redireccion del CDN y confirma el audio',
+    detail: result.message,
+  );
+  check(
+    target.requests >= 1,
+    'la peticion llego al destino de la redireccion',
+    detail: 'peticiones al destino: ${target.requests}',
+  );
   await redirector.stop();
   await target.stop();
 

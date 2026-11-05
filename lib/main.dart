@@ -66,6 +66,7 @@ class _StudioHomeState extends State<StudioHome> {
   Timer? _signalTimer;
   Timer? _signalInitialCheck;
   SignalCheck? _signalCheck;
+  String? _lastSignalWarning;
 
   BroadcastSnapshot _snapshot = const BroadcastSnapshot(
     state: BroadcastState.idle,
@@ -583,6 +584,7 @@ class _StudioHomeState extends State<StudioHome> {
   /// Arranca la comprobacion periodica de la senal publicada.
   void _startSignalMonitoring(ServerProfile profile) {
     _stopSignalMonitoring();
+    _lastSignalWarning = null;
     _signalMonitor = StreamHealthMonitor(profile: profile);
     // Primera comprobacion en cuanto haya un momento: el servidor necesita unos
     // segundos para publicar la fuente recien conectada.
@@ -601,9 +603,15 @@ class _StudioHomeState extends State<StudioHome> {
     if (!mounted) return;
     setState(() => _signalCheck = result);
 
-    // Solo se avisa cuando el estado empeora, para no llenar el registro.
+    // Solo se avisa cuando el estado empeora. Un 404 persistente no debe
+    // repetirse cada 30 s y tapar el resto del registro.
     if (result.status.isProblem) {
-      _logSignal(result.message, 'warn');
+      if (result.message != _lastSignalWarning) {
+        _lastSignalWarning = result.message;
+        _logSignal(result.message, 'warn');
+      }
+    } else {
+      _lastSignalWarning = null;
     }
   }
 
@@ -623,6 +631,7 @@ class _StudioHomeState extends State<StudioHome> {
     _signalInitialCheck = null;
     _signalMonitor?.dispose();
     _signalMonitor = null;
+    _lastSignalWarning = null;
   }
 
   /// Sale del aire y vuelve al modo monitor.

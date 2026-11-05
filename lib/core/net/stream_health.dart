@@ -111,25 +111,37 @@ class StreamHealthMonitor {
       }
     }
 
-    // 2. Si no, se deduce de los datos de publicacion.
+    // 2. En Icecast el mount forma parte de la URL de publicacion y la
+    //    deduccion es fiable. En Shoutcast no: la fuente va a puerto+1 y el
+    //    puerto/path de escucha depende del hosting (puede ser Liquidsoap en
+    //    el puerto base). Sin URL publica no se inventa una: eso producia un
+    //    404 repetido aunque la emision estuviera sana.
+    if (profile.protocol != ServerProtocol.icecast2) return null;
     if (profile.host.trim().isEmpty) return null;
     final scheme = profile.useTls ? 'https' : 'http';
     final mount = profile.normalizedMount;
-    return Uri.parse('$scheme://${profile.host}:${profile.effectivePort}$mount');
+    return Uri.parse(
+      '$scheme://${profile.host}:${profile.effectivePort}$mount',
+    );
   }
 
   /// Pregunta al servidor lo mismo que le preguntaria un reproductor.
   Future<SignalCheck> check() async {
     final url = resolveListenerUrl();
     if (url == null) {
-      return const SignalCheck(
+      return SignalCheck(
         status: SignalStatus.notConfigured,
-        message: 'No hay URL de escucha: carga la URL publica del perfil o '
-            'revisa el host y el mount.',
+        message: profile.protocol == ServerProtocol.icecast2
+            ? 'No hay URL de escucha: carga la URL publica del perfil o '
+                  'revisa el host y el mount.'
+            : 'Shoutcast no permite deducir la URL de escucha. Carga la URL '
+                  'publica que muestra el panel del hosting para comprobar la '
+                  'senal.',
       );
     }
 
-    final client = _client ?? (_client = HttpClient()..connectionTimeout = timeout);
+    final client =
+        _client ?? (_client = HttpClient()..connectionTimeout = timeout);
     // El monitor pregunta lo mismo que un oyente; si la emisora usa un
     // certificado autofirmado, rechazarlo daria una falsa alarma de "sin
     // senal" justo cuando el DJ acaba de habilitarlo en el perfil.
@@ -187,7 +199,8 @@ class StreamHealthMonitor {
         }
         return SignalCheck(
           status: SignalStatus.unexpected,
-          message: 'El servidor responde 200 pero no con audio ($contentType). '
+          message:
+              'El servidor responde 200 pero no con audio ($contentType). '
               'Revisa que la URL de escucha sea el stream y no una pagina web.',
           statusCode: status,
           contentType: contentType,
@@ -198,7 +211,8 @@ class StreamHealthMonitor {
       if (status == 401 || status == 403) {
         return SignalCheck(
           status: SignalStatus.noSource,
-          message: 'El servidor responde $status: el mount esta protegido o '
+          message:
+              'El servidor responde $status: el mount esta protegido o '
               'reservado a la fuente. Los oyentes no pueden entrar.',
           statusCode: status,
           url: url.toString(),
@@ -208,7 +222,8 @@ class StreamHealthMonitor {
       if (status == 404) {
         return SignalCheck(
           status: SignalStatus.noSource,
-          message: 'El servidor responde 404: no hay fuente publicando en este '
+          message:
+              'El servidor responde 404: no hay fuente publicando en este '
               'mount. Los oyentes escucharian silencio o un error.',
           statusCode: status,
           url: url.toString(),
@@ -221,7 +236,8 @@ class StreamHealthMonitor {
       if (status == 405 || status == 501) {
         return SignalCheck(
           status: SignalStatus.unexpected,
-          message: 'El servidor rechazo la comprobacion (HTTP $status). '
+          message:
+              'El servidor rechazo la comprobacion (HTTP $status). '
               'No indica un problema de emision.',
           statusCode: status,
           url: url.toString(),
@@ -237,14 +253,16 @@ class StreamHealthMonitor {
     } on TimeoutException {
       return SignalCheck(
         status: SignalStatus.unreachable,
-        message: 'El servidor de escucha no respondio en '
+        message:
+            'El servidor de escucha no respondio en '
             '${timeout.inSeconds} s. Los oyentes tampoco podrian entrar.',
         url: url.toString(),
       );
     } on SocketException catch (e) {
       return SignalCheck(
         status: SignalStatus.unreachable,
-        message: 'No se pudo alcanzar el servidor de escucha: '
+        message:
+            'No se pudo alcanzar el servidor de escucha: '
             '${e.osError?.message ?? e.message}',
         url: url.toString(),
       );

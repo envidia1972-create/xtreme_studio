@@ -1138,8 +1138,10 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                   _publicUrl,
                   'URL de escucha',
                   hint: 'https://miradio.com/en-vivo',
-                  helper:
-                      'Se muestra en la pantalla de emision para compartirla.',
+                  helper: _protocol == ServerProtocol.icecast2
+                      ? 'Se muestra en la pantalla de emision para compartirla.'
+                      : 'En Shoutcast es la unica forma de comprobar la senal; '
+                            'copiala del panel del hosting.',
                 ),
                 const SizedBox(height: 12),
                 Row(
