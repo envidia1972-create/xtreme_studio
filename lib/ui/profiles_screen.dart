@@ -585,6 +585,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
   late TextEditingController _mount;
   late TextEditingController _username;
   late TextEditingController _password;
+  late TextEditingController _adminUsername;
+  late TextEditingController _adminPassword;
   late TextEditingController _publicUrl;
   late TextEditingController _stationName;
   late TextEditingController _genre;
@@ -599,6 +601,7 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
   bool _autoReconnect = true;
   String _inputDeviceId = '';
   bool _showPassword = false;
+  bool _showAdminPassword = false;
 
   /// `true` mientras se consulta al servidor que tipo es.
   bool _detecting = false;
@@ -613,6 +616,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
     _mount = TextEditingController(text: e?.mount ?? '/stream');
     _username = TextEditingController(text: e?.username ?? 'source');
     _password = TextEditingController(text: e?.password ?? '');
+    _adminUsername = TextEditingController(text: e?.adminUsername ?? '');
+    _adminPassword = TextEditingController(text: e?.adminPassword ?? '');
     _publicUrl = TextEditingController(text: e?.publicUrl ?? '');
     _stationName = TextEditingController(text: e?.stationName ?? '');
     _genre = TextEditingController(text: e?.genre ?? '');
@@ -646,6 +651,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
       _mount,
       _username,
       _password,
+      _adminUsername,
+      _adminPassword,
       _publicUrl,
       _stationName,
       _genre,
@@ -666,9 +673,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
         }
         if (_mount.text.isEmpty) _mount.text = '/stream';
       } else {
-        // En Shoutcast el usuario real es el DJ o "source"; el password es el
-        // que da el hosting.
-        if (_username.text == 'source') _username.text = 'source';
+        // En Shoutcast el usuario no participa del handshake: se autentica
+        // solo con la contrasena. El mount habitual es la raiz.
         if (_mount.text.isEmpty) _mount.text = '/';
       }
     });
@@ -703,8 +709,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
       autoReconnect: _autoReconnect,
       recordLocally: existing?.recordLocally ?? false,
       recordDirectory: existing?.recordDirectory ?? '',
-      adminUsername: existing?.adminUsername ?? '',
-      adminPassword: existing?.adminPassword ?? '',
+      adminUsername: _adminUsername.text.trim(),
+      adminPassword: _adminPassword.text,
     );
   }
 
@@ -814,6 +820,10 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                         _port,
                         'Puerto',
                         keyboardType: TextInputType.number,
+                        helper: _protocol == ServerProtocol.icecast2
+                            ? null
+                            : 'Shoutcast publica en este puerto + 1. '
+                                  'Los oyentes usan este.',
                         validator: (v) {
                           final n = int.tryParse(v?.trim() ?? '');
                           if (n == null || n < 1 || n > 65535) {
@@ -846,11 +856,15 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     Expanded(
                       child: _field(
                         _username,
-                        'Usuario',
+                        _protocol == ServerProtocol.icecast2
+                            ? 'Usuario (opcional)'
+                            : 'Usuario (no se usa en Shoutcast)',
                         hint: 'source',
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Falta el usuario'
-                            : null,
+                        enabled: _protocol == ServerProtocol.icecast2,
+                        helper: _protocol == ServerProtocol.icecast2
+                            ? 'Si lo dejas vacio se usa "source".'
+                            : 'Shoutcast autentica solo con la contrasena. '
+                                  'Este campo se ignora.',
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -860,6 +874,11 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                         obscureText: !_showPassword,
                         decoration: InputDecoration(
                           labelText: 'Contrasena',
+                          helperText: _protocol == ServerProtocol.icecast2
+                              ? null
+                              : 'Shoutcast: escribila tal cual, aunque '
+                                    'contenga ":"',
+                          helperMaxLines: 2,
                           suffixIcon: IconButton(
                             icon: Icon(
                               _showPassword
@@ -904,6 +923,54 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     ),
                   ],
                 ),
+                if (_protocol != ServerProtocol.shoutcast1) ...[
+                  const SizedBox(height: 18),
+                  _sectionTitle('Cambio de titulo (opcional)'),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Solo si tu hosting usa un usuario o una clave distintos '
+                    'para cambiar el "suena ahora". Si lo dejas vacio se usan '
+                    'los mismos datos de la fuente.',
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 11.5,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _field(
+                          _adminUsername,
+                          'Usuario de administracion',
+                          hint: 'admin',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _adminPassword,
+                          obscureText: !_showAdminPassword,
+                          decoration: InputDecoration(
+                            labelText: 'Clave de administracion',
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _showAdminPassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                size: 20,
+                              ),
+                              onPressed: () => setState(
+                                () => _showAdminPassword = !_showAdminPassword,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 18),
                 _sectionTitle('Calidad de audio'),
                 Row(
@@ -1207,8 +1274,23 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
 
     // Si la deteccion es concluyente, se ajusta el tipo sin preguntar: es
     // justamente lo que el DJ vino a averiguar.
-    if (detected.isCertain && detected.protocol != _protocol) {
-      setState(() => _protocol = detected.protocol);
+    if (detected.isCertain) {
+      setState(() {
+        if (detected.protocol != _protocol) _protocol = detected.protocol;
+        // El harbor de Liquidsoap solo acepta el usuario `source` (o vacio):
+        // si el DJ habia escrito otro, se corrige para que no falle el PUT.
+        if (detected.serverSoftware == 'Liquidsoap') {
+          final user = _username.text.trim();
+          if (user.isNotEmpty && user != 'source') {
+            _username.text = 'source';
+          }
+          // `/stream` es solo el valor por defecto de la app; el harbor de
+          // Liquidsoap suele publicar en la raiz. Si el DJ habia escrito otra
+          // ruta, se respeta.
+          final mount = _mount.text.trim();
+          if (mount.isEmpty || mount == '/stream') _mount.text = '/';
+        }
+      });
     }
 
     showDialog<void>(
@@ -1248,7 +1330,8 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
                     ),
                   ),
                   child: Text(
-                    'Tipo ajustado a ${detected.protocol.label}.',
+                    'Tipo ajustado a ${detected.protocol.label}.'
+                    '${detected.serverSoftware == 'Liquidsoap' ? ' Usuario: "source". Mount habitual: "/".' : ''}',
                     style: const TextStyle(fontSize: 12.5),
                   ),
                 ),
@@ -1285,11 +1368,13 @@ class _ProfileEditorDialogState extends State<_ProfileEditorDialog> {
     String? hint,
     String? helper,
     TextInputType? keyboardType,
+    bool enabled = true,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
+      enabled: enabled,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,

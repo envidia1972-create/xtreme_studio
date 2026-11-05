@@ -228,12 +228,9 @@ class _StudioHomeState extends State<StudioHome> {
         ? profile!.inputDeviceId
         : _settings.lastDeviceId;
     if (saved.isNotEmpty) return repairDeviceName(saved);
-    // Por defecto se usa la entrada "Predeterminado del sistema". En Windows
-    // dshow no existe esa entrada; en ese caso se usa la primera disponible.
-    for (final device in _devices) {
-      if (device.id == 'default') return device.id;
-    }
-    return _devices.isNotEmpty ? _devices.first.id : '';
+    // Sin eleccion explicita no se abre ninguna entrada: el DJ tiene que
+    // elegirla en Ajustes. Asi la app no activa un microfono por su cuenta.
+    return '';
   }
 
   /// Crea el motor si hace falta y lo deja capturando para el vumetro.

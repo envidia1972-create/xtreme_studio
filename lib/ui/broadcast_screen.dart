@@ -252,9 +252,9 @@ class _EmptyState extends StatelessWidget {
           const SizedBox(
             width: 460,
             child: Text(
-              'Agrega los datos de tu servidor (Icecast, AzuraCast, Zeno.fm o '
-              'Shoutcast) y podras salir al aire. Las credenciales se guardan '
-              'cifradas en tu equipo.',
+              'Agrega los datos de tu servidor (Icecast2 o Shoutcast) y podras '
+              'salir al aire. Las credenciales se guardan cifradas en tu '
+              'equipo.',
               textAlign: TextAlign.center,
               style: TextStyle(color: AppColors.textSecondary, height: 1.5),
             ),

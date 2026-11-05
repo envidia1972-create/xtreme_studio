@@ -230,9 +230,19 @@ class ServerProfile {
   String adminUsername;
   String adminPassword;
 
-  /// Puerto efectivo de ingesta. Shoutcast v1/v2 suelen usar el puerto base
-  /// y el `+1` queda para los oyentes (lo maneja el servidor, no nosotros).
+  /// Puerto base del perfil: el que usan los oyentes y el panel del hosting.
+  ///
+  /// En Shoutcast la publicacion va al puerto base **+ 1**; ese calculo se
+  /// hace en [sourcePort]. La interfaz y la vista del oyente muestran [port].
   int get effectivePort => port;
+
+  /// Puerto TCP donde se publica la fuente.
+  ///
+  /// SHOUTcast v1 y v2 usan el puerto de servicio = puerto base + 1. BUTT y
+  /// los DSP clasicos funcionan asi. Conectar al puerto base hace que el
+  /// servidor de oyentes reciba una linea de source y responda
+  /// `HTTP 500 Invalid request`, que parece un error de contrasena.
+  int get sourcePort => isShoutcast ? port + 1 : port;
 
   /// Ruta de ingesta HTTP para Icecast: `/mount`.
   String get normalizedMount {
@@ -244,8 +254,8 @@ class ServerProfile {
     return m;
   }
 
-  /// El usuario de Shoutcast v1 es siempre `source` y el password es el que
-  /// el servidor espera como *contrasena*; el "usuario" real va en `#1`.
+  /// El usuario no se usa en Shoutcast: el handshake es solo la contrasena.
+  /// Se conserva el campo por compatibilidad con perfiles viejos.
   bool get isShoutcast =>
       protocol == ServerProtocol.shoutcast1 ||
       protocol == ServerProtocol.shoutcast2;
@@ -347,8 +357,15 @@ class ServerProfile {
     if (host.trim().isEmpty) problems.add('El servidor (host) es obligatorio');
     if (port <= 0 || port > 65535) {
       problems.add('El puerto debe estar entre 1 y 65535');
+    } else if (isShoutcast && port >= 65535) {
+      problems.add(
+        'En Shoutcast el puerto de publicacion es el puerto base + 1; '
+        'elegi un puerto menor a 65535.',
+      );
     }
-    if (username.trim().isEmpty) problems.add('El usuario es obligatorio');
+    // El usuario nunca bloquea el guardado: en Shoutcast v1 se ignora, en v2
+    // y en Icecast se usa `source` cuando queda vacio. Cada protocolo resuelve
+    // ese valor al conectar (ver los clientes de red).
     if (requirePassword && password.isEmpty) {
       problems.add('La contrasena es obligatoria');
     }

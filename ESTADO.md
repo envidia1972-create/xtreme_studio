@@ -5,9 +5,9 @@ quien lo retome (o el propio autor dentro de un mes) necesita saber **exactament
 dónde está el corte** sin reconstruirlo desde cero.
 
 Fecha del corte: **ronda 20 (soundboard fase 1 y cue local)**.
-Última verificación: **397 comprobaciones** en los diez comandos de Linux
-(`verify_core` 186, `verify_engine` 51, `verify_linux_audio` 40,
-`verify_soundboard` 24, etc.) y **22 pruebas de widgets** con `flutter test`,
+Última verificación: **424 comprobaciones** en los diez comandos de Linux
+(`verify_core` 209, `verify_engine` 51, `verify_linux_audio` 40,
+`verify_soundboard` 25, etc.) y **22 pruebas de widgets** con `flutter test`,
 todas en verde. La compilación y
 arranque del `.exe` en GitHub Actions siguen vigentes (run `41377044078`,
 `verify_core` 187 y `verify_soundboard` 17 en Windows, icono 32x32, `ffplay.exe` incluido y arranque correcto). La interfaz
@@ -24,7 +24,8 @@ La ronda 18 añade la protección contra el **bloqueo de pantalla** en Linux y l
 reapertura automática de la captura si el audio se queda mudo (ver más abajo).
 
 La ronda 19 agrega un **icono propio** (ventana, ejecutable de Windows y
-lanzadores), deja seleccionada la **entrada predeterminada del sistema** y
+lanzadores), deja **sin preseleccionar ninguna entrada de audio** (la app no
+abre el micrófono hasta que el DJ elige uno) y
 simplifica el menu de tipo de servidor a **Icecast2**. Tambien elimina toda
 comparacion con otros emisores de la interfaz y de `THIRD_PARTY.md`.
 
@@ -32,6 +33,19 @@ La ronda 20 implementa la **fase 1 del soundboard**: ocho pads, mezcla en vivo
 antes del vúmetro/codificador, ducking, loop, teclas 1-8/F1-F8, persistencia y
 **cue local** por FFmpeg (Linux) o `ffplay` (Windows). El monitoreo completo de
 la mezcla queda para la fase siguiente.
+
+Tambien se corrigio el **handshake de Shoutcast**: la fuente se conecta al
+puerto base + 1 (el puerto del perfil es el de oyentes), envia la contrasena
+sola, sin usuario ni `#1`, y conserva los dos puntos si la clave los contiene.
+Antes se conectaba al puerto base y se enviaba `usuario:clave`, lo que producia
+`HTTP 500 Invalid request` y parecia una clave rechazada.
+
+Además se corrigió el **cambio de título en Shoutcast v2**: `/admin.cgi` se
+pedía al puerto `+1` (que en v1 es el de oyentes), pero el DNAS v2 atiende
+fuentes, oyentes y administración en el mismo `portbase`. Ahora se prueban los
+puertos candidatos, se usan las credenciales de administración si están
+configuradas y se comprueba la respuesta del servidor (antes bastaba con abrir
+el socket para darlo por bueno).
 
 El flujo se reprodujo con la app real, tono de 440 Hz en un sink virtual y
 pulsaciones con XTest: un solo "NIVEL DE ENTRADA", misma captura antes y al
@@ -77,7 +91,7 @@ Capturas actualizadas: `docs/screenshots/linux-nivel-idle.png` y
 | **Soundboard** | 8 pads, mezcla en vivo, cue local, ducking, loop y teclas 1-8 / F1-F8 |
 | **Persistencia del soundboard** | `soundboard.json` + archivos en la carpeta de datos |
 | **Cue local** | Linux por FFmpeg Pulse/ALSA; Windows por `ffplay.exe` |
-| **Pruebas de widgets reales** | **22 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entrada predeterminada, soundboard y desbordes de 900x600 a 1280x700 |
+| **Pruebas de widgets reales** | **22 pruebas con `flutter test`**: estados, colores, pulsaciones, ganancia en vivo, entrada sin preseleccionar, soundboard y desbordes de 900x600 a 1280x700 |
 | Runner y captura de Windows | `.exe` compilado y arrancado en GitHub Actions; audio real pendiente |
 
 ### Comprobaciones ejecutables en cualquier momento
@@ -86,16 +100,16 @@ En Linux/macOS (con Flutter instalado y `PUB_CACHE` configurado). Si el SDK se
 preparó con `tool/setup_local_sdk.sh`, ejecutar antes `source .tooling/env.sh`:
 
 ```bash
-dart run tool/verify_core.dart              # 186 comprobaciones
+dart run tool/verify_core.dart              # 209 comprobaciones
 dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
-dart run tool/verify_server_detect.dart     #  15 comprobaciones
+dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio REAL; ALSA opcional)
-dart run tool/verify_soundboard.dart        #  24 (mezcla, store, decoder y cue)
+dart run tool/verify_soundboard.dart        #  25 (mezcla, store, decoder y cue)
 
 # Interfaz renderizada de verdad (no analisis estatico): 22 pruebas.
 flutter test

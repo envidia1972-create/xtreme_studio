@@ -43,7 +43,21 @@ class SoundboardStore {
       ),
   ];
 
+  /// Crea `soundboard/` y `soundboard/files/` si no existen.
+  ///
+  /// El DJ no tiene que crear carpetas a mano: al abrir la app ya quedan
+  /// listas, y "Abrir carpeta" lo lleva directamente a `files/`.
+  Future<void> ensureDirectories() async {
+    if (!directory.existsSync()) {
+      await directory.create(recursive: true);
+    }
+    if (!filesDirectory.existsSync()) {
+      await filesDirectory.create(recursive: true);
+    }
+  }
+
   Future<SoundboardData> load() async {
+    await ensureDirectories();
     if (!indexFile.existsSync()) {
       return SoundboardData(pads: defaultPads());
     }
@@ -164,13 +178,14 @@ class SoundboardStore {
   }
 
   Future<void> openDirectory() async {
-    await directory.create(recursive: true);
+    await ensureDirectories();
+    final path = filesDirectory.path;
     if (Platform.isWindows) {
-      await Process.run('explorer.exe', [directory.path]);
+      await Process.run('explorer.exe', [path]);
     } else if (Platform.isMacOS) {
-      await Process.run('open', [directory.path]);
+      await Process.run('open', [path]);
     } else {
-      await Process.run('xdg-open', [directory.path]);
+      await Process.run('xdg-open', [path]);
     }
   }
 }

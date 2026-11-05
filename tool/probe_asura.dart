@@ -84,7 +84,7 @@ Future<String> tryIcecast(int port) async {
   }
 }
 
-/// Intenta el handshake de SHOUTcast v1 (`password:#1`).
+/// Intenta el handshake legacy de SHOUTcast (solo contrasena).
 Future<String> tryShoutcastV1(int port) async {
   try {
     final socket = await Socket.connect(
@@ -94,7 +94,8 @@ Future<String> tryShoutcastV1(int port) async {
     );
     socket.setOption(SocketOption.tcpNoDelay, true);
     socket.write(
-      '$pass:#1\r\n'
+      '$pass\n'
+      'Host: $host:$port\r\n'
       'icy-name:Prueba Xtreme Studio\r\n'
       'icy-genre:Variado\r\n'
       'icy-br:128\r\n'
@@ -139,7 +140,7 @@ Future<String> tryShoutcastV1(int port) async {
   }
 }
 
-/// Intenta el handshake de SHOUTcast v2 (`usuario:password` + sid).
+/// Intenta el handshake legacy de SHOUTcast (solo contrasena + headers).
 Future<String> tryShoutcastV2(int port) async {
   try {
     final socket = await Socket.connect(
@@ -149,13 +150,13 @@ Future<String> tryShoutcastV2(int port) async {
     );
     socket.setOption(SocketOption.tcpNoDelay, true);
     socket.write(
-      '$user:$pass\r\n'
+      '$pass\n'
+      'Host: $host:$port\r\n'
       'icy-name:Prueba Xtreme Studio\r\n'
       'icy-genre:Variado\r\n'
       'icy-br:128\r\n'
       'icy-pub:0\r\n'
-      'content-type:audio/mpeg\r\n'
-      'sid:1\r\n\r\n',
+      'content-type:audio/mpeg\r\n\r\n',
     );
     await socket.flush();
 

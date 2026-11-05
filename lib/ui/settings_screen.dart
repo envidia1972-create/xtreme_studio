@@ -193,7 +193,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: 'Entrada de audio',
             subtitle:
                 'Elegi el microfono, la consola o el dispositivo de captura que '
-                'usaras para salir al aire.',
+                'usaras para salir al aire. La app no abre ninguna entrada '
+                'hasta que elijas una.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -481,16 +482,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _selectedDeviceId() {
     final saved = widget.settings.lastDeviceId;
-    if (saved.isNotEmpty) {
-      for (final d in widget.devices) {
-        if (d.id == saved) return d.id;
-      }
-    }
-    // Sin eleccion explicita se marca la entrada predeterminada del sistema.
+    // Sin eleccion explicita no se marca ninguna entrada: el DJ decide cual
+    // usar. Mientras no elija, la captura usa el dispositivo predeterminado
+    // del sistema, igual que antes.
+    if (saved.isEmpty) return '';
     for (final d in widget.devices) {
-      if (d.id == 'default') return d.id;
+      if (d.id == saved) return d.id;
     }
-    return widget.devices.isNotEmpty ? widget.devices.first.id : '';
+    return '';
   }
 
   Future<void> _selectDevice(InputDevice device) async {
@@ -573,6 +572,12 @@ class _CommandPreviewState extends State<_CommandPreview> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.deviceName.trim().isEmpty) {
+      return const Text(
+        'Elegi una entrada de audio para ver el comando de captura.',
+        style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
+      );
+    }
     final args = CaptureArgs(
       deviceName: widget.deviceName,
       sampleRate: 44100,

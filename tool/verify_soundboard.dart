@@ -117,6 +117,11 @@ Future<void> main() async {
   final tmp = Directory.systemTemp.createTempSync('xtreme_soundboard_test_');
   try {
     final store = SoundboardStore(tmp);
+    await store.load();
+    check(
+      Directory(store.filesDirectory.path).existsSync(),
+      'la app crea soundboard/files automaticamente',
+    );
     final data = SoundboardData(
       pads: SoundboardStore.defaultPads(),
       masterVolume: 0.6,

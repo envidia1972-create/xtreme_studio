@@ -78,8 +78,11 @@ class Broadcaster {
       final client = ShoutcastClient(
         host: profile.host,
         port: profile.effectivePort,
+        sourcePort: profile.sourcePort,
         password: profile.password,
         username: profile.username,
+        adminUsername: profile.adminUsername,
+        adminPassword: profile.adminPassword,
         version: profile.protocol == ServerProtocol.shoutcast1
             ? ShoutcastVersion.v1
             : ShoutcastVersion.v2,
@@ -186,6 +189,9 @@ Future<ConnectionTestResult> testConnection(ServerProfile profile) async {
   final details = <String>[
     'Protocolo configurado: ${profile.protocol.shortLabel}',
     'Destino: ${profile.summary}',
+    if (profile.isShoutcast)
+      'Publicacion Shoutcast: ${profile.host}:${profile.sourcePort} '
+          '(puerto base + 1)',
   ];
 
   try {
@@ -205,30 +211,34 @@ Future<ConnectionTestResult> testConnection(ServerProfile profile) async {
   } on IcecastException catch (e) {
     await broadcaster.close();
 
-    if (e.statusCode == 401) {
-      final detected = await detectServer(
-        host: profile.host,
-        port: profile.effectivePort,
-        expected: profile.protocol,
-        useTls: profile.useTls,
-      );
-      details.add('Deteccion del servidor: ${detected.evidence}');
-      if (detected.serverSoftware != null) {
-        details.add('Software: ${detected.serverSoftware}');
-      }
+    // La causa mas frecuente de un rechazo no es la clave: es que el tipo de
+    // servidor no coincide con el puerto. Se consulta siempre, no solo en 401,
+    // porque Icecast/Liquidsoap responden `HTTP 500 Invalid request` cuando
+    // reciben un handshake de Shoutcast.
+    final detected = await detectServer(
+      host: profile.host,
+      port: profile.effectivePort,
+      expected: profile.protocol,
+      useTls: profile.useTls,
+    );
+    details.add('Deteccion del servidor: ${detected.evidence}');
+    if (detected.serverSoftware != null) {
+      details.add('Software: ${detected.serverSoftware}');
+    }
 
-      if (detected.isCertain && detected.protocol != profile.protocol) {
-        return ConnectionTestResult(
-          ok: false,
-          message:
-              'El puerto ${profile.effectivePort} es '
-              '${detected.protocol.shortLabel}, no '
-              '${profile.protocol.shortLabel}. Cambia el tipo de servidor en el '
-              'perfil.',
-          statusCode: e.statusCode,
-          details: details,
-        );
-      }
+    if (detected.isCertain && detected.protocol != profile.protocol) {
+      final liquidsoap = detected.serverSoftware == 'Liquidsoap';
+      return ConnectionTestResult(
+        ok: false,
+        message:
+            'El puerto ${profile.effectivePort} es '
+            '${detected.protocol.shortLabel}, no '
+            '${profile.protocol.shortLabel}. Cambia el tipo de servidor en el '
+            'perfil.'
+            '${liquidsoap ? ' En este servidor usa el usuario "source" y el mount "/".' : ''}',
+        statusCode: e.statusCode,
+        details: [...details, if (e.serverMessage != null) e.serverMessage!],
+      );
     }
 
     return ConnectionTestResult(

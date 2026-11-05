@@ -104,14 +104,23 @@ class ProfileStore {
     return Directory('$home${Platform.pathSeparator}.xtreme_studio');
   }
 
-  File get profilesFile => File('${base.path}${Platform.pathSeparator}profiles.json');
-  File get settingsFile => File('${base.path}${Platform.pathSeparator}settings.json');
+  File get profilesFile =>
+      File('${base.path}${Platform.pathSeparator}profiles.json');
+  File get settingsFile =>
+      File('${base.path}${Platform.pathSeparator}settings.json');
   Directory get secretsDir =>
       Directory('${base.path}${Platform.pathSeparator}secrets');
 
-  File _secretFile(String profileId) => File(
-    '${secretsDir.path}${Platform.pathSeparator}$profileId.bin',
-  );
+  File _secretFile(String profileId) =>
+      File('${secretsDir.path}${Platform.pathSeparator}$profileId.bin');
+
+  /// Secreto aparte para la clave de administracion del servidor.
+  ///
+  /// No se guarda en `profiles.json` (que se comparte al exportar) ni se
+  /// mezcla con la clave de la fuente: si el hosting usa una distinta para
+  /// cambiar el titulo, tambien merece el mismo tratamiento cifrado.
+  File _adminSecretFile(String profileId) =>
+      File('${secretsDir.path}${Platform.pathSeparator}$profileId.admin.bin');
 
   Future<void> ensureDirectories() async {
     if (!base.existsSync()) await base.create(recursive: true);
@@ -134,7 +143,9 @@ class ProfileStore {
     for (final map in maps) {
       try {
         final profile = ServerProfile.fromJson(map);
-        profile.password = await _loadSecret(profile.id) ?? '';
+        profile.password = await _readSecretFile(_secretFile(profile.id)) ?? '';
+        profile.adminPassword =
+            await _readSecretFile(_adminSecretFile(profile.id)) ?? '';
         result.add(profile);
       } catch (_) {
         // Un perfil invalido se omite; el resto sigue disponible.
@@ -177,8 +188,7 @@ class ProfileStore {
     }
   }
 
-  Future<String?> _loadSecret(String profileId) async {
-    final file = _secretFile(profileId);
+  Future<String?> _readSecretFile(File file) async {
     if (!file.existsSync()) return null;
     try {
       final blob = await file.readAsBytes();
@@ -206,15 +216,18 @@ class ProfileStore {
     }
     await _writeProfiles(maps);
     await _saveSecret(profile.id, profile.password);
+    await _writeSecretFile(_adminSecretFile(profile.id), profile.adminPassword);
   }
 
-  Future<void> _saveSecret(String profileId, String password) async {
-    final file = _secretFile(profileId);
-    if (password.isEmpty) {
+  Future<void> _saveSecret(String profileId, String password) =>
+      _writeSecretFile(_secretFile(profileId), password);
+
+  Future<void> _writeSecretFile(File file, String secret) async {
+    if (secret.isEmpty) {
       if (file.existsSync()) await file.delete();
       return;
     }
-    final r = secrets.protect(password);
+    final r = secrets.protect(secret);
     if (!r.ok) {
       // No guardamos en claro nunca: es preferible avisar.
       throw StateError('No se pudo cifrar la contrasena: ${r.error}');
@@ -233,10 +246,9 @@ class ProfileStore {
 
   Future<void> _writeProfiles(List<Map<String, dynamic>> profiles) async {
     await ensureDirectories();
-    final payload = const JsonEncoder.withIndent('  ').convert({
-      'version': 1,
-      'profiles': profiles,
-    });
+    final payload = const JsonEncoder.withIndent(
+      '  ',
+    ).convert({'version': 1, 'profiles': profiles});
     await profilesFile.writeAsString(payload, flush: true);
   }
 
@@ -247,6 +259,8 @@ class ProfileStore {
     await _writeProfiles(maps);
     final file = _secretFile(profileId);
     if (file.existsSync()) await file.delete();
+    final adminFile = _adminSecretFile(profileId);
+    if (adminFile.existsSync()) await adminFile.delete();
   }
 
   Future<AppSettings> loadSettings() async {
@@ -330,10 +344,8 @@ class ProfileStore {
 
     final dirs = <String>[
       // winget crea enlaces en WindowsApps\...\Links
-      if (local.isNotEmpty)
-        '$local\\Microsoft\\WinGet\\Links\\$exe',
-      if (local.isNotEmpty)
-        '$local\\Microsoft\\WinGet\\Packages',
+      if (local.isNotEmpty) '$local\\Microsoft\\WinGet\\Links\\$exe',
+      if (local.isNotEmpty) '$local\\Microsoft\\WinGet\\Packages',
       // Chocolatey
       if (programData.isNotEmpty) '$programData\\chocolatey\\bin\\$exe',
       'C:\\ProgramData\\chocolatey\\bin\\$exe',
@@ -405,10 +417,9 @@ class ProfileStore {
 
     // 4. PATH del sistema, como ultimo recurso.
     try {
-      final result = await Process.run(
-        Platform.isWindows ? 'where' : 'which',
-        [exe],
-      );
+      final result = await Process.run(Platform.isWindows ? 'where' : 'which', [
+        exe,
+      ]);
       if (result.exitCode == 0) {
         final first = (result.stdout as String)
             .split(RegExp(r'\r?\n'))

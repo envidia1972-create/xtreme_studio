@@ -4,7 +4,7 @@ Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ c
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**397
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**424
 > comprobaciones automaticas en este equipo** en diez suites, mas **22 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
 > PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
@@ -43,10 +43,10 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | **Proteccion contra desplazar a otro DJ** (avisa antes de forzar) | Listo |
 | **Comprobacion de la senal publicada** (vista del oyente) | Listo |
 | Vumetro activo desde que se elige la entrada, tambien fuera del aire | Listo |
-| **Entrada predeterminada del sistema** seleccionada por defecto (`Default`) | Listo |
+| **Ninguna entrada preseleccionada**: la app no abre el micrófono hasta que el DJ elige uno | Listo |
 | Pico retenido y RMS estables (sin parpadeo) | Listo |
 | **Ganancia** audible en el vumetro y en el stream | Listo |
-| **"Suena ahora"** por `/admin/metadata` (Icecast/Zeno.fm) | Listo |
+| **"Suena ahora"** por `/admin/metadata` (Icecast) y `/admin.cgi` (Shoutcast v2) | Listo |
 | Codec **MP3**, **AAC-LC** y **AAC+** (si el FFmpeg lo soporta) | Listo |
 | Bitrate ajustable por emisora (24 a 320 kbps segun codec) | Listo |
 | Grabacion local de la emision | Listo |
@@ -262,6 +262,10 @@ Los jingles se copian a:
 
 - Linux: `~/.xtreme_studio/soundboard/files/`
 - Windows: `%APPDATA%\XtremeStudio\soundboard\files\`
+
+**No hace falta crear esas carpetas a mano.** La app crea `soundboard/` y
+`soundboard/files/` al arrancar. El botón **Abrir carpeta** abre directamente
+`files/`, que es donde van los jingles.
 
 Se pueden agregar de dos formas:
 
@@ -561,16 +565,16 @@ memoria y comprueban el comportamiento real del protocolo.
 # Si usaste setup_local_sdk.sh:
 # source .tooling/env.sh
 
-dart run tool/verify_core.dart              # 186 comprobaciones
+dart run tool/verify_core.dart              # 209 comprobaciones
 dart run tool/verify_engine.dart            #  51 comprobaciones (FFmpeg simulado)
 dart run tool/verify_ui.dart                #  20 comprobaciones
 dart run tool/verify_signal.dart            #  23 comprobaciones
 dart run tool/verify_occupied_mount.dart    #  14 comprobaciones
-dart run tool/verify_server_detect.dart     #  15 comprobaciones
+dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio real; ALSA opcional)
-dart run tool/verify_soundboard.dart        #  24 (mezcla, store, decoder y cue)
+dart run tool/verify_soundboard.dart        #  25 (mezcla, store, decoder y cue)
 
 # Interfaz renderizada de verdad (22 pruebas: estados, colores y desbordes).
 flutter test
@@ -692,6 +696,31 @@ La prueba de integracion del motor cubre ese camino: el `ffmpeg` falso devuelve
 un mensaje real cuando se lo invoca en modo diagnostico, y se comprueba que el
 mensaje final al DJ explica la causa en vez de caer en el texto generico.
 
+### Shoutcast: puerto base y contrasena
+
+En Shoutcast el **puerto del perfil es el puerto base**, el que usan los
+oyentes. La app publica en **ese puerto + 1**, igual que BUTT y los DSP
+clasicos. Por ejemplo, con el puerto `8885`:
+
+```
+oyentes:      host:8885
+publicacion:  host:8886
+```
+
+El handshake de publicacion lleva **solo la contrasena**, no un usuario. Si el
+hosting te dio una clave como `Luis:pENgt`, escribila completa en *Contrasena*
+y deja el usuario vacio: se envia tal cual, con los dos puntos. El campo
+*Usuario* queda deshabilitado cuando el protocolo es Shoutcast.
+
+Si aun asi falla, comprobá que el host sea el mismo que usas en BUTT (a veces
+el hosting da un nombre DNS distinto de la IP) y que el puerto sea el **base**,
+no el de publicacion.
+
+Algunos hostings tienen **Liquidsoap en el puerto base** y **Shoutcast en el
+puerto base + 1**. En ese caso el boton *Detectar tipo* puede ver Liquidsoap y
+sugerir Icecast2 aunque la publicacion real sea Shoutcast. Si BUTT te funciona
+como Shoutcast, deja el perfil en **Shoutcast v2** con el puerto base.
+
 ### Sonda contra un servidor real
 
 ```bash
@@ -753,16 +782,16 @@ tool/
   setup_local_sdk.sh        SDK de Flutter local para Linux (SDK de solo lectura)
   demo_icecast.dart         Icecast minimo para probar la app en local
   diagnose_devices.dart     Diagnostico de deteccion de dispositivos de audio
-  verify_core.dart          Verificacion del nucleo (186 comprobaciones)
+  verify_core.dart          Verificacion del nucleo (209 comprobaciones)
   verify_ui.dart            Verificacion de la interfaz (20 comprobaciones)
   verify_ffmpeg_discovery.dart  Deteccion de FFmpeg (21 comprobaciones)
   verify_signal.dart        Monitor de senal (23 comprobaciones)
   verify_occupied_mount.dart Proteccion del mount ocupado (14 comprobaciones)
-  verify_server_detect.dart Deteccion del tipo de servidor (15 comprobaciones)
+  verify_server_detect.dart Deteccion del tipo de servidor (18 comprobaciones)
   verify_widget_arguments.dart  Contrato de argumentos de widgets (3)
   verify_engine.dart        Integracion del motor de emision (51 comprobaciones)
   verify_linux_audio.dart   Audio real Pulse/AAC/ALSA (40 comprobaciones)
-  verify_soundboard.dart    Mezcla, persistencia, decoder y cue (24)
+  verify_soundboard.dart    Mezcla, persistencia, decoder y cue (25)
   probe_icecast.dart        Sonda de handshake contra un servidor real
   probe_signal.dart         Sonda de senal (solo lectura) contra un servidor real
   fake_ffmpeg.c             FFmpeg falso para las pruebas del motor

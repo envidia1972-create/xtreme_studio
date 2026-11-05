@@ -168,9 +168,7 @@ void main() {
   });
 
   group('Ajustes', () {
-    testWidgets('por defecto queda marcada la entrada del sistema', (
-      tester,
-    ) async {
+    testWidgets('por defecto no queda marcada ninguna entrada', (tester) async {
       await _setSize(tester, const Size(1280, 687));
       await tester.pumpWidget(
         _wrap(
@@ -190,7 +188,8 @@ void main() {
       final group = tester.widget<RadioGroup<String>>(
         find.byType(RadioGroup<String>),
       );
-      expect(group.groupValue, 'default');
+      // Sin eleccion explicita no se marca nada: el DJ decide que entrada usar.
+      expect(group.groupValue, '');
       expect(tester.takeException(), isNull);
     });
     for (final size in const [Size(1280, 687), Size(960, 600)]) {

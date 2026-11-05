@@ -6,9 +6,9 @@
 /// ffmpeg falla en muchos hostings: `-f mp3` a un Shoutcast no negocia el
 /// handshake. Aqui lo hacemos nosotros.
 ///
-/// SHOUTcast v1 espera que se le envie el password como "usuario" y `#1` como
-/// password; v2 espera `user:pass` y un campo `sid`. Ambos responden con una
-/// linea `OK2` o `invalid password`.
+/// SHOUTcast v1 y v2 usan el protocolo legacy de publicacion: conectar al
+/// puerto base + 1 y enviar **solo la contrasena**. El usuario no participa.
+/// El servidor responde con una linea `OK2` o `invalid password`.
 library;
 
 import 'dart:async';
@@ -16,7 +16,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'icecast_client.dart' show SocketConnector, IcecastException, defaultSocketConnector;
+import 'icecast_client.dart'
+    show SocketConnector, IcecastException, defaultSocketConnector;
+import '../diagnostic_log.dart';
 
 /// Variante del protocolo Shoutcast.
 enum ShoutcastVersion { v1, v2 }
@@ -26,8 +28,11 @@ class ShoutcastClient {
   ShoutcastClient({
     required this.host,
     required this.port,
+    int? sourcePort,
     required this.password,
     this.username = 'source',
+    this.adminUsername = '',
+    this.adminPassword = '',
     this.version = ShoutcastVersion.v2,
     this.streamId = 1,
     this.name = '',
@@ -39,12 +44,24 @@ class ShoutcastClient {
     this.channels = 2,
     this.contentType = 'audio/mpeg',
     SocketConnector? connector,
-  }) : _connect = connector ?? defaultSocketConnector;
+  }) : sourcePort = sourcePort ?? port + 1,
+       _connect = connector ?? defaultSocketConnector;
 
   final String host;
+
+  /// Puerto base del hosting (el que usan los oyentes).
   final int port;
+
+  /// Puerto de publicacion. Por defecto es `port + 1`, como BUTT y los DSP.
+  final int sourcePort;
   final String password;
   final String username;
+
+  /// Credenciales de administracion, si el hosting usa unas distintas de las
+  /// de la fuente para cambiar el titulo (`/admin.cgi`).
+  final String adminUsername;
+  final String adminPassword;
+
   final ShoutcastVersion version;
   final int streamId;
   final String name;
@@ -80,34 +97,32 @@ class ShoutcastClient {
 
   int get bytesSent => _bytesSent;
 
-  /// Cabeceras del handshake segun la version.
+  /// Cabeceras del handshake.
   ///
-  /// v1: `password#1` (el usuario real es irrelevante para el servidor).
-  /// v2: `user:pass` + `sid` + `icy-*`.
+  /// El protocolo legacy de SHOUTcast (el que usan BUTT y los DSP) es:
+  ///   1. conectar al puerto base + 1;
+  ///   2. enviar **solo la contrasena**, seguida de un salto de linea;
+  ///   3. enviar Host, icy-* y content-type.
+  ///
+  /// El usuario no forma parte del handshake. La contrasena se envia tal cual,
+  /// aunque contenga `:`; no se parte ni se codifica en Base64.
   String buildHandshake() {
-    final b = StringBuffer();
-
-    if (version == ShoutcastVersion.v1) {
-      b.write('$password:#1\r\n');
-    } else {
-      b.write('$username:$password\r\n');
-    }
-
-    b
-      ..write('icy-name:$name\r\n')
+    final b = StringBuffer()
+      ..write('$password\n')
+      ..write('Host: $host:$port\r\n')
+      ..write('icy-name:${name.isEmpty ? 'No Name' : name}\r\n')
       ..write('icy-genre:$genre\r\n')
       ..write('icy-url:$url\r\n')
       ..write('icy-pub:${isPublic ? 1 : 0}\r\n')
-      ..write('icy-br:$bitrateKbps\r\n');
+      ..write('icy-br:$bitrateKbps\r\n')
+      ..write('content-type:$contentType\r\n');
 
-    if (version == ShoutcastVersion.v2) {
-      b.write('content-type:$contentType\r\n');
-      // NO se anuncia `icy-metaint`: este cliente no entrelaza bloques de
-      // metadatos dentro del flujo. Declararlo hacia que el servidor (y los
-      // reproductores) esperaran bloques que nunca llegan, desplazando el audio.
-      // El titulo se actualiza por la API de administracion (ver setMetadata).
-      // `sid` solo se envia cuando la fuente apunta a un stream concreto.
-      if (streamId > 0) b.write('sid:$streamId\r\n');
+    // NO se anuncia `icy-metaint`: este cliente no entrelaza metadatos en el
+    // flujo. El titulo se actualiza por `/admin.cgi`.
+    // `sid` se omite para el stream por defecto (como BUTT). Solo se envia si
+    // un perfil pidiera explicitamente un stream distinto.
+    if (version == ShoutcastVersion.v2 && streamId > 1) {
+      b.write('sid:$streamId\r\n');
     }
 
     b.write('\r\n');
@@ -120,10 +135,14 @@ class ShoutcastClient {
 
     Socket socket;
     try {
-      socket = await _connect(host, port, useTls: false);
+      socket = await _connect(host, sourcePort, useTls: false);
     } on SocketException catch (e) {
+      final donde = sourcePort == port ? '$host:$port' : '$host:$sourcePort';
+      final aclaracion = sourcePort == port
+          ? ''
+          : ' (publicacion Shoutcast; el puerto base $port es para oyentes)';
       throw IcecastException(
-        'No se pudo conectar a $host:$port. '
+        'No se pudo conectar a $donde$aclaracion. '
         '(${e.osError?.message ?? e.message})',
       );
     }
@@ -131,9 +150,11 @@ class ShoutcastClient {
     socket.setOption(SocketOption.tcpNoDelay, true);
     _socket = socket;
     // Ver comentario en IcecastClient: los EPIPE llegan por `done`.
-    unawaited(socket.done.catchError((Object _) {
-      _onSocketDown();
-    }));
+    unawaited(
+      socket.done.catchError((Object _) {
+        _onSocketDown();
+      }),
+    );
 
     try {
       _socketClosed = false;
@@ -163,9 +184,7 @@ class ShoutcastClient {
         },
         onDone: () {
           if (!lineCompleter.isCompleted) {
-            lineCompleter.complete(
-              latin1.decode(buffer, allowInvalid: true),
-            );
+            lineCompleter.complete(latin1.decode(buffer, allowInvalid: true));
           } else {
             _onSocketDown();
           }
@@ -185,6 +204,7 @@ class ShoutcastClient {
       );
 
       final response = line.trim();
+      final lower = response.toLowerCase();
 
       if (response == 'OK2') {
         _connected = true;
@@ -193,8 +213,21 @@ class ShoutcastClient {
         // v1 clasico: acepta la fuente pero no metadatos en el flujo.
         _connected = true;
         _metadataSupported = false;
-      } else if (response.toLowerCase().contains('invalid') ||
-          response.toLowerCase().contains('password')) {
+      } else if (lower.startsWith('http/')) {
+        // Un servidor que habla HTTP (Icecast, Liquidsoap, AzuraCast) responde
+        // `HTTP/1.0 500 Invalid request` a una linea que no es una peticion
+        // valida. NO es una clave rechazada: el puerto no es Shoutcast.
+        final status = RegExp(
+          r'^HTTP/\d(?:\.\d)?\s+(\d{3})',
+        ).firstMatch(response);
+        throw IcecastException(
+          'El servidor respondio como HTTP, no como Shoutcast. '
+          'Es probable que sea Icecast o Liquidsoap: cambia el tipo de '
+          'servidor a Icecast2 en el perfil.',
+          statusCode: status != null ? int.parse(status.group(1)!) : null,
+          serverMessage: response,
+        );
+      } else if (lower.contains('invalid') || lower.contains('password')) {
         throw IcecastException(
           'La contrasena fue rechazada por el servidor',
           serverMessage: response,
@@ -251,44 +284,180 @@ class ShoutcastClient {
   /// Cambia el titulo que suena.
   ///
   /// En Shoutcast los metadatos **no** van en el flujo: se envian como una
-  /// peticion HTTP aparte al puerto de administracion con el parametro
-  /// `song`. Por eso este metodo es asincrono y no puede fallar la emision.
+  /// peticion HTTP aparte a `/admin.cgi` con el parametro `song`. Por eso este
+  /// metodo es asincrono y no puede fallar la emision.
+  ///
+  /// El puerto de administracion **no** es siempre `port + 1`:
+  /// - En **v2** el DNAS multiplexa fuentes, oyentes y administracion en el
+  ///   mismo `portbase`, que es el puerto configurado.
+  /// - En **v1** la administracion queda en el puerto base, que es la fuente
+  ///   menos uno.
+  ///
+  /// Se prueban los puertos candidatos y se acepta el primero que responda
+  /// bien. Tambien se usan las credenciales de administracion si el hosting
+  /// pide una clave distinta de la de la fuente.
   Future<bool> setMetadata(
     String song, {
     String? artist,
     String? title,
     String? sid,
   }) async {
-    final value = (artist != null && artist.isNotEmpty && title != null && title.isNotEmpty)
+    final value =
+        (artist != null &&
+            artist.isNotEmpty &&
+            title != null &&
+            title.isNotEmpty)
         ? '$artist - $title'
         : song;
+    if (value.trim().isEmpty) return false;
 
-    // El puerto de administracion de Shoutcast es el de la fuente +1.
-    final adminPort = port + 1;
+    String? effectiveSid;
+    if (sid != null && sid.isNotEmpty) {
+      effectiveSid = sid;
+    } else if (version == ShoutcastVersion.v2 && streamId > 0) {
+      effectiveSid = '$streamId';
+    }
+
+    final deadline = DateTime.now().add(const Duration(seconds: 8));
+    for (final credentials in _adminCredentials()) {
+      for (final adminPort in _metadataPorts) {
+        if (DateTime.now().isAfter(deadline)) return false;
+        final ok = await _sendMetadata(
+          adminPort: adminPort,
+          value: value,
+          user: credentials.$1,
+          pass: credentials.$2,
+          sid: effectiveSid,
+        );
+        if (ok) return true;
+      }
+    }
+    DiagnosticLog.instance?.write(
+      'red',
+      'metadatos Shoutcast ${version.name}: el servidor no acepto el titulo '
+          'en el puerto ${_metadataPorts.join(", ")}',
+    );
+    return false;
+  }
+
+  /// Puertos donde puede estar `/admin.cgi`, en orden de probabilidad.
+  ///
+  /// En v2 el DNAS multiplexa todo en el puerto de la fuente. En v1 la
+  /// administración queda en el puerto base (fuente - 1). **No** se prueban
+  /// puertos vecinos arbitrarios: en un hosting compartido el `+1` puede ser
+  /// otra emisora y no se le debe cambiar el título por error.
+  List<int> get _metadataPorts {
+    // En v1 y v2 el panel de administracion esta en el puerto base; el
+    // puerto base + 1 es exclusivamente para la fuente.
+    final candidates = [port];
+    return candidates.where((p) => p > 0 && p <= 65535).toList();
+  }
+
+  /// Credenciales a probar: primero las de administracion y despues las de la
+  /// fuente (hay hostings donde son la misma).
+  List<(String, String)> _adminCredentials() {
+    final pairs = <(String, String)>[];
+    if (adminPassword.isNotEmpty) {
+      pairs.add((
+        adminUsername.isEmpty ? 'admin' : adminUsername,
+        adminPassword,
+      ));
+    }
+    if (password.isNotEmpty && password != adminPassword) {
+      pairs.add((username, password));
+    }
+    return pairs;
+  }
+
+  Future<bool> _sendMetadata({
+    required int adminPort,
+    required String value,
+    required String user,
+    required String pass,
+    String? sid,
+  }) async {
+    Socket? socket;
     try {
-      final socket = await _connect(host, adminPort, useTls: false);
-      unawaited(socket.done.catchError((Object _) {}));
-      final encodedSong = Uri.encodeComponent(value);
-      // SHOUTcast espera la contrasena como parametro `pass`. En v1 la
-      // autenticacion basica no funciona para `admin.cgi`; en v2 se acepta
-      // `pass` y tambien la cabecera, asi que se envian las dos.
-      final encodedPass = Uri.encodeComponent(password);
-      final path = '/admin.cgi?pass=$encodedPass&mode=updinfo&song=$encodedSong'
-          '${sid != null ? '&sid=$sid' : ''}';
+      socket = await _connect(host, adminPort, useTls: false);
+      socket.setOption(SocketOption.tcpNoDelay, true);
+      final query = [
+        'pass=${Uri.encodeComponent(pass)}',
+        'mode=updinfo',
+        'song=${Uri.encodeComponent(value)}',
+        if (sid != null) 'sid=${Uri.encodeComponent(sid)}',
+      ].join('&');
+      // SHOUTcast espera la contrasena como parametro `pass`; la cabecera
+      // basica se envia ademas porque algunos hostings la usan.
       socket.write(
-        'GET $path HTTP/1.0\r\n'
+        'GET /admin.cgi?$query HTTP/1.0\r\n'
         'Host: $host:$adminPort\r\n'
-        'Authorization: Basic ${base64Encode(utf8.encode('$username:$password'))}\r\n'
+        'Authorization: Basic ${base64Encode(utf8.encode('$user:$pass'))}\r\n'
         'User-Agent: XtremeStudio/0.1\r\n'
         'Connection: close\r\n\r\n',
       );
-      await socket.flush();
-      await socket.close();
-      socket.destroy();
-      return true;
+      await socket.flush().timeout(const Duration(seconds: 4));
+      final response = await _readResponse(
+        socket,
+      ).timeout(const Duration(seconds: 3));
+      return _metadataAccepted(response);
     } catch (_) {
       return false;
+    } finally {
+      try {
+        socket?.destroy();
+      } catch (_) {}
     }
+  }
+
+  /// Lee la respuesta corta de `/admin.cgi` (nunca un flujo de audio).
+  Future<String> _readResponse(Socket socket) {
+    final buffer = BytesBuilder(copy: true);
+    final completer = Completer<String>();
+    StreamSubscription<List<int>>? sub;
+
+    void finish() {
+      if (completer.isCompleted) return;
+      completer.complete(latin1.decode(buffer.takeBytes(), allowInvalid: true));
+      unawaited(sub?.cancel());
+    }
+
+    sub = socket.listen(
+      (data) {
+        if (buffer.length < 4096) buffer.add(data);
+        if (buffer.length >= 4096) finish();
+      },
+      onError: (_) => finish(),
+      onDone: finish,
+      cancelOnError: false,
+    );
+    return completer.future;
+  }
+
+  /// `true` solo si el servidor confirmo el cambio.
+  ///
+  /// El DNAS responde `OK`/`OK2` o una pagina con "Updated"; con la clave
+  /// equivocada responde `Invalid password` (a veces detras de un 200). Por eso
+  /// no alcanza con mirar el codigo HTTP.
+  bool _metadataAccepted(String response) {
+    final text = response.trim();
+    if (text.isEmpty) return false;
+
+    final lower = text.toLowerCase();
+    if (lower.contains('invalid') ||
+        lower.contains('failed') ||
+        lower.contains('denied') ||
+        lower.contains('error')) {
+      return false;
+    }
+
+    final status = RegExp(r'^HTTP/\d(?:\.\d)?\s+(\d{3})').firstMatch(text);
+    if (status != null) {
+      final code = int.parse(status.group(1)!);
+      return code >= 200 && code < 300;
+    }
+
+    // Respuesta de protocolo Shoutcast sin cabecera HTTP: `OK2`.
+    return lower.startsWith('ok') || lower.contains('updated');
   }
 
   /// Marca la conexion como caida y avisa una sola vez.

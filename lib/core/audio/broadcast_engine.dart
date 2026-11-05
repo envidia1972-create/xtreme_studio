@@ -1068,8 +1068,8 @@ class BroadcastEngine {
     if (!ok) {
       _log(
         'warn',
-        'El servidor no acepto el cambio de titulo. Revisa que el hosting '
-            'permita /admin/metadata con estas credenciales.',
+        'El servidor no acepto el cambio de titulo. Revisa la clave de '
+            'administracion (y el puerto de administracion) del servidor.',
       );
     } else {
       _log('info', 'Suena ahora: $track');

@@ -186,6 +186,22 @@ Future<void> _peticionIcecast() async {
     'la contrasena viaja en Basic auth (base64)',
   );
   check(req.contains('ice-name: Mi Radio'), 'envia el nombre de la emisora');
+
+  // El usuario tampoco bloquea en Icecast: si queda vacio se usa `source`,
+  // que es lo que espera el servidor por convencion.
+  final sinUsuario = IcecastClient(
+    host: 'radio.ejemplo.com',
+    port: 8000,
+    mount: '/',
+    username: '',
+    password: 'secreto123',
+  );
+  check(
+    sinUsuario.buildPutRequest().contains(
+      base64Encode(utf8.encode('source:secreto123')),
+    ),
+    'Icecast usa "source" cuando el usuario queda vacio',
+  );
 }
 
 Future<void> _conexionIcecast() async {
@@ -355,8 +371,10 @@ Future<void> _shoutcast() async {
     version: ShoutcastVersion.v1,
   );
   final hs1 = v1.buildHandshake();
-  check(hs1.startsWith('clave:#1'), 'v1 usa el handshake password#1');
+  check(hs1.startsWith('clave\n'), 'v1 envia solo la contrasena');
+  check(hs1.contains('Host: h:8000'), 'v1 envia el Host del puerto base');
   check(!hs1.contains('sid:'), 'v1 no envia sid');
+  check(!hs1.contains('#1'), 'v1 no agrega #1 a la contrasena');
 
   final v2 = ShoutcastClient(
     host: 'h',
@@ -367,14 +385,111 @@ Future<void> _shoutcast() async {
     streamId: 1,
   );
   final hs2 = v2.buildHandshake();
-  check(hs2.startsWith('dj:clave'), 'v2 usa usuario:password');
-  check(hs2.contains('sid:1'), 'v2 envia el sid');
+  check(hs2.startsWith('clave\n'), 'v2 envia solo la contrasena');
+  check(!hs2.contains('dj:'), 'v2 ignora el usuario');
+  check(!hs2.contains('sid:'), 'v2 omite sid para el stream por defecto');
+
+  // El usuario no es obligatorio en Shoutcast: v2 cae en `source` y v1 lo
+  // ignora. Es justo lo que necesita un hosting que solo entrega la clave.
+  final v2SinUsuario = ShoutcastClient(
+    host: 'h',
+    port: 8000,
+    password: 'clave',
+    username: '',
+    version: ShoutcastVersion.v2,
+  );
+  check(
+    v2SinUsuario.buildHandshake().startsWith('clave\n'),
+    'v2 no inventa un usuario cuando el campo queda vacio',
+  );
+
+  // La contrasena puede contener `:`; solo el primer `:` separa usuario/clave.
+  final v2ClaveConDosPuntos = ShoutcastClient(
+    host: 'h',
+    port: 8000,
+    password: 'Luis:pENgt',
+    username: 'dj',
+    version: ShoutcastVersion.v2,
+  );
+  check(
+    v2ClaveConDosPuntos.buildHandshake().startsWith('Luis:pENgt\n'),
+    'v2 conserva una contrasena que contiene dos puntos',
+  );
+
+  final v1ConUsuario = ShoutcastClient(
+    host: 'h',
+    port: 8000,
+    password: 'clave',
+    username: 'Luis',
+    version: ShoutcastVersion.v1,
+  );
+  check(
+    v1ConUsuario.buildHandshake().startsWith('clave\n'),
+    'v1 ignora el usuario aunque el DJ escriba uno',
+  );
   // Este cliente no entrelaza metadatos en el flujo; anunciar `icy-metaint`
   // haria que el servidor y los reproductores esperen bloques que no llegan.
   check(
     !hs2.contains('icy-metaint'),
     'v2 NO anuncia metadatos en el flujo (se actualizan por la API)',
   );
+
+  final perfilSc2 = ServerProfile(
+    id: 'sc2',
+    name: 'SC2',
+    host: 'h',
+    port: 8885,
+    protocol: ServerProtocol.shoutcast2,
+  );
+  final perfilIce = ServerProfile(
+    id: 'ice',
+    name: 'Ice',
+    host: 'h',
+    port: 8885,
+  );
+  check(
+    perfilSc2.sourcePort == 8886,
+    'Shoutcast publica en el puerto base + 1',
+  );
+  check(perfilIce.sourcePort == 8885, 'Icecast publica en el puerto indicado');
+
+  // El puerto del perfil es el de oyentes; la fuente va al +1. Se comprueba
+  // con un servidor real en el puerto de publicacion y un perfil que solo
+  // declara el puerto base.
+  final sourceServer = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  var sourceHandshake = '';
+  var sourceResponded = false;
+  final sourceSub = sourceServer.listen((socket) {
+    socket.listen((data) {
+      sourceHandshake += latin1.decode(data, allowInvalid: true);
+      if (!sourceResponded && sourceHandshake.contains('\n')) {
+        sourceResponded = true;
+        socket.write('OK2\r\n');
+      }
+    }, onError: (_) {});
+  });
+  final basePort = sourceServer.port - 1;
+  final sourceClient = ShoutcastClient(
+    host: '127.0.0.1',
+    port: basePort,
+    password: 'Luis:pENgt',
+  );
+  await sourceClient.connect();
+  check(
+    sourceClient.isConnected,
+    'Shoutcast conecta automaticamente al puerto base + 1',
+  );
+  check(
+    sourceHandshake.startsWith('Luis:pENgt\n'),
+    'Shoutcast envia la contrasena sola, sin usuario',
+  );
+  check(
+    sourceHandshake.contains('Host: 127.0.0.1:$basePort'),
+    'Shoutcast conserva el puerto base en el Host',
+  );
+  await sourceClient.close();
+  await sourceSub.cancel();
+  await sourceServer.close();
 
   // Respuesta OK2.
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -385,6 +500,7 @@ Future<void> _shoutcast() async {
   final c = ShoutcastClient(
     host: '127.0.0.1',
     port: server.port,
+    sourcePort: server.port,
     password: 'p',
   );
   await c.connect();
@@ -403,6 +519,7 @@ Future<void> _shoutcast() async {
   final c2 = ShoutcastClient(
     host: '127.0.0.1',
     port: server2.port,
+    sourcePort: server2.port,
     password: 'mala',
   );
   try {
@@ -416,6 +533,37 @@ Future<void> _shoutcast() async {
   }
   await sub2.cancel();
   await server2.close();
+
+  // Un servidor HTTP (Icecast/Liquidsoap) responde 500 a un handshake de
+  // Shoutcast. No debe informarse como "clave rechazada": el problema es el
+  // tipo de servidor, y el mensaje tiene que decirlo.
+  final server3 = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final sub3 = server3.listen((s) {
+    s.listen((_) {}, onError: (_) {});
+    s.write('HTTP/1.0 500 Invalid request\r\n\r\n');
+  });
+  final c3 = ShoutcastClient(
+    host: '127.0.0.1',
+    port: server3.port,
+    sourcePort: server3.port,
+    password: 'clave',
+  );
+  try {
+    await c3.connect();
+    check(false, 'un servidor HTTP deberia rechazar el handshake de Shoutcast');
+  } on IcecastException catch (e) {
+    check(
+      !e.message.toLowerCase().contains('rechazada'),
+      'HTTP 500 no se confunde con una contrasena rechazada',
+    );
+    check(
+      e.message.contains('Icecast'),
+      'HTTP 500 sugiere cambiar el tipo de servidor a Icecast',
+    );
+    check(e.statusCode == 500, 'HTTP 500 conserva el codigo real del servidor');
+  }
+  await sub3.cancel();
+  await server3.close();
 }
 
 /// Espera a que se cumpla una condicion, sin bloquear mas de [timeout].
@@ -450,6 +598,7 @@ Future<void> _shoutcastServidor() async {
   final client = ShoutcastClient(
     host: '127.0.0.1',
     port: server.port,
+    sourcePort: server.port,
     password: 'clave',
   );
   var lost = 0;
@@ -484,27 +633,31 @@ Future<void> _shoutcastServidor() async {
   admin.listen((socket) {
     unawaited(socket.done.catchError((Object _) {}));
     adminSubs.add(
-      socket.listen(
-        (data) => request += latin1.decode(data, allowInvalid: true),
-        onError: (_) {},
-      ),
+      socket.listen((data) {
+        request += latin1.decode(data, allowInvalid: true);
+        if (request.contains('\r\n\r\n')) {
+          socket.write('OK2\r\n');
+          unawaited(socket.close());
+        }
+      }, onError: (_) {}),
     );
   });
 
-  // El puerto de administracion es el de la fuente +1; no hace falta que el
-  // puerto de fuente exista porque `setMetadata` solo usa el de administracion.
+  // En Shoutcast v2 la administracion usa el mismo puerto que la fuente (el
+  // DNAS multiplexa todo en `portbase`). Antes se usaba `port + 1` y por eso
+  // el cambio de titulo fallaba en hostings como AsuraHosting.
   final metaClient = ShoutcastClient(
     host: '127.0.0.1',
-    port: admin.port - 1,
+    port: admin.port,
     password: 'clave del dj',
     username: 'locutor',
   );
   final sent = await metaClient.setMetadata('Tema & "prueba"');
   await _waitUntil(() => request.contains('\r\n\r\n'));
-  check(sent, 'el cambio de titulo se envia al panel');
+  check(sent, 'v2 actualiza el titulo en el mismo puerto de la fuente');
   check(
     request.contains('pass=clave%20del%20dj'),
-    'v1 envia la contrasena en el parametro pass (no solo Basic auth)',
+    'Shoutcast envia la contrasena en el parametro pass (no solo Basic auth)',
     detail: request.split('\r\n').first,
   );
   check(
@@ -515,11 +668,55 @@ Future<void> _shoutcastServidor() async {
     request.contains('song=Tema%20%26%20%22prueba%22'),
     'el titulo viaja codificado y no rompe la URL',
   );
+  check(request.contains('sid=1'), 'v2 envia el sid del stream');
 
   for (final sub in adminSubs) {
     await sub.cancel();
   }
   await admin.close();
+
+  // Una clave rechazada no puede reportarse como exito: el cliente antes
+  // devolvia `true` con solo abrir el socket, sin mirar la respuesta.
+  final denied = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final deniedSub = denied.listen((socket) {
+    unawaited(socket.done.catchError((Object _) {}));
+    socket.listen((_) {
+      socket.write('Invalid password\r\n');
+      unawaited(socket.close());
+    }, onError: (_) {});
+  });
+  final deniedClient = ShoutcastClient(
+    host: '127.0.0.1',
+    port: denied.port,
+    password: 'mala',
+  );
+  final rejected = await deniedClient.setMetadata('Tema');
+  check(!rejected, 'Invalid password no se reporta como exito');
+  await deniedSub.cancel();
+  await denied.close();
+
+  // v1: la fuente se conecta a portbase + 1 y la administracion queda en
+  // portbase. El cliente recibe el puerto base; el +1 se calcula al publicar.
+  final v1Admin = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final v1Sub = v1Admin.listen((socket) {
+    unawaited(socket.done.catchError((Object _) {}));
+    socket.listen((_) {
+      socket.write('OK2\r\n');
+      unawaited(socket.close());
+    }, onError: (_) {});
+  });
+  final v1Client = ShoutcastClient(
+    host: '127.0.0.1',
+    port: v1Admin.port,
+    password: 'clave',
+    version: ShoutcastVersion.v1,
+  );
+  check(
+    await v1Client.setMetadata('Tema'),
+    'v1 encuentra /admin.cgi en el puerto base (fuente - 1)',
+  );
+  await v1Sub.cancel();
+  await v1Admin.close();
 }
 
 Future<void> _redEstancada() async {
@@ -1468,6 +1665,8 @@ Future<void> _persistencia() async {
       mount: 'miradio',
       username: 'source',
       password: 'ClaveDelDJ2026',
+      adminUsername: 'admin',
+      adminPassword: 'ClaveAdmin2026',
       stationName: 'Radio Prueba FM',
       publicUrl: 'https://ejemplo.fm/miradio',
       useTls: true,
@@ -1484,6 +1683,10 @@ Future<void> _persistencia() async {
     check(
       !configText.contains('ClaveDelDJ2026'),
       'profiles.json NO contiene la contrasena',
+    );
+    check(
+      !configText.contains('ClaveAdmin2026'),
+      'profiles.json NO contiene la clave de administracion',
     );
     check(
       configText.contains('stream.ejemplo.fm'),
@@ -1524,6 +1727,14 @@ Future<void> _persistencia() async {
       'la contrasena se recupera descifrada',
     );
     check(
+      loaded.first.adminPassword == 'ClaveAdmin2026',
+      'la clave de administracion se recupera descifrada',
+    );
+    check(
+      loaded.first.adminUsername == 'admin',
+      'el usuario de administracion se recupera',
+    );
+    check(
       loaded.first.normalizedMount == '/miradio',
       'el mount se normaliza con barra inicial',
     );
@@ -1545,6 +1756,10 @@ Future<void> _persistencia() async {
     check(
       !exported.contains('ClaveDelDJ2026'),
       'exportar un perfil NO incluye la contrasena',
+    );
+    check(
+      !exported.contains('ClaveAdmin2026'),
+      'exportar un perfil NO incluye la clave de administracion',
     );
 
     // Tampoco puede filtrarla cuando se pide incluirla: al compartir el texto
@@ -1575,6 +1790,14 @@ Future<void> _persistencia() async {
     final after = await store.load();
     check(after.isEmpty, 'el perfil se elimina');
     check(!secretFile.existsSync(), 'el secreto se elimina junto al perfil');
+    final adminSecretFile = File(
+      '${store.secretsDir.path}${Platform.pathSeparator}'
+      '${profile.id}.admin.bin',
+    );
+    check(
+      !adminSecretFile.existsSync(),
+      'la clave de administracion se elimina junto al perfil',
+    );
 
     // ------------------------------------------------------------ ajustes
     final settings = AppSettings()

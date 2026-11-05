@@ -20,7 +20,9 @@ void check(bool ok, String description, {String? detail}) {
     stdout.writeln('  [ok]   $description');
   } else {
     _failures.add(description);
-    stdout.writeln('  [FALLA] $description${detail != null ? ' -> $detail' : ''}');
+    stdout.writeln(
+      '  [FALLA] $description${detail != null ? ' -> $detail' : ''}',
+    );
   }
 }
 
@@ -86,6 +88,7 @@ Future<void> main(List<String> args) async {
     const casos = <int, ServerProtocol>{
       8000: ServerProtocol.shoutcast2,
       8010: ServerProtocol.icecast2,
+      8885: ServerProtocol.icecast2,
       9000: ServerProtocol.icecast2,
       7000: ServerProtocol.icecast2,
     };
@@ -108,9 +111,13 @@ Future<void> main(List<String> args) async {
       );
 
       stdout.writeln('  puerto $port:');
-      stdout.writeln('    detectado : ${d.protocol.shortLabel} '
-          '(${d.confidence.name})');
-      stdout.writeln('    software  : ${d.serverSoftware ?? "(no identificado)"}');
+      stdout.writeln(
+        '    detectado : ${d.protocol.shortLabel} '
+        '(${d.confidence.name})',
+      );
+      stdout.writeln(
+        '    software  : ${d.serverSoftware ?? "(no identificado)"}',
+      );
       stdout.writeln('    evidencia : ${d.evidence}');
 
       check(

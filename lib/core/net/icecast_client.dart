@@ -134,6 +134,16 @@ class IcecastClient {
   int _bytesSent = 0;
   int get bytesSent => _bytesSent;
 
+  /// Usuario que se envia en el Basic auth.
+  ///
+  /// Icecast usa `source` por convencion; si el DJ deja el campo vacio no tiene
+  /// sentido bloquear el guardado ni mandar `:password`. Se resuelve aqui para
+  /// que el perfil pueda quedar sin usuario.
+  String get _authUser {
+    final value = username.trim();
+    return value.isEmpty ? 'source' : value;
+  }
+
   /// Encabezado HTTP que espera Icecast. `Expect: 100-continue` permite que el
   /// servidor rechace credenciales invalidas **antes** de que le mandemos
   /// audio, y asi leer un 401 limpio.
@@ -141,7 +151,7 @@ class IcecastClient {
     final b = StringBuffer()
       ..write('PUT $mount HTTP/1.1\r\n')
       ..write('Host: $host:$port\r\n')
-      ..write('Authorization: Basic ${_basicAuth(username, password)}\r\n')
+      ..write('Authorization: Basic ${_basicAuth(_authUser, password)}\r\n')
       ..write('User-Agent: $userAgent\r\n')
       ..write('Content-Type: $contentType\r\n')
       ..write('Expect: 100-continue\r\n');
@@ -296,7 +306,7 @@ class IcecastClient {
         : song;
     if (value.trim().isEmpty) return false;
 
-    if (await _sendMetadataRequest(value, username, password)) return true;
+    if (await _sendMetadataRequest(value, _authUser, password)) return true;
     if (adminUsername.isNotEmpty && adminPassword.isNotEmpty) {
       return _sendMetadataRequest(value, adminUsername, adminPassword);
     }

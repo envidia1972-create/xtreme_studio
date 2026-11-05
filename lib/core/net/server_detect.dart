@@ -97,8 +97,9 @@ Future<ServerDetection> detectServer({
       return const ServerDetection(
         protocol: ServerProtocol.icecast2,
         confidence: DetectionConfidence.alta,
-        evidence: 'El servidor responde en /status-json.xsl, una ruta que solo '
-            'existe en Icecast y AzuraCast.',
+        evidence:
+            'El servidor responde en /status-json.xsl, una ruta que solo '
+            'existe en Icecast y en servidores compatibles.',
         serverSoftware: 'Icecast',
       );
     }
@@ -118,24 +119,46 @@ Future<ServerDetection> detectServer({
       final lower = notice.toLowerCase();
 
       if (lower.contains('shoutcast')) {
-        // La version cambia el handshake: v1 usa `password:#1`, v2 usa
-        // `usuario:password` con `sid`.
-        final looksV2 = RegExp(r'v2\.\d').hasMatch(lower) ||
+        // La version no cambia el handshake de publicacion: ambos usan la
+        // contrasena sola en el puerto base + 1.
+        final looksV2 =
+            RegExp(r'v2\.\d').hasMatch(lower) ||
             lower.contains('dnas/posix') ||
             lower.contains('dnas/win');
         final clean = notice.replaceAll(RegExp(r'<[^>]+>'), ' ').trim();
         return ServerDetection(
-          protocol:
-              looksV2 ? ServerProtocol.shoutcast2 : ServerProtocol.shoutcast1,
+          protocol: looksV2
+              ? ServerProtocol.shoutcast2
+              : ServerProtocol.shoutcast1,
           confidence: DetectionConfidence.alta,
-          evidence: 'El servidor se identifica como SHOUTcast'
+          evidence:
+              'El servidor se identifica como SHOUTcast'
               '${clean.isEmpty ? '' : ' ($clean)'}.',
           serverSoftware: looksV2 ? 'SHOUTcast DNAS v2' : 'SHOUTcast DNAS v1',
         );
       }
 
+      // Liquidsoap publica por su "source harbor", que habla el protocolo de
+      // Icecast pero no expone `/status-json.xsl`. Es un caso muy comun en
+      // hostings de radio: si el DJ lo deja como Shoutcast, el servidor
+      // responde `HTTP 500 Invalid request` y parece un problema de clave.
+      final liquidsoapBody = shout.body.toLowerCase();
+      final authenticate = (shout.authenticateHeader ?? '').toLowerCase();
+      if (liquidsoapBody.contains('liquidsoap') ||
+          liquidsoapBody.contains('source harbor') ||
+          authenticate.contains('liquidsoap')) {
+        return const ServerDetection(
+          protocol: ServerProtocol.icecast2,
+          confidence: DetectionConfidence.alta,
+          evidence:
+              'El servidor se identifica como Liquidsoap (harbor de fuentes), '
+              'que usa el mismo protocolo de publicacion que Icecast2.',
+          serverSoftware: 'Liquidsoap',
+        );
+      }
+
       final server = (shout.serverHeader ?? '').toLowerCase();
-      if (server.contains('icecast')) {
+      if (server.contains('icecast') || authenticate.contains('icecast')) {
         return const ServerDetection(
           protocol: ServerProtocol.icecast2,
           confidence: DetectionConfidence.alta,
@@ -148,7 +171,8 @@ Future<ServerDetection> detectServer({
         return ServerDetection(
           protocol: expected,
           confidence: DetectionConfidence.media,
-          evidence: 'El servidor pidio autenticacion y no se pudo identificar '
+          evidence:
+              'El servidor pidio autenticacion y no se pudo identificar '
               'el tipo con certeza.',
         );
       }
@@ -157,14 +181,16 @@ Future<ServerDetection> detectServer({
     return ServerDetection(
       protocol: expected,
       confidence: DetectionConfidence.ninguna,
-      evidence: 'El servidor no respondio a las rutas de deteccion. Se '
+      evidence:
+          'El servidor no respondio a las rutas de deteccion. Se '
           'mantiene el tipo que elegiste.',
     );
   } catch (e) {
     return ServerDetection(
       protocol: expected,
       confidence: DetectionConfidence.ninguna,
-      evidence: 'No se pudo consultar el servidor ($e). Se mantiene el tipo '
+      evidence:
+          'No se pudo consultar el servidor ($e). Se mantiene el tipo '
           'que elegiste.',
     );
   } finally {
@@ -177,12 +203,16 @@ class _Probe {
     required this.statusCode,
     required this.body,
     required this.serverHeader,
+    required this.authenticateHeader,
     required this.icyNotices,
   });
 
   final int statusCode;
   final String body;
   final String? serverHeader;
+
+  /// Cabecera `WWW-Authenticate`; delata el software cuando pide credenciales.
+  final String? authenticateHeader;
   final List<String> icyNotices;
 }
 
@@ -223,6 +253,9 @@ Future<_Probe?> _tryGet(
       statusCode: response.statusCode,
       body: utf8.decode(bytes, allowMalformed: true),
       serverHeader: response.headers.value(HttpHeaders.serverHeader),
+      authenticateHeader: response.headers.value(
+        HttpHeaders.wwwAuthenticateHeader,
+      ),
       icyNotices: notices,
     );
   } catch (_) {
