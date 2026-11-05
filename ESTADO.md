@@ -9,7 +9,7 @@ Fecha del corte: **ronda 20 (soundboard fase 1 y cue local)**.
 (`verify_core` 209, `verify_engine` 51, `verify_linux_audio` 40,
 `verify_soundboard` 25, etc.) y **22 pruebas de widgets** con `flutter test`,
 todas en verde. La compilación y
-arranque del `.exe` en GitHub Actions siguen vigentes (run `41987869899`,
+arranque del `.exe` en GitHub Actions siguen vigentes (run `41994813538`,
 `verify_core` 210 y `verify_soundboard` 18 en Windows, icono 32x32, `ffplay.exe` incluido y arranque correcto). La interfaz
 Flutter se ejecutó de verdad, con runner Linux, capturó audio real por
 PulseAudio/PipeWire, por ALSA y emitió contra un servidor Icecast simulado.
@@ -426,7 +426,7 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 ## Qué sigue bloqueado
 
 1. **El audio real en Windows no se ha probado.** El `.exe` compila y arranca
-   en GitHub Actions (run `41987869899`), y `verify_core` pasa 210
+   en GitHub Actions (run `41994813538`), y `verify_core` pasa 210
    comprobaciones en Windows, pero el runner no tiene micrófono. Falta abrir la
    app en una PC Windows con el micrófono/consola real y probar dshow, vúmetro,
    ganancia y emisión.
@@ -451,7 +451,7 @@ La sonda real contra Zeno.fm confirmó que `link.zeno.fm` y
 
 ### Build verificado en GitHub Actions
 
-- Run: `41987869899` (workflow `Windows build`, `windows-latest`).
+- Run: `41994813538` (workflow `Windows build`, `windows-latest`).
 - Flutter 3.47.8, MSVC/CMake/Windows SDK, FFmpeg GPL win64 descargado por el
   workflow.
 - `verify_core`: **210 comprobaciones en verde**.
@@ -485,7 +485,7 @@ dart run tool\verify_engine.dart
 
 Si no hay una PC Windows, `.github/workflows/windows.yml` compila en GitHub
 Actions y publica la carpeta `Release` como artifact. Ese camino ya se ejecutó
-con éxito en el run `41987869899`.
+con éxito en el run `41994813538`.
 
 Salida esperada: `build\windows\x64\runner\Release\xtreme_studio.exe`, con
 `ffmpeg.exe`, la licencia y la documentación copiadas al lado.
