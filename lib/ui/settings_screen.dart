@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../core/audio/ffmpeg_capture.dart';
 import '../core/diagnostic_log.dart';
 import '../core/profile_store.dart';
+import '../core/update/update_controller.dart';
 import 'theme.dart';
 
 /// Ajustes: FFmpeg, dispositivo de entrada y grabacion local.
@@ -19,6 +20,7 @@ class SettingsScreen extends StatefulWidget {
     required this.onChanged,
     required this.onRefreshDevices,
     required this.onMessage,
+    this.update,
   });
 
   final AppSettings settings;
@@ -32,6 +34,10 @@ class SettingsScreen extends StatefulWidget {
   final Future<void> Function(AppSettings settings) onChanged;
   final Future<void> Function() onRefreshDevices;
   final void Function(String message, {bool isError}) onMessage;
+
+  /// Controlador opcional de actualizaciones. Se omite en las pruebas de
+  /// layout para no depender de la red.
+  final UpdateController? update;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -441,6 +447,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+          if (widget.update != null) ...[
+            const SizedBox(height: 16),
+            _card(
+              title: 'Actualizaciones',
+              subtitle:
+                  'La app comprueba si hay una version nueva al arrancar y '
+                  'cada seis horas. La descarga se verifica con SHA-256.',
+              child: AnimatedBuilder(
+                animation: widget.update!,
+                builder: (context, _) {
+                  final update = widget.update!;
+                  final phase = update.phase;
+                  final status = switch (phase) {
+                    UpdatePhase.available =>
+                      'Nueva version ${update.info?.displayVersion ?? ''} disponible.',
+                    UpdatePhase.downloading =>
+                      'Descargando... ${(update.progress * 100).round()}%',
+                    UpdatePhase.installing => 'Instalando...',
+                    UpdatePhase.upToDate => 'Estas al dia.',
+                    UpdatePhase.error =>
+                      update.error ?? 'No se pudo comprobar.',
+                    UpdatePhase.checking => 'Comprobando...',
+                    UpdatePhase.idle => 'Comprobacion automatica activa.',
+                  };
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Version actual: v${update.currentVersion}',
+                              style: const TextStyle(fontSize: 12.5),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              status,
+                              style: TextStyle(
+                                color: phase == UpdatePhase.error
+                                    ? AppColors.warning
+                                    : AppColors.textMuted,
+                                fontSize: 11.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: update.isBusy ? null : () => update.check(),
+                        icon: const Icon(Icons.refresh, size: 17),
+                        label: const Text('Buscar ahora'),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // --- Informacion ---

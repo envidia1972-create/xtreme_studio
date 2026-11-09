@@ -4,8 +4,8 @@ Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ c
 cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
 locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**426
-> comprobaciones automaticas en este equipo** en diez suites, mas **22 pruebas
+> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**455
+> comprobaciones automaticas en este equipo** en once suites, mas **23 pruebas
 > de widgets** con `flutter test`, incluida una emision real con FFmpeg +
 > PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
 > vumetro y el codificador: mover la ganancia se aplica en vivo, sin reiniciar
@@ -59,6 +59,8 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 | **Soundboard de 8 pads** con mezcla en vivo y cue local | Listo (fase 1) |
 | Teclas **1-8 / F1-F8**, ducking, loop, volumen master y por pad | Listo |
 | **Monitoreo completo de la mezcla** por auriculares | Pendiente (fase siguiente) |
+| **Actualizacion desde GitHub Releases** con aviso y un clic | Windows; verificacion SHA-256 |
+| Actualizacion automatica en Linux | Pendiente (abre la descarga) |
 | Notificaciones push y panel web | Pendiente (fases siguientes) |
 
 ## Asi se ve en Linux
@@ -286,6 +288,82 @@ perfil activo.
 - El cue no pasa por el vúmetro ni por el stream; es una salida independiente.
 - El **monitoreo completo** de la mezcla por auriculares queda para la fase
   siguiente: hoy el cue reproduce el jingle, no la mezcla micrófono + jingles.
+
+---
+
+## Actualizaciones
+
+La app comprueba si hay una version nueva **al arrancar** y despues cada seis
+horas. Si existe una release mas nueva, aparece un aviso arriba:
+
+```
+Nueva version 0.2.0 disponible        [Ver notas] [Despues] [Actualizar]
+```
+
+Al pulsar **Actualizar**:
+
+1. descarga el ZIP de Windows desde la release;
+2. verifica el **SHA-256** publicado en `checksums.txt`;
+3. bloquea la actualizacion si la app esta al aire;
+4. cierra captura, codificador y soundboard;
+5. lanza un actualizador de PowerShell que espera el cierre;
+6. reemplaza la carpeta portable, conservando una copia de seguridad;
+7. vuelve a abrir Xtreme Studio.
+
+Los datos de `%APPDATA%\XtremeStudio` (emisoras, claves, soundboard) **no** se
+tocan: la actualizacion solo reemplaza los archivos de la aplicacion.
+
+### Requisito: repositorio publico
+
+El origen por defecto es:
+
+```
+https://api.github.com/repos/envidia1972-create/xtreme_studio/releases/latest
+```
+
+El repositorio **debe ser publico** para que un cliente sin credenciales pueda
+leer las releases. Si sigue privado, la comprobacion no muestra nada.
+
+Tambien se puede usar un `latest.json` propio con HTTPS:
+
+```bash
+flutter build windows --release \
+  --dart-define=UPDATE_URL=https://tusitio.com/xtreme/latest.json
+```
+
+### Como publicar una version
+
+1. Subir la version en `pubspec.yaml`:
+   ```yaml
+   version: 0.1.1+2
+   ```
+2. Commit y push.
+3. Crear y subir la etiqueta:
+   ```bash
+   git tag v0.1.1
+   git push origin v0.1.1
+   ```
+4. `.github/workflows/windows.yml` compila, crea:
+   - `XtremeStudio-0.1.1-windows-x64.zip`
+   - `checksums.txt`
+   y publica la GitHub Release.
+5. Las apps 0.1.0 con el actualizador ven el aviso y ofrecen actualizar.
+
+El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
+
+La primera instalacion de una version con actualizador se hace a mano. A partir
+de ahi, las siguientes pueden ser desde la app.
+
+### Limitaciones
+
+- Solo Windows instala automaticamente. En Linux el boton abre la pagina de
+  descarga; el actualizador de Linux queda para una fase siguiente.
+- El `.exe` no esta firmado. Windows Defender o SmartScreen pueden bloquear el
+  actualizador; si pasa, agrega la carpeta de instalacion a las exclusiones.
+- La app debe estar en una carpeta escribible (por ejemplo `C:\XtremeStudio`),
+  no en `Program Files`, salvo que se ejecute como administrador.
+- La verificacion SHA-256 protege contra una descarga corrupta, pero no
+  reemplaza la firma digital del ejecutable.
 
 ---
 
@@ -574,9 +652,10 @@ dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio real; ALSA opcional)
-dart run tool/verify_soundboard.dart        #  25 (mezcla, store, decoder y cue)
+dart run tool/verify_soundboard.dart        #  25
+dart run tool/verify_update.dart           #  29 (version, checksum y actualizador)
 
-# Interfaz renderizada de verdad (22 pruebas: estados, colores y desbordes).
+# Interfaz renderizada de verdad (23 pruebas: estados, colores y desbordes).
 flutter test
 ```
 
@@ -803,6 +882,7 @@ tool/
   verify_engine.dart        Integracion del motor de emision (51 comprobaciones)
   verify_linux_audio.dart   Audio real Pulse/AAC/ALSA (40 comprobaciones)
   verify_soundboard.dart    Mezcla, persistencia, decoder y cue (25)
+  verify_update.dart        Version, checksum y actualizador (29)
   probe_icecast.dart        Sonda de handshake contra un servidor real
   probe_signal.dart         Sonda de senal (solo lectura) contra un servidor real
   fake_ffmpeg.c             FFmpeg falso para las pruebas del motor

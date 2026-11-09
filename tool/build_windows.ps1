@@ -181,7 +181,17 @@ if ($LASTEXITCODE -ne 0) {
 # ------------------------------------------------------------------- Compilacion
 Write-Host ''
 Write-Host 'Compilando (esto puede tardar unos minutos la primera vez)...'
-& $flutter build windows --release
+$versionLine = Select-String -Path (Join-Path $root 'pubspec.yaml') -Pattern '^version:\s*([0-9.]+)(?:\+([0-9]+))?'
+if ($versionLine -and $versionLine.Matches.Count -gt 0) {
+    $APP_VERSION = $versionLine.Matches[0].Groups[1].Value
+    $APP_BUILD = if ($versionLine.Matches[0].Groups[2].Success) { $versionLine.Matches[0].Groups[2].Value } else { '1' }
+}
+else {
+    $APP_VERSION = '0.1.0'
+    $APP_BUILD = '1'
+}
+Write-Host "  Version: $APP_VERSION+$APP_BUILD"
+& $flutter build windows --release "--dart-define=APP_VERSION=$APP_VERSION" "--dart-define=APP_BUILD=$APP_BUILD"
 $buildExit = $LASTEXITCODE
 
 $outDir = Join-Path $root 'build\windows\x64\runner\Release'

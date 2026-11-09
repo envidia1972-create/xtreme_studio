@@ -11,10 +11,12 @@ import 'core/profile_store.dart';
 import 'core/server_profile.dart';
 import 'core/soundboard_controller.dart';
 import 'core/soundboard_store.dart';
+import 'core/update/update_controller.dart';
 import 'ui/broadcast_screen.dart';
 import 'ui/profiles_screen.dart';
 import 'ui/settings_screen.dart';
 import 'ui/soundboard_screen.dart';
+import 'ui/update_banner.dart';
 import 'ui/theme.dart';
 
 void main() {
@@ -50,6 +52,7 @@ class StudioHome extends StatefulWidget {
 class _StudioHomeState extends State<StudioHome> {
   final ProfileStore _store = ProfileStore();
   late final SoundboardController _soundboard;
+  late final UpdateController _update;
 
   List<ServerProfile> _profiles = [];
   AppSettings _settings = AppSettings();
@@ -96,6 +99,7 @@ class _StudioHomeState extends State<StudioHome> {
       store: SoundboardStore(_store.base),
       backend: CaptureBackend.forPlatform(),
     );
+    _update = UpdateController();
     HardwareKeyboard.instance.addHandler(_handleSoundboardKey);
     _bootstrap();
   }
@@ -183,6 +187,10 @@ class _StudioHomeState extends State<StudioHome> {
       settings.lastDeviceId = '';
       await _store.saveSettings(settings);
     }
+
+    // La actualizacion se comprueba despues de que la app ya esta usable; no
+    // bloquea el arranque ni la captura.
+    _update.startAutoCheck();
   }
 
   /// Relee la lista de dispositivos de entrada.
@@ -753,6 +761,15 @@ class _StudioHomeState extends State<StudioHome> {
     );
   }
 
+  /// Cierra captura, codificador y soundboard antes de que el actualizador
+  /// reemplace los archivos. Sin esto, ffmpeg.exe podria quedar bloqueado.
+  Future<void> _prepareForUpdate() async {
+    _stopSignalMonitoring();
+    await _engine?.dispose();
+    _engine = null;
+    _soundboard.dispose();
+  }
+
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleSoundboardKey);
@@ -761,6 +778,7 @@ class _StudioHomeState extends State<StudioHome> {
     _logSub?.cancel();
     _engine?.dispose();
     _soundboard.dispose();
+    _update.dispose();
     super.dispose();
   }
 
@@ -850,6 +868,12 @@ class _StudioHomeState extends State<StudioHome> {
             snapshot: _snapshot,
             ffmpegReady: _ffmpegPath.isNotEmpty,
           ),
+          UpdateBanner(
+            controller: _update,
+            live: isLive,
+            beforeRestart: _prepareForUpdate,
+            onMessage: _showMessage,
+          ),
           Expanded(
             child: Row(
               children: [
@@ -915,6 +939,7 @@ class _StudioHomeState extends State<StudioHome> {
                         },
                         onRefreshDevices: refreshDevices,
                         onMessage: _showMessage,
+                        update: _update,
                       ),
                       SoundboardScreen(
                         controller: _soundboard,

@@ -21,6 +21,9 @@ dependencies:
   # Identificadores unicos para los perfiles de emisora.
   uuid: ^4.6.0
 
+  # SHA-256 de las actualizaciones descargadas.
+  crypto: ^3.0.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

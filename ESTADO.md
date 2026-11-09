@@ -4,10 +4,10 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 20 (soundboard fase 1 y cue local)**.
-Última verificación: **426 comprobaciones** en los diez comandos de Linux
+Fecha del corte: **ronda 21 (actualizaciones desde GitHub Releases)**.
+Última verificación: **455 comprobaciones** en los once comandos de Linux
 (`verify_core` 209, `verify_engine` 51, `verify_linux_audio` 40,
-`verify_soundboard` 25, etc.) y **22 pruebas de widgets** con `flutter test`,
+`verify_soundboard` 25, etc.) y **23 pruebas de widgets** con `flutter test`,
 todas en verde. La compilación y
 arranque del `.exe` en GitHub Actions siguen vigentes (run `41994813538`,
 `verify_core` 210 y `verify_soundboard` 18 en Windows, icono 32x32, `ffplay.exe` incluido y arranque correcto). La interfaz
@@ -33,6 +33,11 @@ La ronda 20 implementa la **fase 1 del soundboard**: ocho pads, mezcla en vivo
 antes del vúmetro/codificador, ducking, loop, teclas 1-8/F1-F8, persistencia y
 **cue local** por FFmpeg (Linux) o `ffplay` (Windows). El monitoreo completo de
 la mezcla queda para la fase siguiente.
+
+La ronda 21 agrega el **actualizador**: comprueba GitHub Releases al arrancar y
+cada seis horas, muestra un aviso, descarga el ZIP de Windows, verifica el
+SHA-256 y lanza un actualizador que reemplaza la carpeta portable y reabre la
+app. El repositorio debe ser publico; la primera instalacion se hace a mano.
 
 Tambien se corrigio el **handshake de Shoutcast**: la fuente se conecta al
 puerto base + 1 (el puerto del perfil es el de oyentes), envia la contrasena
@@ -109,9 +114,10 @@ dart run tool/verify_server_detect.dart     #  18 comprobaciones
 dart run tool/verify_widget_arguments.dart  #   3 comprobaciones
 dart run tool/verify_ffmpeg_discovery.dart  #  21 comprobaciones
 dart run tool/verify_linux_audio.dart       #  40 (audio REAL; ALSA opcional)
-dart run tool/verify_soundboard.dart        #  25 (mezcla, store, decoder y cue)
+dart run tool/verify_soundboard.dart        #  25
+dart run tool/verify_update.dart           #  29 (version, checksum y actualizador)
 
-# Interfaz renderizada de verdad (no analisis estatico): 22 pruebas.
+# Interfaz renderizada de verdad (no analisis estatico): 23 pruebas.
 flutter test
 ```
 

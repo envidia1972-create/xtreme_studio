@@ -57,7 +57,14 @@ echo "== Resolviendo dependencias de Dart =="
 
 echo
 echo "== Compilando (release) =="
-"$FLUTTER_BIN" build linux --release
+APP_VERSION="$(sed -n 's/^version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' pubspec.yaml | head -n1)"
+APP_BUILD="$(sed -n 's/^version:[[:space:]]*[0-9][0-9.]*+\([0-9][0-9]*\).*/\1/p' pubspec.yaml | head -n1)"
+: "${APP_VERSION:=0.1.0}"
+: "${APP_BUILD:=1}"
+echo "  Version: $APP_VERSION+$APP_BUILD"
+"$FLUTTER_BIN" build linux --release \
+  --dart-define=APP_VERSION="$APP_VERSION" \
+  --dart-define=APP_BUILD="$APP_BUILD"
 
 BUNDLE="$ROOT/build/linux/x64/release/bundle"
 if [[ ! -x "$BUNDLE/xtreme_studio" ]]; then

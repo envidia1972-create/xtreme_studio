@@ -8,6 +8,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -55,6 +58,9 @@ jobs:
       - name: Pruebas del soundboard
         run: dart run tool/verify_soundboard.dart
 
+      - name: Pruebas de actualizaciones
+        run: dart run tool/verify_update.dart
+
       - name: Compilar
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tool/build_windows.ps1
@@ -65,3 +71,33 @@ jobs:
           name: xtreme_studio-windows-x64
           path: build/windows/x64/runner/Release
           if-no-files-found: error
+
+      - name: Preparar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $match = Select-String -Path pubspec.yaml -Pattern '^version:\s*([0-9.]+)'
+          if (-not $match) { throw 'No se encontro la version en pubspec.yaml' }
+          $version = $match.Matches[0].Groups[1].Value
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "El tag ${{ github.ref_name }} no coincide con pubspec ($version). Actualiza pubspec.yaml antes de publicar."
+          }
+          $release = 'build/windows/x64/runner/Release'
+          $zip = "XtremeStudio-$version-windows-x64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "$release\*" -DestinationPath $zip -CompressionLevel Optimal
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Out-File -Encoding ascii checksums.txt
+          "ZIP=$zip" >> $env:GITHUB_ENV
+          Write-Host "[ok] $zip ($hash)"
+
+      - name: Publicar release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Xtreme Studio ${{ github.ref_name }}
+          files: |
+            ${{ env.ZIP }}
+            checksums.txt
+          generate_release_notes: true
