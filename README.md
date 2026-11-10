@@ -322,25 +322,12 @@ https://api.github.com/repos/envidia1972-create/xtreme_studio/releases/latest
 ```
 
 El repositorio **debe ser publico** para que un cliente sin credenciales pueda
-leer las releases. **El repositorio todavia esta privado**: mientras no se
-cambie la visibilidad, la comprobacion automatica no puede leer ninguna release.
+leer las releases. Ya esta publico y la **v0.1.1** es la primera release con el
+actualizador.
 
-Para hacerlo publico desde GitHub:
-
-```text
-Settings -> General -> Danger Zone -> Change repository visibility -> Public
-```
-
-O con GitHub CLI:
-
-```bash
-gh repo edit envidia1972-create/xtreme_studio --visibility public \
-  --accept-visibility-change-consequences
-```
-
-Si preferis no exponer el codigo, podes mantener este repositorio privado y
-publicar las releases en otro repositorio publico, apuntando `UPDATE_URL` a ese
-lugar.
+Si alguna vez se vuelve a poner privado, la comprobacion automatica deja de
+funcionar hasta publicarlo de nuevo o hasta apuntar `UPDATE_URL` a un
+repositorio publico de releases.
 
 Tambien se puede usar un `latest.json` propio con HTTPS:
 
@@ -353,35 +340,37 @@ flutter build windows --release \
 
 1. Subir la version en `pubspec.yaml`:
    ```yaml
-   version: 0.1.1+2
+   version: 0.1.2+2
    ```
 2. Commit y push.
 3. Crear y subir la etiqueta:
    ```bash
-   git tag v0.1.1
-   git push origin v0.1.1
+   git tag v0.1.2
+   git push origin v0.1.2
    ```
 4. `.github/workflows/windows.yml` compila, crea:
-   - `XtremeStudio-0.1.1-windows-x64.zip`
+   - `XtremeStudio-0.1.2-windows-x64.zip`
    - `checksums.txt`
    y publica la GitHub Release.
-5. Las apps 0.1.0 con el actualizador ven el aviso y ofrecen actualizar.
+5. Las apps 0.1.0 o 0.1.1 ven el aviso y ofrecen actualizar.
 
 El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
 
-La primera instalacion de una version con actualizador se hace a mano. A partir
-de ahi, las siguientes pueden ser desde la app.
+### Primera instalacion: v0.1.1
 
-**Todavia no hay ninguna release publicada.** El artifact de esta ronda es la
-version `0.1.0` con el actualizador incorporado. Para probar el circuito
-completo:
+La release **v0.1.1** ya esta publicada:
 
-1. Hacer publico el repositorio.
-2. Instalar a mano el artifact `0.1.0` de esta ronda.
-3. Subir `version` en `pubspec.yaml` a `0.1.1+2`.
-4. Crear y subir el tag `v0.1.1`.
-5. Esperar a que el workflow publique la release.
-6. Abrir la app 0.1.0: el aviso de la 0.1.1 aparece solo.
+- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.1>
+- ZIP: `XtremeStudio-0.1.1-windows-x64.zip`
+- Tamano: **149.977.121 bytes**
+- SHA-256: `5cbeaa40daa2e92b19fb696749854ee09ca9b7908efcb1cb4ba2d0fc3c07d023`
+
+Si venis de una version anterior sin actualizador, descarga e instala este ZIP
+**una vez**. A partir de la v0.1.1, las siguientes releases se instalan desde la
+app.
+
+La app 0.1.0 que tenga el actualizador incorporado tambien vera el aviso de la
+v0.1.1 automaticamente.
 
 ### Limitaciones
 
@@ -493,15 +482,16 @@ dentro de esa carpeta, que es la que se entrega a otra emisora.
 El `.exe` no esta firmado. Windows y Chrome suelen bloquear archivos descargados
 de internet o que contienen un `ffmpeg.exe` estatico. No es un fallo del build.
 
-1. **Verifica el ZIP** (tamano 148.892.672 bytes, SHA-256
-   `4d5f27f5f5a50bdf0118fdb8b7a4c38abfd75ecb9ab628a7389ea36dabb46a24`).
-   Si Chrome lo corto, volve a bajarlo con `gh run download` o elegi
+1. **Verifica el ZIP de la release v0.1.1** (tamano 149.977.121 bytes,
+   SHA-256
+   `5cbeaa40daa2e92b19fb696749854ee09ca9b7908efcb1cb4ba2d0fc3c07d023`).
+   Si Chrome lo corto, volve a bajarlo desde la pagina de releases o elegi
    *Conservar* en las descargas de Chrome.
 2. **Desbloquealo ANTES de extraer**:
 
    ```powershell
-   Unblock-File .\xtreme_studio-windows-x64.zip
-   Expand-Archive .\xtreme_studio-windows-x64.zip -DestinationPath C:\XtremeStudio -Force
+   Unblock-File .\XtremeStudio-0.1.1-windows-x64.zip
+   Expand-Archive .\XtremeStudio-0.1.1-windows-x64.zip -DestinationPath C:\XtremeStudio -Force
    Get-ChildItem C:\XtremeStudio -Recurse | Unblock-File
    ```
 
@@ -544,7 +534,7 @@ git fetch origin
 git status
 git pull --ff-only origin master
 git log -1 --oneline
-# Debe ser 6893ac2 (o 2640fdf si aun no tenes el commit de documentacion)
+# Debe ser e750cca (version 0.1.1) o posterior
 flutter pub get
 powershell -ExecutionPolicy Bypass -File tool\check_toolchain.ps1
 powershell -ExecutionPolicy Bypass -File tool\build_windows.ps1
@@ -563,11 +553,11 @@ build → Run workflow** GitHub compila en `windows-latest` y deja la carpeta
 `check_toolchain.ps1`, corre `verify_core` en Windows y compila con
 `build_windows.ps1`.
 
-**Ya verificado:** run `42726687270` termino en verde; el `.exe` se genero,
-`verify_core` paso **210 comprobaciones**, `verify_soundboard` **18** y
-`verify_update` **29**. El icono incrustado se leyo como `32x32`,
-`ffplay.exe` se copio para el cue local y el arranque de la app se comprobo con
-`[ok] La aplicacion arranco correctamente`. El artifact es
+**Ya verificado:** run `42753682644` termino en verde y publico la release
+`v0.1.1`. El `.exe` se genero, `verify_core` paso **210 comprobaciones**,
+`verify_soundboard` **18** y `verify_update` **29**. El icono incrustado se leyo
+como `32x32`, `ffplay.exe` se copio para el cue local y el arranque de la app se
+comprobo con `[ok] La aplicacion arranco correctamente`. El artifact es
 `xtreme_studio-windows-x64` (incluye `ffmpeg.exe` y `ffplay.exe`).
 
 ### FFmpeg
