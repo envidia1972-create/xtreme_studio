@@ -348,3 +348,37 @@ code { font-family: var(--mono); font-size: .92em; color: #d8deea; background: r
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Donaciones y manual */
+.manual-links { margin-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.manual-links span { color: var(--muted-2); }
+.dot-sep { color: var(--muted-2); margin: 0 10px; }
+.center-cta { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; }
+
+.donate-card {
+  display: grid; grid-template-columns: 1.25fr .75fr; gap: 34px;
+  padding: 38px; border: 1px solid rgba(255,75,75,.22); border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(229,57,53,.10), rgba(16,20,29,.85) 55%);
+}
+.donate-copy h2 { margin: 0 0 14px; font-size: clamp(28px, 3.3vw, 40px); letter-spacing: -.035em; line-height: 1.1; }
+.donate-copy > p { color: var(--muted); font-size: 13.5px; max-width: 580px; }
+.donate-copy .donate-note { color: var(--muted-2); font-size: 11.5px; margin-top: 12px; }
+.donate-actions { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 22px; }
+.donate-actions .text-link { color: var(--muted); border-bottom-color: var(--line); }
+.donate-actions .btn svg { stroke-width: 1.7; }
+.donate-aside { border-left: 1px solid var(--line); padding-left: 28px; align-self: center; }
+.donate-aside h3 { margin: 0 0 8px; font-size: 15px; }
+.donate-aside p { margin: 0 0 10px; color: var(--muted); font-size: 12px; }
+.donate-aside .small-note { color: var(--muted-2); font-size: 10.5px; }
+
+@media (max-width: 880px) {
+  .donate-card { grid-template-columns: 1fr; gap: 26px; padding: 28px; }
+  .donate-aside { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; padding-top: 22px; }
+}
+@media (max-width: 560px) {
+  .donate-card { padding: 22px; }
+  .donate-actions { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .donate-actions .btn { width: 100%; }
+  .center-cta { flex-direction: column; gap: 8px; }
+  .center-cta .dot-sep { display: none; }
+}

@@ -58,6 +58,7 @@
         <a href="#cambios">Cambios</a>
         <a href="#youtube">YouTube</a>
         <a href="#comunidad">Comunidad</a>
+        <a href="#donar">Apoyar</a>
         <a class="nav-github" href="https://github.com/envidia1972-create/xtreme_studio" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.7.2 2.9.1 3.2.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5A11.4 11.4 0 0 0 12 .8Z"/></svg>
           GitHub
@@ -206,6 +207,11 @@
             </a>
             <p class="download-status" id="release-status" role="status">Comprobando la última versión en GitHub…</p>
             <a class="text-link" id="release-link" href="https://github.com/envidia1972-create/xtreme_studio/releases/latest" target="_blank" rel="noopener" hidden>Ver release en GitHub <span>↗</span></a>
+            <div class="manual-links">
+              <a class="text-link" href="manual.html">Manual completo</a>
+              <span>·</span>
+              <a class="text-link" href="assets/xtreme-studio-manual.pdf" download>PDF</a>
+            </div>
             <div class="checksum">
               <span>SHA-256</span>
               <code id="release-checksum">5cbeaa40daa2e92b19fb696749854ee09ca9b7908efcb1cb4ba2d0fc3c07d023</code>
@@ -331,7 +337,13 @@
             </div>
           </details>
         </div>
-        <div class="center-cta"><a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md" target="_blank" rel="noopener">Documentación completa en GitHub <span>↗</span></a></div>
+        <div class="center-cta">
+          <a class="text-link" href="manual.html">Manual completo de la app</a>
+          <span class="dot-sep">·</span>
+          <a class="text-link" href="assets/xtreme-studio-manual.pdf" download>Descargar PDF</a>
+          <span class="dot-sep">·</span>
+          <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md" target="_blank" rel="noopener">Documentación en GitHub <span>↗</span></a>
+        </div>
       </div>
     </section>
 
@@ -350,6 +362,31 @@
             <a class="btn btn-light" data-youtube href="https://www.youtube.com/@XtremeStudio" target="_blank" rel="noopener">Ver canal</a>
             <a class="btn btn-outline-light" data-youtube href="https://www.youtube.com/@XtremeStudio?sub_confirmation=1" target="_blank" rel="noopener">Suscribirme</a>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="donar">
+      <div class="container">
+        <div class="donate-card reveal">
+          <div class="donate-copy">
+            <p class="eyebrow">Apoyá el proyecto</p>
+            <h2>Mantené la radio en el aire.</h2>
+            <p>Xtreme Studio es independiente y se mantiene con el tiempo de quien lo desarrolla y el apoyo de quienes lo usan. Tu aporte ayuda con el dominio, las builds, las pruebas y las próximas funciones.</p>
+            <p class="donate-note">Las donaciones son voluntarias. No compran funciones exclusivas ni soporte prioritario.</p>
+            <div class="donate-actions">
+              <a class="btn btn-primary" href="https://www.paypal.com/donate?token=D67ZNWSJg3xh2q0P1VcG0_4evphM2C5gh7N8N42TeQXsy5RWL_ncny3BtXuOH647h_T74WaSUeqb0eXb" target="_blank" rel="noopener">
+                Donar con PayPal
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-8-5.3-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.7-8 11-8 11Z"/></svg>
+              </a>
+              <a class="text-link" href="mailto:envidiq1@hotmail.com">envidiq1@hotmail.com</a>
+            </div>
+          </div>
+          <aside class="donate-aside">
+            <h3>¿Y con tarjeta?</h3>
+            <p>El botón abre la página segura de PayPal. Según el país y la cuenta, PayPal permite pagar con tarjeta de crédito o débito sin crear una cuenta. Si no aparece esa opción, podés usar el correo de PayPal indicado.</p>
+            <p class="small-note">PayPal procesa el pago. Xtreme Studio no recibe ni almacena datos de tarjetas.</p>
+          </aside>
         </div>
       </div>
     </section>
@@ -414,7 +451,7 @@
         <details class="faq reveal"><summary>¿Dónde se guardan mis contraseñas?<span>+</span></summary><p>En tu equipo. En Windows se cifran con DPAPI; en Linux se guardan en un archivo privado con permisos 0600. No se envían a ningún servidor nuestro.</p></details>
         <details class="faq reveal"><summary>¿Cómo actualizo en Windows?<span>+</span></summary><p>La app revisa GitHub Releases al arrancar. Si hay una versión nueva, mostramos un aviso y podés actualizar con un clic. La primera instalación de la versión 0.1.1 se hace manualmente.</p></details>
         <details class="faq reveal"><summary>¿Y en Linux?<span>+</span></summary><p>La app funciona en Linux y compila desde el código. El actualizador automático de Linux todavía está pendiente; por ahora se actualiza compilando una versión nueva.</p></details>
-        <details class="faq reveal"><summary>¿Puedo usar AAC o AAC+?<span>+</span></summary><p>MP3 y AAC-LC funcionan con el FFmpeg incluido. AAC+ necesita una build de FFmpeg con <code>libfdk_aac</code>; la app te avisa si no está disponible.</p></details>
+        <details class="faq reveal"><summary>¿Puedo usar AAC o AAC+?<span>+</span></summary><p>MP3 y AAC-LC funcionan con el FFmpeg incluido. AAC+ necesita una build de FFmpeg con <code>libfdk_aac</code>. Hay una build nofree para Windows y las instrucciones completas en el <a href="manual.html#aac">manual</a>. También podés <a href="https://github.com/AnimMouse/ffmpeg-autobuild/releases/latest" target="_blank" rel="noopener">descargar la build nonfree</a>; leé la advertencia de licencia antes de usarla.</p></details>
       </div>
     </section>
   </main>
@@ -431,12 +468,15 @@
         <a href="#descargar">Descargar</a>
         <a href="#cambios">Últimos cambios</a>
         <a href="#tutoriales">Tutoriales</a>
+        <a href="manual.html">Manual</a>
+        <a href="assets/xtreme-studio-manual.pdf" download>Manual PDF</a>
       </div>
       <div class="footer-col">
         <h4>Comunidad</h4>
         <a href="https://github.com/envidia1972-create/xtreme_studio" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/envidia1972-create/xtreme_studio/issues" target="_blank" rel="noopener">Comentarios y sugerencias</a>
         <a data-youtube href="https://www.youtube.com/@XtremeStudio" target="_blank" rel="noopener">YouTube</a>
+        <a href="#donar">Apoyar el proyecto</a>
       </div>
       <div class="footer-col">
         <h4>Legal</h4>

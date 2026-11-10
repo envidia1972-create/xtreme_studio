@@ -41,8 +41,9 @@ app. El repositorio debe ser publico; la primera instalacion se hace a mano.
 
 Tambien se agrego la **web oficial** en `site/`, publicada con GitHub Pages en
 <https://envidia1972-create.github.io/xtreme_studio/>. Incluye descarga dinamica
-de la ultima release, cambios, tutoriales, YouTube y un formulario que abre un
-issue de GitHub para comentarios y sugerencias.
+de la ultima release, cambios, tutoriales, YouTube, donaciones (PayPal), un
+formulario que abre un issue de GitHub y un manual web/PDF con la instalacion,
+configuracion, soundboard, AAC+ y actualizaciones.
 
 Tambien se corrigio el **handshake de Shoutcast**: la fuente se conecta al
 puerto base + 1 (el puerto del perfil es el de oyentes), envia la contrasena

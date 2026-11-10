@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Manual de Xtreme Studio</title>
+  <meta name="description" content="Manual de usuario de Xtreme Studio: instalación, emisoras, Icecast2, Shoutcast, audio, soundboard, AAC+ y actualizaciones.">
+  <link rel="canonical" href="https://envidia1972-create.github.io/xtreme_studio/manual.html">
+  <link rel="icon" href="assets/favicon.ico">
+  <style>
+    :root { --ink:#11151d; --muted:#5b6577; --line:#dfe4ec; --red:#e53935; --soft:#f5f7fa; --code:#f0f2f6; }
+    * { box-sizing:border-box; }
+    html { color-scheme: light; }
+    body { margin:0; background:#eef1f6; color:var(--ink); font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif; font-size:15px; line-height:1.65; }
+    a { color:#b62624; }
+    .manual-shell { max-width: 900px; margin: 0 auto; background:#fff; box-shadow:0 20px 70px rgba(16,22,32,.12); }
+    .screenbar { display:flex; justify-content:space-between; align-items:center; gap:15px; padding:14px 28px; background:#0b0e14; color:#fff; }
+    .screenbar a { color:#dfe5f0; text-decoration:none; font-size:13px; }
+    .screenbar a.primary { color:#fff; background:var(--red); padding:8px 13px; border-radius:7px; font-weight:700; }
+    .cover { min-height: 760px; padding:70px 64px; background:#080a0f; color:#fff; display:flex; flex-direction:column; justify-content:space-between; }
+    .cover img { width:88px; height:88px; border-radius:20px; }
+    .cover .kicker { color:#ffb3b3; letter-spacing:.18em; text-transform:uppercase; font-size:11px; font-weight:800; margin:34px 0 12px; }
+    .cover h1 { margin:0; font-size:64px; line-height:.98; letter-spacing:-.055em; }
+    .cover h1 span { color:var(--red); }
+    .cover p { max-width:560px; color:#b8c1d2; font-size:16px; }
+    .cover .meta { border-top:1px solid rgba(255,255,255,.16); padding-top:18px; color:#8f9aad; font-size:12px; display:flex; gap:26px; flex-wrap:wrap; }
+    .content { padding:48px 64px 70px; }
+    .toc { border:1px solid var(--line); background:var(--soft); padding:22px 26px; border-radius:10px; margin-bottom:42px; }
+    .toc h2 { margin:0 0 10px; font-size:15px; text-transform:uppercase; letter-spacing:.12em; color:var(--muted); }
+    .toc ol { margin:0; padding-left:20px; columns:2; column-gap:36px; }
+    .toc li { margin:5px 0; break-inside:avoid; }
+    h2 { font-size:28px; line-height:1.15; letter-spacing:-.03em; margin:44px 0 12px; color:var(--ink); border-top:1px solid var(--line); padding-top:28px; break-after:avoid; }
+    h2:first-of-type { border-top:0; padding-top:0; margin-top:0; }
+    h3 { font-size:17px; margin:26px 0 8px; break-after:avoid; }
+    p { margin:8px 0 12px; }
+    ul,ol { padding-left:22px; }
+    li { margin:4px 0; }
+    code { font-family:"Cascadia Code","SFMono-Regular",Consolas,monospace; background:var(--code); border:1px solid #e1e5ec; border-radius:4px; padding:1px 5px; font-size:.9em; color:#273142; }
+    pre { background:#11151d; color:#e8edf5; padding:15px 18px; border-radius:8px; overflow:auto; font-size:12px; line-height:1.55; }
+    pre code { background:none; border:0; padding:0; color:inherit; }
+    table { width:100%; border-collapse:collapse; margin:14px 0 18px; font-size:13px; }
+    th,td { border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top; }
+    th { background:var(--soft); }
+    .note { border-left:3px solid var(--red); background:#fff6f6; padding:12px 16px; margin:16px 0; font-size:13px; }
+    .note strong { color:#9e2220; }
+    .ok { border-left:3px solid #1e9a68; background:#f1fbf6; padding:12px 16px; margin:16px 0; font-size:13px; }
+    figure { margin:22px 0; break-inside:avoid; }
+    figure img { width:100%; border:1px solid var(--line); border-radius:8px; }
+    figcaption { color:var(--muted); font-size:11.5px; margin-top:6px; }
+    .steps { counter-reset:step; list-style:none; padding-left:0; }
+    .steps li { counter-increment:step; position:relative; padding-left:36px; margin:10px 0; }
+    .steps li::before { content:counter(step); position:absolute; left:0; top:1px; width:23px; height:23px; border-radius:50%; background:#11151d; color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center; }
+    .footer-manual { border-top:1px solid var(--line); margin-top:44px; padding-top:18px; color:var(--muted); font-size:11.5px; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    @media (max-width:700px) { .content { padding:30px 22px 45px; } .cover { padding:48px 26px; min-height:600px; } .cover h1 { font-size:46px; } .toc ol { columns:1; } }
+    @page { size:A4; margin:16mm 15mm; }
+    @media print {
+      body { background:#fff; font-size:10.5pt; }
+      .manual-shell { box-shadow:none; max-width:none; }
+      .screenbar { display:none; }
+      .cover { min-height: 262mm; padding:24mm 18mm; page-break-after:always; }
+      .cover h1 { font-size:52pt; }
+      .content { padding:0; }
+      h2 { page-break-after:avoid; font-size:19pt; }
+      h3 { font-size:12pt; }
+      a { color:#8f1f1d; }
+      pre { white-space:pre-wrap; }
+      table,figure,.note,.ok { break-inside:avoid; }
+      .footer-manual { page-break-before:avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="manual-shell">
+  <div class="screenbar no-print">
+    <a href="./">← Volver a Xtreme Studio</a>
+    <div><a href="assets/xtreme-studio-manual.pdf" download>Descargar PDF</a> &nbsp; <a class="primary" href="assets/xtreme-studio-manual.pdf" download>Manual en PDF</a></div>
+  </div>
+
+  <section class="cover">
+    <div>
+      <img src="assets/icon.png" alt="Xtreme Studio">
+      <p class="kicker">Manual de usuario</p>
+      <h1>XTREME<br><span>STUDIO</span></h1>
+      <p>Radio directa, sin intermediarios. Guía completa para instalar, configurar y emitir con Icecast2 o Shoutcast.</p>
+    </div>
+    <div class="meta">
+      <span>Versión 0.1.1</span>
+      <span>Windows 10/11 · Linux</span>
+      <span>2026</span>
+    </div>
+  </section>
+
+  <main class="content">
+    <nav class="toc">
+      <h2>Contenido</h2>
+      <ol>
+        <li><a href="#intro">Qué es Xtreme Studio</a></li>
+        <li><a href="#instalar">Instalar en Windows</a></li>
+        <li><a href="#linux">Compilar en Linux</a></li>
+        <li><a href="#primer">Primer arranque</a></li>
+        <li><a href="#emisora">Configurar una emisora</a></li>
+        <li><a href="#audio">Micrófono, vúmetro y ganancia</a></li>
+        <li><a href="#aire">Salir al aire</a></li>
+        <li><a href="#soundboard">Soundboard</a></li>
+        <li><a href="#aac">AAC+ y libfdk_aac</a></li>
+        <li><a href="#actualizar">Actualizaciones</a></li>
+        <li><a href="#problemas">Solución de problemas</a></li>
+        <li><a href="#privacidad">Privacidad y enlaces</a></li>
+      </ol>
+    </nav>
+
+    <h2 id="intro">1. Qué es Xtreme Studio</h2>
+    <p>Xtreme Studio es una consola de escritorio para emitir radio por internet. El audio sale de tu computadora directamente al servidor de tu emisora: no pasa por un servidor intermedio de Xtreme Studio.</p>
+    <p>Permite administrar varias emisoras, elegir micrófono, medir el nivel, ajustar ganancia, reproducir jingles desde un soundboard, grabar la emisión y actualizar la app en Windows.</p>
+    <h3>Requisitos</h3>
+    <ul>
+      <li><strong>Windows 10/11 de 64 bits</strong> o una distribución Linux de 64 bits con GTK 3.</li>
+      <li>Un micrófono, consola o interfaz de audio.</li>
+      <li>Los datos de tu servidor: host, puerto, contraseña y, en Icecast2, el mount.</li>
+      <li>FFmpeg. El paquete de Windows ya lo incluye; en Linux se puede usar el del sistema o el que copia el script de compilación.</li>
+    </ul>
+    <div class="note"><strong>Importante:</strong> no hace falta crear una cuenta en Xtreme Studio. Las emisoras y las claves se guardan en tu equipo.</div>
+
+    <h2 id="instalar">2. Instalar en Windows</h2>
+    <ol class="steps">
+      <li>Descargá <code>XtremeStudio-0.1.1-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.1">página de releases</a>.</li>
+      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.1-windows-x64.zip</code>.</li>
+      <li>Extraélo en una carpeta tuya, por ejemplo <code>C:\XtremeStudio</code>. No lo ejecutes desde el ZIP, Descargas, OneDrive ni una carpeta de red.</li>
+      <li>Ejecutá <code>xtreme_studio.exe</code>.</li>
+    </ol>
+    <p>El ejecutable no está firmado. Si Defender o SmartScreen lo bloquea, revisá la <a href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md">sección de solución de problemas</a>. Verificá el SHA-256 que figura en la página de descarga antes de ejecutar.</p>
+    <div class="ok"><strong>Datos personales:</strong> el instalador no requiere registro y no recopila tus emisoras ni tus contraseñas.</div>
+
+    <h2 id="linux">3. Compilar en Linux</h2>
+    <p>El paquete Linux todavía se distribuye como código fuente. Necesitás Flutter, CMake, Ninja, Clang, GTK 3 y FFmpeg.</p>
+    <pre><code>git clone https://github.com/envidia1972-create/xtreme_studio.git
+cd xtreme_studio
+tool/build_linux.sh
+./build/linux/x64/release/bundle/xtreme_studio</code></pre>
+    <p>Si usás el SDK local del proyecto, ejecutá antes <code>source .tooling/env.sh</code>. El script copia FFmpeg y la documentación al lado del ejecutable. Los datos de usuario quedan en <code>~/.xtreme_studio</code>.</p>
+
+    <h2 id="primer">4. Primer arranque</h2>
+    <ul>
+      <li><strong>Emisión:</strong> estado del motor, vúmetro, botón para entrar o salir del aire, “suena ahora” y ganancia.</li>
+      <li><strong>Emisoras:</strong> crear, editar, duplicar y probar perfiles.</li>
+      <li><strong>Ajustes:</strong> FFmpeg, entrada de audio, grabación, registro y actualizaciones.</li>
+      <li><strong>Soundboard:</strong> ocho pads para jingles.</li>
+    </ul>
+    <p>En <strong>Ajustes → Motor de audio → Ruta a ffmpeg</strong>, pulsá <em>Comprobar</em>. El paquete de Windows lo detecta solo. Si usás otro FFmpeg, pegá su ruta completa y verificá que la app muestre la versión.</p>
+
+    <h2 id="emisora">5. Configurar una emisora</h2>
+    <p>En <strong>Emisoras → Agregar emisora</strong> completá:</p>
+    <table>
+      <tr><th>Campo</th><th>Qué poner</th></tr>
+      <tr><td>Nombre</td><td>El nombre de tu radio.</td></tr>
+      <tr><td>Host</td><td>Dominio o IP del servidor de streaming.</td></tr>
+      <tr><td>Puerto</td><td>Puerto de publicación que te dio el hosting (en Shoutcast, el de oyentes).</td></tr>
+      <tr><td>Protocolo</td><td>Icecast2 o Shoutcast v1/v2.</td></tr>
+      <tr><td>Mount</td><td>En Icecast2, por ejemplo <code>/stream</code>. En Shoutcast se ignora.</td></tr>
+      <tr><td>Usuario</td><td>En Icecast2 suele ser <code>source</code>. En Shoutcast no se usa.</td></tr>
+      <tr><td>Contraseña</td><td>La clave de fuente del hosting. En Shoutcast va tal cual, aunque contenga dos puntos.</td></tr>
+    </table>
+    <div class="note"><strong>Shoutcast:</strong> el puerto del perfil es el de los oyentes. La app publica en ese puerto + 1. Por ejemplo, puerto <code>8885</code> → publicación en <code>8886</code>. El usuario no forma parte del handshake.</div>
+    <p>Pulsá <strong>Probar conexión</strong> antes de salir al aire. Si el tipo de servidor no coincide, el hosting puede responder un error HTTP que parece una contraseña rechazada; revisá el protocolo y el puerto.</p>
+
+    <h2 id="audio">6. Micrófono, vúmetro y ganancia</h2>
+    <p>En <strong>Ajustes → Entrada de audio</strong> elegí el micrófono o la consola. La app no abre ninguna entrada hasta que elijas una. Después, en <strong>Emisión</strong>:</p>
+    <ul>
+      <li>El <strong>vúmetro</strong> muestra pico y RMS en dBFS. Funciona también fuera del aire.</li>
+      <li>La <strong>ganancia</strong> se aplica en vivo, sin reiniciar la captura ni cortar el stream.</li>
+      <li>Buscá que los picos normales queden alrededor de −12 a −6 dBFS, sin tocar 0 dBFS.</li>
+    </ul>
+    <figure><img src="assets/app-live.png" alt="Pantalla de emisión"><figcaption>Emisión al aire con vúmetro, ganancia y conexión.</figcaption></figure>
+
+    <h2 id="aire">7. Salir al aire</h2>
+    <ol>
+      <li>Elegí el perfil de emisora.</li>
+      <li>Pulsá <strong>Entrar al aire</strong>.</li>
+      <li>Escribí el título en <strong>Suena ahora</strong> y pulsá <strong>Actualizar</strong>.</li>
+      <li>Al terminar, pulsá <strong>Salir del aire</strong>.</li>
+    </ol>
+    <p>La grabación local se activa en Ajustes y usa el mismo códec y bitrate que el stream. Los metadatos de Icecast se actualizan por la API del servidor; en Shoutcast se usa el panel de administración.</p>
+
+    <h2 id="soundboard">8. Soundboard</h2>
+    <p>El soundboard tiene ocho pads. Podés cargar MP3, WAV, OGG, FLAC, M4A, AAC u OPUS desde una ruta o copiarlos a la carpeta del soundboard y pulsar <strong>Recargar</strong>.</p>
+    <ul>
+      <li><strong>Fuera del aire:</strong> el pad se reproduce por cue local, solo en tu equipo.</li>
+      <li><strong>Al aire:</strong> se mezcla con tu micrófono antes del vúmetro y del codificador.</li>
+      <li><strong>Teclas:</strong> <code>1–8</code> o <code>F1–F8</code>, con la app enfocada.</li>
+      <li><strong>Ducking:</strong> baja el micrófono mientras suena el jingle.</li>
+    </ul>
+    <figure><img src="assets/app-soundboard.png" alt="Soundboard"><figcaption>Pads, volumen master, ducking y cue local.</figcaption></figure>
+
+    <h2 id="aac">9. AAC+ y libfdk_aac</h2>
+    <p>MP3 y AAC-LC funcionan con el FFmpeg incluido. <strong>AAC+ (HE-AAC)</strong> requiere el encoder <code>libfdk_aac</code>, que es nonfree y no viene en la build GPL distribuida con la app.</p>
+    <h3>Windows</h3>
+    <ol class="steps">
+      <li>Descargá la build nonfree win64 desde <a href="https://github.com/AnimMouse/ffmpeg-autobuild/releases/latest">AnimMouse/ffmpeg-autobuild</a> (archivo <code>ffmpeg-...-win64-nonfree.7z</code>).</li>
+      <li>Extraé el archivo con 7-Zip y copiá <code>ffmpeg.exe</code> a una carpeta propia, por ejemplo <code>C:\ffmpeg-fdk</code>.</li>
+      <li>En Xtreme Studio: <strong>Ajustes → Ruta a ffmpeg</strong>, pegá <code>C:\ffmpeg-fdk\ffmpeg.exe</code> y pulsá <strong>Comprobar</strong>.</li>
+      <li>Verificá en una terminal:<br><code>&amp; C:\ffmpeg-fdk\ffmpeg.exe -hide_banner -encoders | findstr libfdk_aac</code></li>
+      <li>En la emisora, elegí <strong>AAC+ (HE-AAC)</strong> y el bitrate.</li>
+    </ol>
+    <h3>Linux</h3>
+    <p>Compilá FFmpeg con <code>--enable-libfdk-aac --enable-nonfree</code>. Guía: <a href="https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu">CompilationGuide/Ubuntu</a>. Código de <code>libfdk_aac</code>: <a href="https://github.com/mstorsjo/fdk-aac">mstorsjo/fdk-aac</a>. Luego elegí ese binario en Ajustes.</p>
+    <div class="note"><strong>Licencia:</strong> la build nonfree no se puede redistribuir junto con Xtreme Studio sin cumplir las licencias de sus componentes. La app solo la usa si el usuario la instala por separado.</div>
+
+    <h2 id="actualizar">10. Actualizaciones</h2>
+    <p>En Windows, la app comprueba GitHub Releases al arrancar y cada seis horas. Si hay una versión nueva, muestra un aviso. Al pulsar <strong>Actualizar</strong>:</p>
+    <ol>
+      <li>descarga el ZIP de la última release;</li>
+      <li>verifica el SHA-256;</li>
+      <li>se niega a continuar si estás al aire;</li>
+      <li>cierra captura, codificador y soundboard;</li>
+      <li>reemplaza la carpeta con una copia de seguridad y vuelve a abrir la app.</li>
+    </ol>
+    <p>La primera instalación de una versión con actualizador se hace manualmente. En Linux, por ahora, la actualización se hace compilando una versión nueva.</p>
+
+    <h2 id="problemas">11. Solución de problemas</h2>
+    <h3>No encuentra FFmpeg</h3>
+    <p>En Ajustes, indicá la ruta completa a <code>ffmpeg.exe</code> o al binario de Linux y pulsá <em>Comprobar</em>. En Windows el paquete incluye FFmpeg; en Linux instalá <code>ffmpeg</code> o usá el que copia el script.</p>
+    <h3>Shoutcast rechaza la conexión</h3>
+    <p>Verificá que el puerto sea el base (el de oyentes), que la contraseña esté completa y que el usuario quede vacío. La app publica en el puerto base + 1. Si el hosting mezcla Liquidsoap y Shoutcast, no uses “Detectar tipo” a ciegas.</p>
+    <h3>Windows bloquea el .exe</h3>
+    <p>Desbloqueá el ZIP y la carpeta. Si Defender puso el archivo en cuarentena, agregá solo <code>C:\XtremeStudio</code> a las exclusiones. No desactives Defender globalmente.</p>
+    <h3>Los oyentes no escuchan</h3>
+    <p>Revisá el estado de la conexión, el mount y la URL de escucha. En Shoutcast cargá la URL pública del panel del hosting; la app no puede deducirla de la misma forma que en Icecast.</p>
+
+    <h2 id="privacidad">12. Privacidad y enlaces</h2>
+    <p>Las emisoras, las claves y el soundboard se guardan en tu equipo. En Windows las claves se cifran con DPAPI; en Linux se usa un archivo privado con permisos 0600. El audio va directo de tu PC al servidor de tu radio.</p>
+    <ul>
+      <li>Web: <a href="https://envidia1972-create.github.io/xtreme_studio/">envidia1972-create.github.io/xtreme_studio</a></li>
+      <li>Descargas: <a href="https://github.com/envidia1972-create/xtreme_studio/releases">GitHub Releases</a></li>
+      <li>Comentarios y sugerencias: <a href="https://github.com/envidia1972-create/xtreme_studio/issues">GitHub Issues</a></li>
+      <li>Apoyar el proyecto: <a href="https://www.paypal.com/donate?token=D67ZNWSJg3xh2q0P1VcG0_4evphM2C5gh7N8N42TeQXsy5RWL_ncny3BtXuOH647h_T74WaSUeqb0eXb">PayPal</a></li>
+    </ul>
+    <p>Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus respectivos titulares. Xtreme Studio no está afiliado a ellos.</p>
+
+    <div class="footer-manual">
+      <span>Xtreme Studio · Manual de usuario · Versión 0.1.1</span>
+      <span>Hecho con Flutter y FFmpeg.</span>
+    </div>
+  </main>
+</div>
+</body>
+</html>

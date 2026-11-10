@@ -30,13 +30,30 @@ La web del proyecto vive en GitHub Pages:
 **<https://envidia1972-create.github.io/xtreme_studio/>**
 
 Incluye presentacion, caracteristicas, descarga de la ultima release,
-tutoriales, ultimos cambios, canal de YouTube y un formulario para enviar
-comentarios o sugerencias por GitHub Issues.
+tutoriales, ultimos cambios, canal de YouTube, un formulario para enviar
+comentarios o sugerencias por GitHub Issues, una seccion de donaciones y un
+manual de usuario.
+
+- Manual web: <https://envidia1972-create.github.io/xtreme_studio/manual.html>
+- Manual PDF: <https://envidia1972-create.github.io/xtreme_studio/assets/xtreme-studio-manual.pdf>
 
 El sitio es estatico (HTML, CSS y JavaScript sin dependencias) y esta en
 `site/`. Se publica con `.github/workflows/pages.yml`. Para cambiar el enlace
 del canal de YouTube, editar `SITE.youtube` en `site/app.js` y los `href` con
 `data-youtube` en `site/index.html`.
+
+---
+
+## Apoyar el proyecto
+
+Xtreme Studio es independiente. Si te sirve y querés ayudar a mantenerlo:
+
+- **PayPal:** <https://www.paypal.com/donate?token=D67ZNWSJg3xh2q0P1VcG0_4evphM2C5gh7N8N42TeQXsy5RWL_ncny3BtXuOH647h_T74WaSUeqb0eXb>
+- **Correo de PayPal:** <envidiq1@hotmail.com>
+
+El boton de PayPal tambien permite pagar con tarjeta de credito o debito en
+muchos paises, sin crear una cuenta. Las donaciones son voluntarias y no
+compran funciones ni soporte prioritario.
 
 ---
 
@@ -195,9 +212,63 @@ La calidad se elige **por emisora** en *Emisoras > Editar > Calidad de audio*:
 
 La app consulta los encoders reales con `ffmpeg -encoders`. Si el FFmpeg
 instalado no trae `libfdk_aac`, AAC+ aparece como **no disponible** y no se
-puede emitir con el; MP3 y AAC-LC si funcionan. Para AAC+ hace falta una build
-con `--enable-libfdk-aac --enable-nonfree` (o el paquete de tu distribucion que
-la incluya).
+puede emitir con el; MP3 y AAC-LC si funcionan.
+
+### AAC+ y `libfdk_aac`
+
+`libfdk_aac` es un encoder **nonfree**. Por eso no viene en el FFmpeg GPL que se
+distribuye con la app. Para habilitar AAC+ hay que apuntar la app a otra build
+de FFmpeg que lo incluya. La app no se modifica: solo cambia la ruta del
+ejecutable.
+
+#### Windows
+
+1. Descargá la build **nonfree win64** desde:
+   **<https://github.com/AnimMouse/ffmpeg-autobuild/releases/latest>**
+   (archivo `ffmpeg-...-win64-nonfree.7z`).
+2. Extraé el `.7z` con 7-Zip. Adentro estan `ffmpeg.exe`, `ffprobe.exe` y
+   `ffplay.exe`.
+3. Copiá `ffmpeg.exe` a una carpeta propia, por ejemplo:
+   ```text
+   C:\ffmpeg-fdk\ffmpeg.exe
+   ```
+4. En Xtreme Studio: **Ajustes → Motor de audio (FFmpeg) → Ruta a ffmpeg**,
+   pegá esa ruta y pulsá **Comprobar**.
+5. Verificá que la deteccion diga que `libfdk_aac` esta disponible. Si no,
+   abrí una terminal y comprobá:
+   ```powershell
+   & C:\ffmpeg-fdk\ffmpeg.exe -hide_banner -encoders | findstr libfdk_aac
+   ```
+6. En **Emisoras → Editar → Calidad de audio**, elegi **AAC+ (HE-AAC)** y el
+   bitrate.
+
+#### Linux
+
+La mayoria de las distribuciones no empaqueta `libfdk_aac` por su licencia. Hay
+que compilar FFmpeg con:
+
+```bash
+--enable-libfdk-aac --enable-nonfree
+```
+
+Guia de compilacion:
+**<https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu>**
+
+Codigo de `libfdk_aac`:
+**<https://github.com/mstorsjo/fdk-aac>**
+
+Despues se indica la ruta del `ffmpeg` compilado en Ajustes, igual que en
+Windows.
+
+#### Licencia
+
+La build nonfree de FFmpeg **no se puede redistribuir junto con Xtreme Studio**
+sin cumplir las licencias de sus componentes. La app solo la usa si el usuario
+la instala por separado. El enlace y las instrucciones tambien estan en el
+manual:
+
+- Manual web: <https://envidia1972-create.github.io/xtreme_studio/manual.html#aac>
+- Manual PDF: <https://envidia1972-create.github.io/xtreme_studio/assets/xtreme-studio-manual.pdf>
 
 **La grabacion usa el mismo codec y bitrate que el stream**, y cambia la
 extension del archivo (`.mp3` o `.aac`). Asi lo grabado coincide con lo que
@@ -878,6 +949,9 @@ ningun DJ**.
 .github/workflows/windows.yml  Compilacion del .exe en GitHub Actions
 .github/workflows/pages.yml    Publicacion de la web en GitHub Pages
 site/                     Web oficial (estatica, sin dependencias)
+  index.html              Portada, descarga, tutoriales y comunidad
+  manual.html             Manual de usuario
+  assets/xtreme-studio-manual.pdf  Manual en PDF
 linux/                    Runner de Flutter para Linux (GTK)
 assets/icon/              Icono maestro de la app (PNG)
 lib/
