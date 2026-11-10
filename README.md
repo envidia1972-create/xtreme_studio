@@ -322,7 +322,25 @@ https://api.github.com/repos/envidia1972-create/xtreme_studio/releases/latest
 ```
 
 El repositorio **debe ser publico** para que un cliente sin credenciales pueda
-leer las releases. Si sigue privado, la comprobacion no muestra nada.
+leer las releases. **El repositorio todavia esta privado**: mientras no se
+cambie la visibilidad, la comprobacion automatica no puede leer ninguna release.
+
+Para hacerlo publico desde GitHub:
+
+```text
+Settings -> General -> Danger Zone -> Change repository visibility -> Public
+```
+
+O con GitHub CLI:
+
+```bash
+gh repo edit envidia1972-create/xtreme_studio --visibility public \
+  --accept-visibility-change-consequences
+```
+
+Si preferis no exponer el codigo, podes mantener este repositorio privado y
+publicar las releases en otro repositorio publico, apuntando `UPDATE_URL` a ese
+lugar.
 
 Tambien se puede usar un `latest.json` propio con HTTPS:
 
@@ -353,6 +371,17 @@ El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
 
 La primera instalacion de una version con actualizador se hace a mano. A partir
 de ahi, las siguientes pueden ser desde la app.
+
+**Todavia no hay ninguna release publicada.** El artifact de esta ronda es la
+version `0.1.0` con el actualizador incorporado. Para probar el circuito
+completo:
+
+1. Hacer publico el repositorio.
+2. Instalar a mano el artifact `0.1.0` de esta ronda.
+3. Subir `version` en `pubspec.yaml` a `0.1.1+2`.
+4. Crear y subir el tag `v0.1.1`.
+5. Esperar a que el workflow publique la release.
+6. Abrir la app 0.1.0: el aviso de la 0.1.1 aparece solo.
 
 ### Limitaciones
 

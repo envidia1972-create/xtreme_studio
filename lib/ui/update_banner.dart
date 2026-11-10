@@ -12,12 +12,14 @@ class UpdateBanner extends StatelessWidget {
     super.key,
     required this.controller,
     required this.live,
+    this.liveNow,
     required this.beforeRestart,
     required this.onMessage,
   });
 
   final UpdateController controller;
   final bool live;
+  final bool Function()? liveNow;
   final Future<void> Function() beforeRestart;
   final void Function(String message, {bool isError}) onMessage;
 
@@ -100,6 +102,7 @@ class UpdateBanner extends StatelessWidget {
               ? null
               : () => controller.install(
                   live: live,
+                  liveNow: liveNow,
                   beforeRestart: beforeRestart,
                   onMessage: onMessage,
                 ),

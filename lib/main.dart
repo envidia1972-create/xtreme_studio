@@ -871,6 +871,10 @@ class _StudioHomeState extends State<StudioHome> {
           UpdateBanner(
             controller: _update,
             live: isLive,
+            liveNow: () =>
+                _snapshot.isLive ||
+                _snapshot.state == BroadcastState.starting ||
+                _snapshot.state == BroadcastState.reconnecting,
             beforeRestart: _prepareForUpdate,
             onMessage: _showMessage,
           ),

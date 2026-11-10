@@ -118,6 +118,7 @@ class UpdateController extends ChangeNotifier {
 
   Future<void> install({
     required bool live,
+    bool Function()? liveNow,
     required Future<void> Function() beforeRestart,
     void Function(String message, {bool isError})? onMessage,
   }) async {
@@ -161,6 +162,12 @@ class UpdateController extends ChangeNotifier {
           notifyListeners();
         },
       );
+      if (liveNow?.call() ?? live) {
+        throw UpdateException(
+          'Saliste al aire durante la descarga. La app no se actualiza '
+          'mientras esta emitiendo.',
+        );
+      }
       _phase = UpdatePhase.installing;
       _progress = 1;
       notifyListeners();
