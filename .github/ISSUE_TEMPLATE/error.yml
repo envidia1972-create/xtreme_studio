@@ -1,0 +1,49 @@
+name: Reportar un error
+description: Contar algo que no funciona para que podamos corregirlo.
+title: "[Error] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de enviar, revisá que no haya un issue abierto con el mismo problema.
+        No incluyas contraseñas ni datos privados en el reporte.
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qué pasó
+      description: Describí el error y lo que esperabas que ocurriera.
+      placeholder: "Al pulsar..."
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Abrir...
+        2. Elegir...
+        3. Ver...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Xtreme Studio
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema operativo
+      placeholder: "Windows 11 / Linux (distribución)"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Registro o captura
+      description: Si podés, pegá el registro de actividad o una captura. Ocultá claves y datos privados.
+    validations:
+      required: false

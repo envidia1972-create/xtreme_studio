@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Xtreme Studio — radio directa, sin intermediarios</title>
+  <meta name="description" content="Consola de emisión multi-emisora para radio. Publicá directo a tu servidor Icecast2 o Shoutcast desde Windows y Linux. Vúmetro, soundboard, grabación y actualizaciones.">
+  <meta name="theme-color" content="#080a0f">
+  <link rel="canonical" href="https://envidia1972-create.github.io/xtreme_studio/">
+  <link rel="icon" href="assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_PA">
+  <meta property="og:site_name" content="Xtreme Studio">
+  <meta property="og:title" content="Xtreme Studio — radio directa, sin intermediarios">
+  <meta property="og:description" content="Emisión multi-emisora para radio, directo de tu PC a tu servidor. Windows y Linux.">
+  <meta property="og:url" content="https://envidia1972-create.github.io/xtreme_studio/">
+  <meta property="og:image" content="https://envidia1972-create.github.io/xtreme_studio/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Xtreme Studio">
+  <meta name="twitter:description" content="Radio directa, sin intermediarios. Windows y Linux.">
+  <meta name="twitter:image" content="https://envidia1972-create.github.io/xtreme_studio/assets/og.png">
+
+  <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Xtreme Studio",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Windows 10, Windows 11, Linux",
+    "description": "Consola de emisión multi-emisora para radio con Icecast2 y Shoutcast.",
+    "url": "https://envidia1972-create.github.io/xtreme_studio/",
+    "downloadUrl": "https://github.com/envidia1972-create/xtreme_studio/releases/latest",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <header class="site-header" id="top">
+    <div class="container nav-wrap">
+      <a class="brand" href="#inicio" aria-label="Xtreme Studio, inicio">
+        <img src="assets/icon.png" alt="" width="38" height="38">
+        <span>XTREME <strong>STUDIO</strong></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu" aria-label="Abrir menú">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="nav" id="nav-menu" aria-label="Navegación principal">
+        <a href="#caracteristicas">Características</a>
+        <a href="#descargar">Descargar</a>
+        <a href="#tutoriales">Tutoriales</a>
+        <a href="#cambios">Cambios</a>
+        <a href="#youtube">YouTube</a>
+        <a href="#comunidad">Comunidad</a>
+        <a class="nav-github" href="https://github.com/envidia1972-create/xtreme_studio" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .8a11.4 11.4 0 0 0-3.6 22.2c.6.1.8-.2.8-.5v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.1.1 1.7 1.1 1.7 1.1 1 1.7 2.6 1.2 3.2.9.1-.7.4-1.2.7-1.5-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.7.2 2.9.1 3.2.8.9 1.2 1.9 1.2 3.2 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.6.8.5A11.4 11.4 0 0 0 12 .8Z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="contenido">
+    <section class="hero" id="inicio">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="container hero-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span class="status-dot"></span> Emisión profesional desde tu PC</p>
+          <h1>Tu radio,<br><span>sin intermediarios.</span></h1>
+          <p class="lead">Xtreme Studio conecta tu micrófono directamente con tu servidor de streaming. Sin cuentas, sin nube, sin plataformas que se queden con tu audio.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#descargar">
+              Descargar para Windows
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+            </a>
+            <a class="btn btn-ghost" href="#caracteristicas">Ver características</a>
+          </div>
+          <ul class="hero-meta" aria-label="Compatibilidad">
+            <li>Windows 10/11</li>
+            <li>Linux</li>
+            <li>Icecast2 + Shoutcast</li>
+            <li>Sin cuenta</li>
+          </ul>
+        </div>
+
+        <div class="hero-visual reveal">
+          <div class="app-window">
+            <div class="app-window-bar">
+              <span class="win-dot"></span><span class="win-dot"></span><span class="win-dot"></span>
+              <span>Xtreme Studio</span>
+              <span class="onair-pill"><span></span> AL AIRE</span>
+            </div>
+            <img src="assets/app-live.png" alt="Pantalla de emisión de Xtreme Studio con el vúmetro, el botón Salir del aire y la conexión al servidor" width="1280" height="687">
+          </div>
+          <div class="floating-card">
+            <span class="floating-label">AUDIO DIRECTO</span>
+            <strong>PC → tu servidor</strong>
+            <small>nada pasa por nosotros</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="container hero-stats">
+        <div><strong>Multi-emisora</strong><span>una app, todas tus radios</span></div>
+        <div><strong>2 protocolos</strong><span>Icecast2 y Shoutcast v1/v2</span></div>
+        <div><strong>+ Soundboard</strong><span>jingles y cue local</span></div>
+        <div><strong>Actualizaciones</strong><span>desde la propia app</span></div>
+      </div>
+    </section>
+
+    <section class="section" id="caracteristicas">
+      <div class="container">
+        <header class="section-head reveal">
+          <p class="eyebrow">Características</p>
+          <h2>Todo lo que necesitás para salir al aire.</h2>
+          <p>Una consola pensada para locutores, no para ingenieros. Lo esencial, bien hecho.</p>
+        </header>
+
+        <div class="feature-grid">
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><path d="M4 11a8 8 0 0 1 16 0"/><path d="M7 11a5 5 0 0 1 10 0"/><path d="M12 11v10"/><circle cx="12" cy="11" r="1.5"/></svg></span>
+            <h3>Emisión multi-emisora</h3>
+            <p>Guardá todas tus radios y cambiá de emisora sin reinstalar ni duplicar la app.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><path d="M7 7h.01M7 17h.01"/></svg></span>
+            <h3>Icecast2 y Shoutcast</h3>
+            <p>Compatible con Icecast2, Shoutcast v1/v2, AzuraCast, Zeno.fm y hostings compatibles.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><path d="M4 18V9m4 9V5m4 13v-7m4 7V8m4 10V4"/></svg></span>
+            <h3>Vúmetro y ganancia en vivo</h3>
+            <p>Medí pico y RMS, y ajustá la ganancia sin reiniciar el micrófono ni cortar la emisión.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+            <h3>Soundboard de 8 pads</h3>
+            <p>Jingles, cortinas y efectos con teclas rápidas, loop, ducking y cue local.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+            <h3>Grabación local</h3>
+            <p>Guardá una copia de cada emisión con el mismo códec y bitrate que reciben tus oyentes.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.5c0 4.6 3.2 7.9 7.5 9.5 4.3-1.6 7.5-4.9 7.5-9.5V6L12 3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <h3>Tus credenciales, en tu equipo</h3>
+            <p>DPAPI en Windows y permisos 0600 en Linux. Nunca se envían a un servidor nuestro.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4"/></svg></span>
+            <h3>Windows y Linux</h3>
+            <p>El mismo motor en las dos plataformas. Linux con captura PulseAudio/PipeWire o ALSA.</p>
+          </article>
+          <article class="feature-card reveal">
+            <span class="feature-icon"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/><path d="M12 8v4l3 2"/></svg></span>
+            <h3>Actualizaciones integradas</h3>
+            <p>La app avisa cuando hay una versión nueva y se actualiza con un clic en Windows.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-showcase">
+      <div class="container">
+        <header class="section-head reveal">
+          <p class="eyebrow">Así se ve</p>
+          <h2>Una consola oscura, clara de leer.</h2>
+          <p>Diseñada para cabina: estados inequívocos, vúmetros grandes y nada que te distraiga.</p>
+        </header>
+        <div class="showcase-grid">
+          <figure class="shot reveal">
+            <img src="assets/app-stations.png" alt="Gestor de emisoras de Xtreme Studio con perfiles y botones de conexión" loading="lazy" width="1280" height="687">
+            <figcaption><strong>Mis emisoras</strong><span>Todas tus radios, un solo lugar.</span></figcaption>
+          </figure>
+          <figure class="shot reveal">
+            <img src="assets/app-soundboard.png" alt="Soundboard de Xtreme Studio con ocho pads, volumen master y cue local" loading="lazy" width="1280" height="800">
+            <figcaption><strong>Soundboard</strong><span>Jingles al aire o por cue, sin cortar la emisión.</span></figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="descargar">
+      <div class="container">
+        <header class="section-head reveal">
+          <p class="eyebrow">Descargar</p>
+          <h2>Empezá a emitir hoy.</h2>
+          <p>Sin registro. Sin prueba de 7 días. Descargás, configurás tu servidor y salís al aire.</p>
+        </header>
+
+        <div class="download-card reveal">
+          <div class="download-main">
+            <div class="release-badge"><span class="status-dot"></span> Última versión <span id="release-version">v0.1.1</span></div>
+            <h3>Xtreme Studio para Windows</h3>
+            <p class="download-meta"><span id="release-platform">Windows 10/11 · 64 bits</span> · <span id="release-size">149,9 MB</span> · ZIP portable</p>
+            <a class="btn btn-primary btn-download" id="download-button" href="https://github.com/envidia1972-create/xtreme_studio/releases/download/v0.1.1/XtremeStudio-0.1.1-windows-x64.zip">
+              Descargar ZIP
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"/></svg>
+            </a>
+            <p class="download-status" id="release-status" role="status">Comprobando la última versión en GitHub…</p>
+            <a class="text-link" id="release-link" href="https://github.com/envidia1972-create/xtreme_studio/releases/latest" target="_blank" rel="noopener" hidden>Ver release en GitHub <span>↗</span></a>
+            <div class="checksum">
+              <span>SHA-256</span>
+              <code id="release-checksum">5cbeaa40daa2e92b19fb696749854ee09ca9b7908efcb1cb4ba2d0fc3c07d023</code>
+              <button class="copy-button" id="copy-checksum" type="button" aria-label="Copiar checksum">Copiar</button>
+            </div>
+            <p class="small-note">¿Windows lo bloquea? <a href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md#windows-bloquea-el-exe-descargado" target="_blank" rel="noopener">Mirá cómo desbloquearlo</a>. El ejecutable no está firmado; verificá el SHA-256 antes de ejecutar.</p>
+          </div>
+          <aside class="download-aside">
+            <h4>Primeros pasos</h4>
+            <ol class="steps">
+              <li><span>1</span> Desbloqueá y extraé el ZIP en una carpeta tuya, por ejemplo <code>C:\XtremeStudio</code>.</li>
+              <li><span>2</span> Ejecutá <code>xtreme_studio.exe</code>.</li>
+              <li><span>3</span> Cargá los datos de tu servidor y elegí el micrófono.</li>
+            </ol>
+            <div class="aside-note">
+              <strong>Actualizaciones</strong>
+              <p>La versión 0.1.1 ya incluye el actualizador. Las próximas versiones se instalan desde la app.</p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="linux-card reveal">
+          <div>
+            <p class="eyebrow">Linux x64</p>
+            <h3>¿Usás Linux?</h3>
+            <p>El código está disponible y compila con <code>tool/build_linux.sh</code>. El paquete Linux dentro de la app está en camino.</p>
+          </div>
+          <a class="btn btn-ghost" href="https://github.com/envidia1972-create/xtreme_studio#compilar" target="_blank" rel="noopener">Ver instrucciones de compilación</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="cambios">
+      <div class="container">
+        <header class="section-head reveal">
+          <p class="eyebrow">Últimos cambios</p>
+          <h2>El proyecto no se queda quieto.</h2>
+          <p>Esto es lo último que cambió en Xtreme Studio.</p>
+        </header>
+
+        <div class="changes-grid">
+          <article class="release-card reveal">
+            <div class="release-head">
+              <span class="version">v0.1.1</span>
+              <time datetime="2026-11-09">9 nov 2026</time>
+            </div>
+            <h3>Actualizador y sonido en vivo</h3>
+            <ul>
+              <li>Actualizaciones desde la propia app en Windows, con verificación SHA-256.</li>
+              <li>Soundboard de 8 pads con mezcla en vivo y cue local.</li>
+              <li>Conexión Shoutcast corregida: puerto base + 1 y contraseña sin usuario.</li>
+              <li>El monitor de señal ya no inventa una URL de escucha en Shoutcast.</li>
+            </ul>
+            <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.1" target="_blank" rel="noopener">Ver release <span>↗</span></a>
+          </article>
+          <article class="release-card reveal">
+            <div class="release-head">
+              <span class="version">v0.1.0</span>
+              <time datetime="2026-10-25">25 oct 2026</time>
+            </div>
+            <h3>Primera versión pública</h3>
+            <ul>
+              <li>Multi-emisora con Icecast2 y Shoutcast v1/v2.</li>
+              <li>Vúmetro, ganancia, grabación y metadatos.</li>
+              <li>Interfaz Flutter para Windows y Linux.</li>
+            </ul>
+            <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/releases" target="_blank" rel="noopener">Todas las releases <span>↗</span></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="tutoriales">
+      <div class="container">
+        <header class="section-head reveal">
+          <p class="eyebrow">Tutoriales</p>
+          <h2>De cero a tu primera emisión.</h2>
+          <p>Cuatro pasos. Sin manual de 200 páginas.</p>
+        </header>
+        <div class="tutorial-list">
+          <details class="tutorial reveal" open>
+            <summary><span class="tutorial-num">01</span><span>Configurar tu emisora</span><span class="summary-icon">+</span></summary>
+            <div class="tutorial-body">
+              <p>En <strong>Emisoras → Agregar emisora</strong>, cargá el host, puerto, contraseña y protocolo. Elegí Icecast2 o Shoutcast según tu hosting.</p>
+              <ul>
+                <li><strong>Icecast2:</strong> usuario <code>source</code> (o el que te hayan dado), mount <code>/stream</code> y contraseña de fuente.</li>
+                <li><strong>Shoutcast:</strong> el puerto es el de los oyentes; la app publica en ese puerto + 1. El usuario no se usa.</li>
+                <li>Usá <strong>Probar conexión</strong> antes de salir al aire.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="tutorial reveal">
+            <summary><span class="tutorial-num">02</span><span>Elegir micrófono y salir al aire</span><span class="summary-icon">+</span></summary>
+            <div class="tutorial-body">
+              <p>En <strong>Ajustes → Entrada de audio</strong>, elegí tu micrófono o consola. Después, en <strong>Emisión</strong>, verificá el vúmetro y pulsá <strong>Entrar al aire</strong>.</p>
+              <ul>
+                <li>El vúmetro funciona también fuera del aire.</li>
+                <li>Ajustá la ganancia en vivo sin cortar la emisión.</li>
+                <li>Escribí el “suena ahora” antes o después de salir al aire.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="tutorial reveal">
+            <summary><span class="tutorial-num">03</span><span>Jingles con el soundboard</span><span class="summary-icon">+</span></summary>
+            <div class="tutorial-body">
+              <p>Abrí <strong>Soundboard</strong>, agregá tus archivos y asignales una tecla. Fuera del aire se reproducen por cue local; al aire se mezclan con tu voz.</p>
+              <ul>
+                <li>Teclas <code>1–8</code> o <code>F1–F8</code>.</li>
+                <li>Ajustá el ducking para que el jingle no tape tu voz.</li>
+                <li>El botón de auriculares reproduce solo en tu equipo.</li>
+              </ul>
+            </div>
+          </details>
+          <details class="tutorial reveal">
+            <summary><span class="tutorial-num">04</span><span>Actualizar la app</span><span class="summary-icon">+</span></summary>
+            <div class="tutorial-body">
+              <p>En Windows, la app comprueba si hay una versión nueva al arrancar. Cuando aparece el aviso, salí del aire y pulsá <strong>Actualizar</strong>.</p>
+              <ul>
+                <li>La descarga se verifica con SHA-256.</li>
+                <li>Se guarda una copia de seguridad antes de reemplazar los archivos.</li>
+                <li>En Linux, por ahora, la actualización es manual compilando el proyecto.</li>
+              </ul>
+            </div>
+          </details>
+        </div>
+        <div class="center-cta"><a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md" target="_blank" rel="noopener">Documentación completa en GitHub <span>↗</span></a></div>
+      </div>
+    </section>
+
+    <section class="section" id="youtube">
+      <div class="container">
+        <div class="youtube-card reveal">
+          <div class="youtube-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4"/><path d="m10 9 5 3-5 3V9Z"/></svg>
+          </div>
+          <div class="youtube-copy">
+            <p class="eyebrow">Canal de YouTube</p>
+            <h2>Aprendé mirando.</h2>
+            <p>Tutoriales paso a paso, novedades y transmisiones en vivo. Si el canal todavía no tiene el video que buscás, pedilo en la comunidad.</p>
+          </div>
+          <div class="youtube-actions">
+            <a class="btn btn-light" data-youtube href="https://www.youtube.com/@XtremeStudio" target="_blank" rel="noopener">Ver canal</a>
+            <a class="btn btn-outline-light" data-youtube href="https://www.youtube.com/@XtremeStudio?sub_confirmation=1" target="_blank" rel="noopener">Suscribirme</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="comunidad">
+      <div class="container community-grid">
+        <div class="community-copy reveal">
+          <p class="eyebrow">Comunidad</p>
+          <h2>Tu opinión define lo que sigue.</h2>
+          <p>Xtreme Studio es un proyecto independiente. Si encontrás un error, tenés una idea o querés contar cómo lo usás, escribinos. Cada comentario se lee.</p>
+          <div class="community-links">
+            <a href="https://github.com/envidia1972-create/xtreme_studio/issues/new?template=sugerencia.yml" target="_blank" rel="noopener">Sugerir una función <span>↗</span></a>
+            <a href="https://github.com/envidia1972-create/xtreme_studio/issues/new?template=error.yml" target="_blank" rel="noopener">Reportar un error <span>↗</span></a>
+            <a href="https://github.com/envidia1972-create/xtreme_studio/issues" target="_blank" rel="noopener">Ver conversaciones <span>↗</span></a>
+          </div>
+        </div>
+        <form class="feedback-card reveal" id="feedback-form">
+          <h3>Dejar un comentario</h3>
+          <p class="small-note">Se abre un borrador en GitHub Issues. No guardamos tus datos en esta web.</p>
+          <label for="feedback-type">Tipo</label>
+          <select id="feedback-type" name="type">
+            <option value="Sugerencia">Sugerencia</option>
+            <option value="Error">Error</option>
+            <option value="Comentario">Comentario</option>
+          </select>
+          <label for="feedback-name">Tu nombre <span>(opcional)</span></label>
+          <input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Cómo te llamás">
+          <label for="feedback-message">Mensaje</label>
+          <textarea id="feedback-message" name="message" rows="5" required placeholder="Contanos qué te gustaría ver o qué problema encontraste…"></textarea>
+          <button class="btn btn-primary" type="submit">Preparar mensaje en GitHub</button>
+          <p class="form-note" id="feedback-note" role="status"></p>
+        </form>
+      </div>
+    </section>
+
+    <section class="section" id="acerca">
+      <div class="container about-grid">
+        <div class="reveal">
+          <p class="eyebrow">Acerca de nosotros</p>
+          <h2>Una herramienta para quien tiene algo que decir.</h2>
+          <p>Xtreme Studio nació de una idea simple: un locutor debería poder salir al aire con su propio equipo y su propio servidor, sin depender de una plataforma que se quede con su audio, sus datos o su libertad.</p>
+          <p>Es un proyecto independiente, construido con Flutter y FFmpeg. No hay una empresa detrás ni una nube propia: tu audio va directo de tu PC al servidor de tu radio.</p>
+          <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio" target="_blank" rel="noopener">Conocer el proyecto en GitHub <span>↗</span></a>
+        </div>
+        <div class="values-card reveal">
+          <div><strong>Local-first</strong><span>Tus emisoras y claves viven en tu equipo.</span></div>
+          <div><strong>Sin intermediarios</strong><span>El audio no pasa por servidores nuestros.</span></div>
+          <div><strong>Abierto al feedback</strong><span>Las ideas se discuten en GitHub.</span></div>
+          <div><strong>Windows + Linux</strong><span>El mismo motor en las dos plataformas.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="faq">
+      <div class="container narrow">
+        <header class="section-head reveal">
+          <p class="eyebrow">Preguntas frecuentes</p>
+          <h2>Lo que suelen preguntar.</h2>
+        </header>
+        <details class="faq reveal"><summary>¿Necesito una cuenta para usarlo?<span>+</span></summary><p>No. Descargás la app, cargás los datos de tu servidor y listo. No hay registro ni inicio de sesión.</p></details>
+        <details class="faq reveal"><summary>¿Funciona con mi hosting?<span>+</span></summary><p>Si habla Icecast2, Shoutcast v1/v2 o es compatible (AzuraCast, Zeno.fm y similares), debería funcionar. Usá “Probar conexión” y, si el tipo de servidor no coincide, la app te lo indica.</p></details>
+        <details class="faq reveal"><summary>¿Dónde se guardan mis contraseñas?<span>+</span></summary><p>En tu equipo. En Windows se cifran con DPAPI; en Linux se guardan en un archivo privado con permisos 0600. No se envían a ningún servidor nuestro.</p></details>
+        <details class="faq reveal"><summary>¿Cómo actualizo en Windows?<span>+</span></summary><p>La app revisa GitHub Releases al arrancar. Si hay una versión nueva, mostramos un aviso y podés actualizar con un clic. La primera instalación de la versión 0.1.1 se hace manualmente.</p></details>
+        <details class="faq reveal"><summary>¿Y en Linux?<span>+</span></summary><p>La app funciona en Linux y compila desde el código. El actualizador automático de Linux todavía está pendiente; por ahora se actualiza compilando una versión nueva.</p></details>
+        <details class="faq reveal"><summary>¿Puedo usar AAC o AAC+?<span>+</span></summary><p>MP3 y AAC-LC funcionan con el FFmpeg incluido. AAC+ necesita una build de FFmpeg con <code>libfdk_aac</code>; la app te avisa si no está disponible.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div class="footer-brand">
+        <a class="brand" href="#inicio"><img src="assets/icon.png" alt="" width="34" height="34"><span>XTREME <strong>STUDIO</strong></span></a>
+        <p>Radio directa, sin intermediarios.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Producto</h4>
+        <a href="#caracteristicas">Características</a>
+        <a href="#descargar">Descargar</a>
+        <a href="#cambios">Últimos cambios</a>
+        <a href="#tutoriales">Tutoriales</a>
+      </div>
+      <div class="footer-col">
+        <h4>Comunidad</h4>
+        <a href="https://github.com/envidia1972-create/xtreme_studio" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/envidia1972-create/xtreme_studio/issues" target="_blank" rel="noopener">Comentarios y sugerencias</a>
+        <a data-youtube href="https://www.youtube.com/@XtremeStudio" target="_blank" rel="noopener">YouTube</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="https://github.com/envidia1972-create/xtreme_studio/blob/master/THIRD_PARTY.md" target="_blank" rel="noopener">Terceros y marcas</a>
+        <a href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md" target="_blank" rel="noopener">Documentación</a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© <span id="year">2026</span> Xtreme Studio. Proyecto independiente.</span>
+      <span>Hecho con Flutter + FFmpeg. Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus titulares.</span>
+    </div>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

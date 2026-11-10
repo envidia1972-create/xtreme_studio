@@ -1,0 +1,12 @@
+{
+  "name": "Xtreme Studio",
+  "short_name": "Xtreme Studio",
+  "description": "Radio directa, sin intermediarios.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "icons": [
+    { "src": "assets/icon.png", "sizes": "1024x1024", "type": "image/png" }
+  ]
+}

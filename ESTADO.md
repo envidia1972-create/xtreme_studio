@@ -39,6 +39,11 @@ cada seis horas, muestra un aviso, descarga el ZIP de Windows, verifica el
 SHA-256 y lanza un actualizador que reemplaza la carpeta portable y reabre la
 app. El repositorio debe ser publico; la primera instalacion se hace a mano.
 
+Tambien se agrego la **web oficial** en `site/`, publicada con GitHub Pages en
+<https://envidia1972-create.github.io/xtreme_studio/>. Incluye descarga dinamica
+de la ultima release, cambios, tutoriales, YouTube y un formulario que abre un
+issue de GitHub para comentarios y sugerencias.
+
 Tambien se corrigio el **handshake de Shoutcast**: la fuente se conecta al
 puerto base + 1 (el puerto del perfil es el de oyentes), envia la contrasena
 sola, sin usuario ni `#1`, y conserva los dos puntos si la clave los contiene.

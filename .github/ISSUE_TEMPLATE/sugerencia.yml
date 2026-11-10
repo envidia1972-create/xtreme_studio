@@ -1,0 +1,38 @@
+name: Sugerencia o comentario
+description: Proponer una función, mejora o dejar una opinión sobre Xtreme Studio.
+title: "[Sugerencia] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por tomarte el tiempo de escribir. Contanos qué usás, qué te falta y cómo lo resolvés hoy.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Tu idea
+      description: Describí la sugerencia o el comentario con el mayor detalle posible.
+      placeholder: "Me gustaría que..."
+    validations:
+      required: true
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: ¿En qué situación lo usarías? ¿Qué problema resuelve?
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Xtreme Studio
+      placeholder: "0.1.1"
+    validations:
+      required: false
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema operativo
+      placeholder: "Windows 11 / Linux (distribución)"
+    validations:
+      required: false

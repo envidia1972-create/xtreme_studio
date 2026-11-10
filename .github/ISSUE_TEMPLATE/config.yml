@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Descargar Xtreme Studio
+    url: https://envidia1972-create.github.io/xtreme_studio/#descargar
+    about: Última versión, requisitos y checksum.
+  - name: Documentación
+    url: https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md
+    about: Instalación, emisoras, soundboard y solución de problemas.

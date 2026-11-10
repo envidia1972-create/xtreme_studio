@@ -23,6 +23,23 @@ locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro
 
 ---
 
+## Web oficial
+
+La web del proyecto vive en GitHub Pages:
+
+**<https://envidia1972-create.github.io/xtreme_studio/>**
+
+Incluye presentacion, caracteristicas, descarga de la ultima release,
+tutoriales, ultimos cambios, canal de YouTube y un formulario para enviar
+comentarios o sugerencias por GitHub Issues.
+
+El sitio es estatico (HTML, CSS y JavaScript sin dependencias) y esta en
+`site/`. Se publica con `.github/workflows/pages.yml`. Para cambiar el enlace
+del canal de YouTube, editar `SITE.youtube` en `site/app.js` y los `href` con
+`data-youtube` en `site/index.html`.
+
+---
+
 ## Que hace hoy
 
 | Funcion | Estado |
@@ -859,6 +876,8 @@ ningun DJ**.
 
 ```
 .github/workflows/windows.yml  Compilacion del .exe en GitHub Actions
+.github/workflows/pages.yml    Publicacion de la web en GitHub Pages
+site/                     Web oficial (estatica, sin dependencias)
 linux/                    Runner de Flutter para Linux (GTK)
 assets/icon/              Icono maestro de la app (PNG)
 lib/
