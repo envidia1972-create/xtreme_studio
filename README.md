@@ -50,7 +50,9 @@ del canal de YouTube, editar `SITE.youtube` en `site/app.js` y los `href` con
 Xtreme Studio es independiente. Si te sirve y querés ayudar a mantenerlo:
 
 - **PayPal:** <https://www.paypal.com/donate?token=D67ZNWSJg3xh2q0P1VcG0_4evphM2C5gh7N8N42TeQXsy5RWL_ncny3BtXuOH647h_T74WaSUeqb0eXb>
-- **Correo de PayPal:** <envidiq1@hotmail.com>
+
+El boton de PayPal identifica la cuenta de donaciones. No se publica el correo
+de la cuenta en la app ni en este documento.
 
 El boton de PayPal tambien permite pagar con tarjeta de credito o debito en
 muchos paises, sin crear una cuenta. Las donaciones son voluntarias y no
