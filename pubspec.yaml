@@ -2,7 +2,7 @@ name: xtreme_studio
 description: "Xtreme Studio - Consola de emision multi-emisora para radio (Icecast 2, Shoutcast v1/v2)."
 publish_to: 'none'
 
-version: 0.1.0+1
+version: 0.1.1+1
 
 environment:
   sdk: ^3.9.0
