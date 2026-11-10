@@ -74,7 +74,12 @@ class UpdateService {
     );
     final closed = await response.close().timeout(const Duration(seconds: 15));
     final bytes = await _readBody(closed, maxBytes: 2 * 1024 * 1024);
-    if (closed.statusCode == 404) return null;
+    if (closed.statusCode == 404) {
+      throw UpdateException(
+        'No se encontro una release publica de Xtreme Studio. Verifica que el '
+        'repositorio sea publico y que exista al menos una release.',
+      );
+    }
     if (closed.statusCode != 200) {
       final hint = closed.statusCode == 403 || closed.statusCode == 401
           ? ' El repositorio de actualizaciones debe ser publico.'
