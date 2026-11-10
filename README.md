@@ -36,6 +36,7 @@ manual de usuario.
 
 - Manual web: <https://envidia1972-create.github.io/xtreme_studio/manual.html>
 - Manual PDF: <https://envidia1972-create.github.io/xtreme_studio/assets/xtreme-studio-manual.pdf>
+- Regenerar el PDF: `tool/build_manual.sh` (requiere Chrome/Chromium).
 
 El sitio es estatico (HTML, CSS y JavaScript sin dependencias) y esta en
 `site/`. Se publica con `.github/workflows/pages.yml`. Para cambiar el enlace
