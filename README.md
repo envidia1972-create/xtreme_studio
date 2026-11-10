@@ -464,8 +464,8 @@ dentro de esa carpeta, que es la que se entrega a otra emisora.
 El `.exe` no esta firmado. Windows y Chrome suelen bloquear archivos descargados
 de internet o que contienen un `ffmpeg.exe` estatico. No es un fallo del build.
 
-1. **Verifica el ZIP** (tamano 148.892.021 bytes, SHA-256
-   `ab91fc0b128c529070c7a19149bf565691f45378188372cbcc60e56c748632b6`).
+1. **Verifica el ZIP** (tamano 148.892.043 bytes, SHA-256
+   `12c67cc152da7734fef9191115ffa6e5fbdc58a74bf6ac2d24cefcc375511676`).
    Si Chrome lo corto, volve a bajarlo con `gh run download` o elegi
    *Conservar* en las descargas de Chrome.
 2. **Desbloquealo ANTES de extraer**:
@@ -534,7 +534,7 @@ build → Run workflow** GitHub compila en `windows-latest` y deja la carpeta
 `check_toolchain.ps1`, corre `verify_core` en Windows y compila con
 `build_windows.ps1`.
 
-**Ya verificado:** run `42724729446` termino en verde; el `.exe` se genero,
+**Ya verificado:** run `42725681159` termino en verde; el `.exe` se genero,
 `verify_core` paso **210 comprobaciones**, `verify_soundboard` **18** y
 `verify_update` **29**. El icono incrustado se leyo como `32x32`,
 `ffplay.exe` se copio para el cue local y el arranque de la app se comprobo con
