@@ -119,6 +119,20 @@
       if (versionLabel) versionLabel.textContent = release.tag_name || '';
       if (releaseLink) releaseLink.href = release.html_url || releaseLink.href;
 
+      const linux = assets.find((asset) =>
+        /linux/i.test(asset.name) && /(\.tar\.gz|\.tgz)$/i.test(asset.name));
+      const linuxButton = $('#linux-download');
+      const linuxMeta = $('#linux-release-meta');
+      if (linux && linuxButton) {
+        linuxButton.href = linux.browser_download_url;
+        if (linuxMeta) {
+          const linuxSize = formatBytes(linux.size);
+          linuxMeta.textContent = `${release.tag_name}${linuxSize ? ` · ${linuxSize}` : ''} · actualización automática`;
+        }
+      } else if (linuxMeta) {
+        linuxMeta.textContent = 'Todavía no hay un paquete Linux en la última release. Podés compilar desde el código.';
+      }
+
       if (!windows) {
         setStatus('La última release no incluye un paquete para Windows. Abrí la release para ver las opciones.');
         return;

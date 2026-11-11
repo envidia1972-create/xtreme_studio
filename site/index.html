@@ -198,7 +198,7 @@
 
         <div class="download-card reveal">
           <div class="download-main">
-            <div class="release-badge"><span class="status-dot"></span> Última versión <span id="release-version">v0.1.2</span></div>
+            <div class="release-badge"><span class="status-dot"></span> Última versión <span id="release-version">v0.1.3</span></div>
             <h3>Xtreme Studio para Windows</h3>
             <p class="download-meta"><span id="release-platform">Windows 10/11 · 64 bits</span> · <span id="release-size">150,0 MB</span> · ZIP portable</p>
             <a class="btn btn-primary btn-download" id="download-button" href="https://github.com/envidia1972-create/xtreme_studio/releases/download/v0.1.2/XtremeStudio-0.1.2-windows-x64.zip">
@@ -236,10 +236,14 @@
         <div class="linux-card reveal">
           <div>
             <p class="eyebrow">Linux x64</p>
-            <h3>¿Usás Linux?</h3>
-            <p>El código está disponible y compila con <code>tool/build_linux.sh</code>. El paquete Linux dentro de la app está en camino.</p>
+            <h3>Paquete portable con actualizador</h3>
+            <p>Descargá el <code>.tar.gz</code>, extraelo en una carpeta tuya y ejecutá <code>./xtreme_studio</code>. Las próximas versiones se instalan desde la app, sin volver a compilar.</p>
+            <p class="linux-meta" id="linux-release-meta">Comprobando el paquete de Linux…</p>
           </div>
-          <a class="btn btn-ghost" href="https://github.com/envidia1972-create/xtreme_studio#compilar" target="_blank" rel="noopener">Ver instrucciones de compilación</a>
+          <div class="linux-actions">
+            <a class="btn btn-primary" id="linux-download" href="https://github.com/envidia1972-create/xtreme_studio/releases/latest" target="_blank" rel="noopener">Descargar .tar.gz</a>
+            <a class="text-link" href="manual.html#linux">Instrucciones</a>
+          </div>
         </div>
       </div>
     </section>
@@ -255,29 +259,29 @@
         <div class="changes-grid">
           <article class="release-card reveal">
             <div class="release-head">
+              <span class="version">v0.1.3</span>
+              <time datetime="2026-11-11">11 nov 2026</time>
+            </div>
+            <h3>Actualizador automático en Linux</h3>
+            <ul>
+              <li>Paquete portable <code>.tar.gz</code> para Linux x64, sin <code>sudo</code>.</li>
+              <li>La app descarga, verifica el SHA-256 y reemplaza el bundle.</li>
+              <li>Copia de seguridad en <code>.update-backup</code> y registro en <code>~/.xtreme_studio/update.log</code>.</li>
+              <li>No se actualiza mientras estás al aire; las emisoras y claves no se tocan.</li>
+            </ul>
+            <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3" target="_blank" rel="noopener">Ver release <span>↗</span></a>
+          </article>
+          <article class="release-card reveal">
+            <div class="release-head">
               <span class="version">v0.1.2</span>
               <time datetime="2026-11-10">10 nov 2026</time>
             </div>
             <h3>Apoyo al proyecto</h3>
             <ul>
-              <li>Botón <strong>Donar con PayPal</strong> en Ajustes y en la barra lateral.</li>
+              <li>Botón <strong>Donar con PayPal</strong> en Ajustes y barra lateral.</li>
               <li>Invitación clara, sin ventanas emergentes ni interrupciones al aire.</li>
               <li>Enlace permanente de donaciones, sin exponer el correo de la cuenta.</li>
               <li>El audio, las emisoras y el soundboard no cambian.</li>
-            </ul>
-            <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.2" target="_blank" rel="noopener">Ver release <span>↗</span></a>
-          </article>
-          <article class="release-card reveal">
-            <div class="release-head">
-              <span class="version">v0.1.1</span>
-              <time datetime="2026-11-09">9 nov 2026</time>
-            </div>
-            <h3>Actualizador y sonido en vivo</h3>
-            <ul>
-              <li>Actualizaciones desde la propia app en Windows, con verificación SHA-256.</li>
-              <li>Soundboard de 8 pads con mezcla en vivo y cue local.</li>
-              <li>Conexión Shoutcast corregida: puerto base + 1 y contraseña sin usuario.</li>
-              <li>El monitor de señal ya no inventa una URL de escucha en Shoutcast.</li>
             </ul>
             <a class="text-link" href="https://github.com/envidia1972-create/xtreme_studio/releases" target="_blank" rel="noopener">Todas las releases <span>↗</span></a>
           </article>

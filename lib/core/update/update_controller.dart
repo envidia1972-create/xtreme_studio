@@ -135,7 +135,7 @@ class UpdateController extends ChangeNotifier {
     if (!UpdateInstaller.supportsCurrentPlatform) {
       await openPage();
       onMessage?.call(
-        'La actualizacion automatica estara disponible primero en Windows. '
+        'La actualizacion automatica no esta disponible para esta plataforma. '
         'Se abrio la pagina de descarga.',
       );
       return;
@@ -172,12 +172,26 @@ class UpdateController extends ChangeNotifier {
       _progress = 1;
       notifyListeners();
       await beforeRestart();
-      await UpdateInstaller.launchWindowsUpdater(
-        archive: archive,
-        info: latest,
-        processId: pid,
-      );
-      // El actualizador espera este PID. Cerrar ahora libera el .exe y los DLL.
+      if (Platform.isWindows) {
+        await UpdateInstaller.launchWindowsUpdater(
+          archive: archive,
+          info: latest,
+          processId: pid,
+        );
+      } else if (Platform.isLinux) {
+        await UpdateInstaller.launchLinuxUpdater(
+          archive: archive,
+          info: latest,
+          processId: pid,
+        );
+      } else {
+        throw UpdateException(
+          'La actualizacion automatica no esta disponible para esta '
+          'plataforma.',
+        );
+      }
+      // El actualizador espera este PID. Cerrar ahora libera el ejecutable y
+      // las bibliotecas del bundle.
       exit(0);
     } catch (e) {
       final message = e is UpdateException ? e.message : e.toString();

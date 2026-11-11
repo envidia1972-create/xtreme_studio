@@ -1,7 +1,8 @@
 /// Instalacion de una actualizacion ya descargada.
 ///
-/// En Windows no se puede sobrescribir el `.exe` mientras la app esta abierta.
-/// Por eso se lanza un pequeno script de PowerShell que espera a que el proceso
+/// En Windows no se puede sobrescribir el `.exe` mientras la app esta abierta;
+/// en Linux pasa lo mismo con el ejecutable y las bibliotecas del bundle. En
+/// ambas plataformas se lanza un pequeno script que espera a que el proceso
 /// termine, reemplaza la carpeta portable, restaura la copia anterior si algo
 /// falla y arranca la app de nuevo.
 library;
@@ -13,7 +14,8 @@ import 'update_models.dart';
 class UpdateInstaller {
   const UpdateInstaller._();
 
-  static bool get supportsCurrentPlatform => Platform.isWindows;
+  static bool get supportsCurrentPlatform =>
+      Platform.isWindows || Platform.isLinux;
 
   static Directory get installDirectory =>
       File(Platform.resolvedExecutable).parent;
@@ -31,10 +33,14 @@ class UpdateInstaller {
       await probe.writeAsString('ok', flush: true);
       await probe.delete();
     } on FileSystemException catch (e) {
+      final hint = Platform.isWindows
+          ? 'Instala Xtreme Studio en una carpeta tuya (por ejemplo '
+                'C:\\XtremeStudio) o ejecuta como administrador.'
+          : 'Instala Xtreme Studio en una carpeta tuya, por ejemplo '
+                '~/.local/opt/xtreme-studio. No se actualiza una instalacion '
+                'del sistema ni una carpeta de solo lectura.';
       throw UpdateException(
-        'No se puede escribir en ${directory.path}. Instala Xtreme Studio en '
-        'una carpeta tuya (por ejemplo C:\\XtremeStudio) o ejecuta como '
-        'administrador. (${e.message})',
+        'No se puede escribir en ${directory.path}. $hint (${e.message})',
       );
     }
   }
@@ -78,6 +84,138 @@ class UpdateInstaller {
       archive.path,
       dest.path,
     ], mode: ProcessStartMode.detached);
+  }
+
+  /// Lanza el actualizador de Linux y devuelve cuando el proceso fue creado.
+  ///
+  /// El script espera a que cierre la app, extrae el `.tar.gz`, reemplaza la
+  /// carpeta portable y vuelve a abrir el ejecutable. La copia anterior queda
+  /// en `<carpeta>.update-backup` por si hace falta recuperarla.
+  static Future<void> launchLinuxUpdater({
+    required File archive,
+    required UpdateInfo info,
+    required int processId,
+    Directory? destination,
+  }) async {
+    if (!Platform.isLinux) {
+      throw UpdateException(
+        'La actualizacion automatica no esta disponible para esta plataforma.',
+      );
+    }
+    if (!archive.existsSync()) {
+      throw UpdateException('No se encontro el archivo descargado.');
+    }
+    final dest = destination ?? installDirectory;
+    await ensureWritable(dest);
+
+    final script = File(
+      '${Directory.systemTemp.path}${Platform.pathSeparator}'
+      'xtreme-update-${DateTime.now().microsecondsSinceEpoch}.sh',
+    );
+    await script.writeAsString(buildLinuxUpdaterScript(), flush: true);
+    await Process.run('chmod', ['700', script.path]);
+    await Process.start('/bin/sh', [
+      script.path,
+      '$processId',
+      archive.path,
+      dest.path,
+    ], mode: ProcessStartMode.detached);
+  }
+
+  /// Script que se ejecuta fuera de la app en Linux. Se expone para poder
+  /// verificarlo sin reemplazar archivos reales.
+  static String buildLinuxUpdaterScript() {
+    return r'''
+#!/bin/sh
+# Actualizador portable de Xtreme Studio para Linux.
+# Uso: xtreme-update.sh <pid> <tar.gz> <carpeta-bundle>
+set -u
+pid="$1"
+archive="$2"
+dest="$3"
+backup=""
+
+log="$HOME/.xtreme_studio/update.log"
+mkdir -p "$HOME/.xtreme_studio" 2>/dev/null || log="${TMPDIR:-/tmp}/xtreme-update.log"
+
+say() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >>"$log" 2>/dev/null
+}
+
+restore() {
+  if [ -d "$backup" ]; then
+    rm -rf "$dest"
+    mv "$backup" "$dest"
+  fi
+  if [ -x "$dest/xtreme_studio" ]; then
+    (cd "$dest" && nohup ./xtreme_studio >>"$log" 2>&1 &)
+  fi
+}
+
+fail() {
+  say "ERROR: $*"
+  restore
+  exit 1
+}
+
+if [ ! -f "$archive" ]; then
+  fail "No existe el archivo $archive"
+fi
+if [ ! -d "$dest" ] || [ ! -x "$dest/xtreme_studio" ]; then
+  fail "No se encontro la app en $dest"
+fi
+command -v tar >/dev/null 2>&1 || fail "No esta instalado tar"
+
+say "Esperando a que cierre la app PID $pid"
+i=0
+while kill -0 "$pid" 2>/dev/null; do
+  i=$((i + 1))
+  if [ "$i" -ge 120 ]; then
+    fail "La app no cerro en 120 segundos"
+  fi
+  sleep 1
+done
+
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/xtreme-update-XXXXXX")" || fail "No se pudo crear el directorio temporal"
+trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+say "Extrayendo $archive"
+tar -xzf "$archive" -C "$tmp" || fail "No se pudo extraer el paquete"
+
+src=""
+if [ -x "$tmp/xtreme_studio" ]; then
+  src="$tmp"
+else
+  found="$(find "$tmp" -maxdepth 2 -type f -name xtreme_studio -print -quit 2>/dev/null)"
+  if [ -n "$found" ]; then
+    src="$(dirname "$found")"
+  fi
+fi
+if [ -z "$src" ] || [ ! -x "$src/xtreme_studio" ] || [ ! -d "$src/data" ]; then
+  fail "El paquete no contiene un bundle valido de Xtreme Studio"
+fi
+
+backup="${dest}.update-backup"
+if [ -e "$backup" ]; then
+  rm -rf "$backup"
+fi
+say "Moviendo la version actual a $backup"
+mv "$dest" "$backup" || fail "No se pudo preparar la copia de seguridad"
+mkdir -p "$dest" || { restore; fail "No se pudo crear $dest"; }
+
+say "Copiando la version nueva"
+if ! cp -a "$src/." "$dest/"; then
+  restore
+  fail "No se pudo copiar la version nueva"
+fi
+chmod +x "$dest/xtreme_studio" 2>/dev/null || true
+
+say "Actualizacion copiada; iniciando la app"
+(cd "$dest" && nohup ./xtreme_studio >>"$log" 2>&1 &)
+sleep 2
+rm -rf "$tmp" "$archive"
+say "Actualizacion completada. Copia anterior: $backup"
+exit 0
+''';
   }
 
   /// Script que se ejecuta fuera de la app. Se expone para poder verificarlo

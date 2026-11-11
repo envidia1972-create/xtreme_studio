@@ -84,7 +84,7 @@
       <p>Radio directa, sin intermediarios. Guía completa para instalar, configurar y emitir con Icecast2 o Shoutcast.</p>
     </div>
     <div class="meta">
-      <span>Versión 0.1.2</span>
+      <span>Versión 0.1.3</span>
       <span>Windows 10/11 · Linux</span>
       <span>2026</span>
     </div>
@@ -111,7 +111,7 @@
 
     <h2 id="intro">1. Qué es Xtreme Studio</h2>
     <p>Xtreme Studio es una consola de escritorio para emitir radio por internet. El audio sale de tu computadora directamente al servidor de tu emisora: no pasa por un servidor intermedio de Xtreme Studio.</p>
-    <p>Permite administrar varias emisoras, elegir micrófono, medir el nivel, ajustar ganancia, reproducir jingles desde un soundboard, grabar la emisión y actualizar la app en Windows.</p>
+    <p>Permite administrar varias emisoras, elegir micrófono, medir el nivel, ajustar ganancia, reproducir jingles desde un soundboard, grabar la emisión y actualizar la app en Windows y Linux.</p>
     <h3>Requisitos</h3>
     <ul>
       <li><strong>Windows 10/11 de 64 bits</strong> o una distribución Linux de 64 bits con GTK 3.</li>
@@ -123,21 +123,28 @@
 
     <h2 id="instalar">2. Instalar en Windows</h2>
     <ol class="steps">
-      <li>Descargá <code>XtremeStudio-0.1.2-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.2">página de releases</a>.</li>
-      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.2-windows-x64.zip</code>.</li>
+      <li>Descargá <code>XtremeStudio-0.1.3-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3">página de releases</a>.</li>
+      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.3-windows-x64.zip</code>.</li>
       <li>Extraélo en una carpeta tuya, por ejemplo <code>C:\XtremeStudio</code>. No lo ejecutes desde el ZIP, Descargas, OneDrive ni una carpeta de red.</li>
       <li>Ejecutá <code>xtreme_studio.exe</code>.</li>
     </ol>
     <p>El ejecutable no está firmado. Si Defender o SmartScreen lo bloquea, revisá la <a href="https://github.com/envidia1972-create/xtreme_studio/blob/master/README.md">sección de solución de problemas</a>. Verificá el SHA-256 que figura en la página de descarga antes de ejecutar.</p>
     <div class="ok"><strong>Datos personales:</strong> el instalador no requiere registro y no recopila tus emisoras ni tus contraseñas.</div>
 
-    <h2 id="linux">3. Compilar en Linux</h2>
-    <p>El paquete Linux todavía se distribuye como código fuente. Necesitás Flutter, CMake, Ninja, Clang, GTK 3 y FFmpeg.</p>
+    <h2 id="linux">3. Instalar en Linux</h2>
+    <p>Descargá el paquete portable <code>XtremeStudio-0.1.3-linux-x64.tar.gz</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3">página de releases</a>.</p>
+    <pre><code>mkdir -p ~/.local/opt
+tar -xzf XtremeStudio-0.1.3-linux-x64.tar.gz -C ~/.local/opt
+cd ~/.local/opt/bundle
+./xtreme_studio</code></pre>
+    <p>No hace falta <code>sudo</code>. La app se actualiza desde la propia interfaz cuando hay una versión nueva: descarga el <code>.tar.gz</code>, verifica el SHA-256, reemplaza el bundle y se vuelve a abrir. Los datos de usuario quedan en <code>~/.xtreme_studio</code>.</p>
+    <div class="note"><strong>Importante:</strong> la actualización automática funciona en instalaciones portables dentro de una carpeta escribible. No se aplica a paquetes del sistema (<code>/usr</code>, <code>/opt</code> sin permisos) ni a una app ejecutada con <code>flutter run</code>.</div>
+    <h3>Compilar desde el código (desarrollo)</h3>
+    <p>Si preferís compilar, necesitás Flutter, CMake, Ninja, Clang, GTK 3 y FFmpeg.</p>
     <pre><code>git clone https://github.com/envidia1972-create/xtreme_studio.git
 cd xtreme_studio
 tool/build_linux.sh
 ./build/linux/x64/release/bundle/xtreme_studio</code></pre>
-    <p>Si usás el SDK local del proyecto, ejecutá antes <code>source .tooling/env.sh</code>. El script copia FFmpeg y la documentación al lado del ejecutable. Los datos de usuario quedan en <code>~/.xtreme_studio</code>.</p>
 
     <h2 id="primer">4. Primer arranque</h2>
     <ul>
@@ -206,15 +213,15 @@ tool/build_linux.sh
     <div class="note"><strong>Licencia:</strong> la build nonfree no se puede redistribuir junto con Xtreme Studio sin cumplir las licencias de sus componentes. La app solo la usa si el usuario la instala por separado.</div>
 
     <h2 id="actualizar">10. Actualizaciones</h2>
-    <p>En Windows, la app comprueba GitHub Releases al arrancar y cada seis horas. Si hay una versión nueva, muestra un aviso. Al pulsar <strong>Actualizar</strong>:</p>
+    <p>En Windows y Linux, la app comprueba GitHub Releases al arrancar y cada seis horas. Si hay una versión nueva, muestra un aviso. Al pulsar <strong>Actualizar</strong>:</p>
     <ol>
-      <li>descarga el ZIP de la última release;</li>
+      <li>descarga el ZIP de Windows o el <code>.tar.gz</code> de Linux;</li>
       <li>verifica el SHA-256;</li>
       <li>se niega a continuar si estás al aire;</li>
       <li>cierra captura, codificador y soundboard;</li>
       <li>reemplaza la carpeta con una copia de seguridad y vuelve a abrir la app.</li>
     </ol>
-    <p>La primera instalación de una versión con actualizador se hace manualmente. En Linux, por ahora, la actualización se hace compilando una versión nueva.</p>
+    <p>En Linux, la copia anterior queda en <code>&lt;carpeta&gt;.update-backup</code> y el proceso se registra en <code>~/.xtreme_studio/update.log</code>. La primera instalación del paquete portable se hace manualmente; después las siguientes versiones se instalan desde la app.</p>
 
     <h2 id="problemas">11. Solución de problemas</h2>
     <h3>No encuentra FFmpeg</h3>
@@ -238,7 +245,7 @@ tool/build_linux.sh
     <p>Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus respectivos titulares. Xtreme Studio no está afiliado a ellos.</p>
 
     <div class="footer-manual">
-      <span>Xtreme Studio · Manual de usuario · Versión 0.1.2</span>
+      <span>Xtreme Studio · Manual de usuario · Versión 0.1.3</span>
       <span>Hecho con Flutter y FFmpeg.</span>
     </div>
   </main>

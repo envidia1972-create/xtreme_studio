@@ -102,7 +102,7 @@ compran funciones ni soporte prioritario.
 | Teclas **1-8 / F1-F8**, ducking, loop, volumen master y por pad | Listo |
 | **Monitoreo completo de la mezcla** por auriculares | Pendiente (fase siguiente) |
 | **Actualizacion desde GitHub Releases** con aviso y un clic | Windows; verificacion SHA-256 |
-| Actualizacion automatica en Linux | Pendiente (abre la descarga) |
+| Actualizacion automatica en Linux | Lista (paquete portable) |
 | Notificaciones push y panel web | Pendiente (fases siguientes) |
 
 ## Asi se ve en Linux
@@ -479,8 +479,9 @@ v0.1.1 automaticamente.
 
 ### Limitaciones
 
-- Solo Windows instala automaticamente. En Linux el boton abre la pagina de
-  descarga; el actualizador de Linux queda para una fase siguiente.
+- Windows y Linux instalan automaticamente desde la version 0.1.3. En Linux
+  funciona con el paquete portable `.tar.gz` en una carpeta escribible; no
+  reemplaza paquetes del sistema ni una app ejecutada con `flutter run`.
 - El `.exe` no esta firmado. Windows Defender o SmartScreen pueden bloquear el
   actualizador; si pasa, agrega la carpeta de instalacion a las exclusiones.
 - La app debe estar en una carpeta escribible (por ejemplo `C:\XtremeStudio`),
@@ -492,7 +493,32 @@ v0.1.1 automaticamente.
 
 ## Compilar
 
-### Linux (verificado en este repositorio)
+### Linux (paquete portable)
+
+El paquete distribuible esta en la release:
+
+```text
+XtremeStudio-0.1.3-linux-x64.tar.gz
+```
+
+Instalacion sin `sudo`:
+
+```bash
+mkdir -p ~/.local/opt
+tar -xzf XtremeStudio-0.1.3-linux-x64.tar.gz -C ~/.local/opt
+cd ~/.local/opt/bundle
+./xtreme_studio
+```
+
+A partir de la 0.1.3, la app se actualiza sola: descarga el `.tar.gz`, verifica
+el SHA-256, reemplaza el bundle y se vuelve a abrir. La copia anterior queda en
+`<carpeta>.update-backup` y el registro en `~/.xtreme_studio/update.log`. Los
+datos de usuario no se tocan.
+
+No se actualiza si la app esta en una ruta de sistema o si se ejecuta desde
+`flutter run`; en ese caso hay que actualizar el paquete a mano.
+
+### Compilar Linux (desarrollo, verificado en este repositorio)
 
 Requisitos:
 

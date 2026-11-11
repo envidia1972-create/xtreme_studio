@@ -383,3 +383,9 @@ code { font-family: var(--mono); font-size: .92em; color: #d8deea; background: r
   .center-cta .dot-sep { display: none; }
 }
 .donate-private { color: var(--muted-2); font-size: 10.5px; max-width: 270px; line-height: 1.45; }
+.linux-meta { color: var(--muted-2); font-size: 11px; margin-top: 7px; }
+.linux-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; flex: none; }
+@media (max-width: 560px) {
+  .linux-actions { width: 100%; }
+  .linux-actions .btn { width: 100%; }
+}

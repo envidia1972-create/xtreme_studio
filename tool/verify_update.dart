@@ -249,8 +249,18 @@ Future<void> main() async {
   check(script.contains('Expand-Archive'), 'extrae el ZIP');
   check(script.contains('xtreme_studio.exe'), 'vuelve a abrir el ejecutable');
   check(script.contains('update-backup'), 'guarda copia de seguridad');
+
+  section('Actualizador Linux');
+  final linuxScript = UpdateInstaller.buildLinuxUpdaterScript();
+  check(linuxScript.contains('kill -0'), 'espera a que cierre la app');
+  check(linuxScript.contains('tar -xzf'), 'extrae el tar.gz');
+  check(linuxScript.contains('xtreme_studio'), 'vuelve a abrir el ejecutable');
+  check(linuxScript.contains('update-backup'), 'guarda copia de seguridad');
+  check(linuxScript.contains('nohup'), 'relanza fuera del proceso actual');
+
   check(
-    UpdateInstaller.supportsCurrentPlatform == Platform.isWindows,
+    UpdateInstaller.supportsCurrentPlatform ==
+        (Platform.isWindows || Platform.isLinux),
     'soporte coherente con la plataforma',
   );
 
