@@ -418,8 +418,8 @@ https://api.github.com/repos/envidia1972-create/xtreme_studio/releases/latest
 ```
 
 El repositorio **debe ser publico** para que un cliente sin credenciales pueda
-leer las releases. Ya esta publico y la **v0.1.1** es la primera release con el
-actualizador.
+leer las releases. Ya esta publico. La **v0.1.1** fue la primera release con el
+actualizador; la **v0.1.2** agrega el boton de donaciones.
 
 Si alguna vez se vuelve a poner privado, la comprobacion automatica deja de
 funcionar hasta publicarlo de nuevo o hasta apuntar `UPDATE_URL` a un
@@ -448,9 +448,18 @@ flutter build windows --release \
    - `XtremeStudio-0.1.2-windows-x64.zip`
    - `checksums.txt`
    y publica la GitHub Release.
-5. Las apps 0.1.0 o 0.1.1 ven el aviso y ofrecen actualizar.
+5. Cualquier app con actualizador (0.1.0 en adelante) ve el aviso y ofrece
+   actualizar.
 
 El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
+
+### Ultima release: v0.1.2
+
+- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.2>
+- ZIP: `XtremeStudio-0.1.2-windows-x64.zip`
+- Tamano: **149.983.394 bytes**
+- SHA-256: `de203a7ddc376ed6cbe2d4224429f577dbbecbf9bcf3ef58a61c2d04007ee883`
+- Incluye el boton **Donar con PayPal** en Ajustes y en la barra lateral.
 
 ### Primera instalacion: v0.1.1
 

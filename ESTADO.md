@@ -4,7 +4,7 @@ Documento de relevo. Existe porque el trabajo se detuvo en un punto concreto y
 quien lo retome (o el propio autor dentro de un mes) necesita saber **exactamente
 dónde está el corte** sin reconstruirlo desde cero.
 
-Fecha del corte: **ronda 21 (actualizaciones desde GitHub Releases)**.
+Fecha del corte: **ronda 22 (donaciones y manual)**.
 Última verificación: **455 comprobaciones** en los once comandos de Linux
 (`verify_core` 209, `verify_engine` 51, `verify_linux_audio` 40,
 `verify_soundboard` 25, etc.) y **23 pruebas de widgets** con `flutter test`,
@@ -37,7 +37,8 @@ la mezcla queda para la fase siguiente.
 La ronda 22 agrega la **invitacion y el boton de donaciones** en Ajustes y en
 la barra lateral. Usa el enlace permanente de PayPal (`hosted_button_id`) y
 abre el navegador del sistema; no interrumpe la emision ni muestra el correo de
-la cuenta.
+la cuenta. Se publico la release **v0.1.2** (ZIP de Windows) y la web muestra
+la donacion, el manual PDF y las instrucciones de AAC+.
 
 La ronda 21 agrega el **actualizador**: comprueba GitHub Releases al arrancar y
 cada seis horas, muestra un aviso, descarga el ZIP de Windows, verifica el
