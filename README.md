@@ -1,66 +1,84 @@
 # Xtreme Studio
 
-Consola de emision **multi-emisora** para radio, con identidad propia: cada DJ carga las credenciales de **su** servidor (el tuyo o el de
-cualquier otra emisora, en cualquier hosting). El audio sale directo de la PC del
-locutor al servidor de streaming: no pasa por ningun servidor intermedio nuestro.
+### Radio directa, sin intermediarios.
 
-> **Estado:** nucleo completo y **ejecutado y probado en Linux** (**455
-> comprobaciones automaticas en este equipo** en once suites, mas **23 pruebas
-> de widgets** con `flutter test`, incluida una emision real con FFmpeg +
-> PulseAudio, otra en AAC-LC y una captura ALSA. Una sola captura alimenta el
-> vumetro y el codificador: mover la ganancia se aplica en vivo, sin reiniciar
-> el microfono ni cortar la emision. La interfaz Flutter corre con runner Linux
-> y verifica vumetros, metadatos por la API de Icecast, grabacion, reconexion y
-> apagado. La ventana se adapta al area util del monitor y el flujo completo se
-> probo contra un servidor local simulado. Los caminos de Windows (dshow) estan
-> cubiertos por las pruebas de argumentos y deteccion; el `.exe` ya se
-> **compilo y arranco** en GitHub Actions (`windows-latest`, Flutter 3.47.8 +
-> MSVC). Falta probar el audio real con un microfono Windows. ALSA se probo con
-> captura real sobre el PCM `null`.
->
-> **Si retomas este proyecto, lee `ESTADO.md`**: ahi esta el punto exacto donde
-> se detuvo el trabajo y que queda pendiente.
+[English](README.en.md) · [Web](https://envidia1972-create.github.io/xtreme_studio/) · [Manual](https://envidia1972-create.github.io/xtreme_studio/manual.html)
 
----
+[![Última release](https://img.shields.io/github/v/release/envidia1972-create/xtreme_studio?label=release&color=e53935)](https://github.com/envidia1972-create/xtreme_studio/releases/latest)
+[![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows)](#descargar)
+[![Linux](https://img.shields.io/badge/Linux-x64-FCC624?logo=linux&logoColor=111)](#descargar)
+[![Web](https://img.shields.io/badge/web-xtreme%20studio-e53935)](https://envidia1972-create.github.io/xtreme_studio/)
 
-## Web oficial
+**Consola de emisión multi-emisora para radio.** Cargá las credenciales de tu
+servidor, elegí el micrófono y salí al aire. El audio va directo de tu PC al
+servidor de streaming: **sin nube, sin cuentas y sin intermediarios**.
 
-La web del proyecto vive en GitHub Pages:
+![Xtreme Studio al aire en Linux](docs/screenshots/linux-al-aire.png)
 
-**<https://envidia1972-create.github.io/xtreme_studio/>**
+## Descargar
 
-Incluye presentacion, caracteristicas, descarga de la ultima release,
-tutoriales, ultimos cambios, canal de YouTube, un formulario para enviar
-comentarios o sugerencias por GitHub Issues, una seccion de donaciones y un
-manual de usuario.
+| Plataforma | Paquete | Actualización |
+|---|---|---|
+| **Windows 10/11 x64** | [ZIP portable](https://github.com/envidia1972-create/xtreme_studio/releases/latest) | Automática desde la app |
+| **Linux x64** | [`.tar.gz` portable](https://github.com/envidia1972-create/xtreme_studio/releases/latest) | Automática desde la app |
 
-- Manual web: <https://envidia1972-create.github.io/xtreme_studio/manual.html>
-- Manual PDF: <https://envidia1972-create.github.io/xtreme_studio/assets/xtreme-studio-manual.pdf>
-- Regenerar el PDF: `tool/build_manual.sh` (requiere Chrome/Chromium).
+También podés descargar desde la web, que siempre muestra la última versión y
+el checksum:
 
-El sitio es estatico (HTML, CSS y JavaScript sin dependencias) y esta en
-`site/`. Se publica con `.github/workflows/pages.yml`. Para cambiar el enlace
-del canal de YouTube, editar `SITE.youtube` en `site/app.js` y los `href` con
-`data-youtube` en `site/index.html`.
+**<https://envidia1972-create.github.io/xtreme_studio/#descargar>**
 
----
+## Por qué Xtreme Studio
 
-## Apoyar el proyecto
+- **Multi-emisora:** una app, todas tus radios, sin duplicar instalaciones.
+- **Icecast2 y Shoutcast v1/v2**, incluidos AzuraCast y Zeno.fm.
+- **Soundboard de 8 pads**, vúmetro, ganancia en vivo, grabación y metadatos.
+- **Windows y Linux** con el mismo motor.
+- **Actualizaciones automáticas** en ambas plataformas.
+- **Tus credenciales quedan en tu equipo** (DPAPI en Windows, permisos `0600` en Linux).
+- **Sin registro, sin anuncios y sin panel en la nube.**
 
-Xtreme Studio es independiente. Si te sirve y querés ayudar a mantenerlo:
+Es para radios comunitarias, locutores independientes, podcasts en vivo y
+cualquier emisora que ya tenga un servidor Icecast o Shoutcast.
 
-- **PayPal:** <https://www.paypal.com/donate/?hosted_button_id=URNUVG7CSFFFQ>
+## Si te sirve, dejá una estrella
 
-El boton de PayPal identifica la cuenta de donaciones. No se publica el correo
-de la cuenta en la app ni en este documento.
+Las estrellas no son un trofeo: hacen que GitHub muestre el proyecto a otras
+radios que están buscando una herramienta así. Si Xtreme Studio te ahorra
+tiempo, ayudás mucho con una estrella o compartiéndolo.
 
-La app incluye la misma invitacion en **Ajustes → Apoya el proyecto** y un
-acceso **Apoyar el proyecto** al pie de la barra lateral. El boton abre el
-navegador; no se cobra nada dentro de la app.
+[⭐ **Dejar una estrella**](https://github.com/envidia1972-create/xtreme_studio/stargazers) ·
+[Compartir en X](https://twitter.com/intent/tweet?text=Xtreme%20Studio%2C%20consola%20de%20radio%20para%20Windows%20y%20Linux&url=https%3A%2F%2Fgithub.com%2Fenvidia1972-create%2Fxtreme_studio) ·
+[Compartir en WhatsApp](https://wa.me/?text=Xtreme%20Studio%2C%20consola%20de%20radio%20para%20Windows%20y%20Linux%3A%20https%3A%2F%2Fgithub.com%2Fenvidia1972-create%2Fxtreme_studio)
 
-El boton de PayPal tambien permite pagar con tarjeta de credito o debito en
-muchos paises, sin crear una cuenta. Las donaciones son voluntarias y no
-compran funciones ni soporte prioritario.
+## Web, manual y comunidad
+
+- **Web oficial:** <https://envidia1972-create.github.io/xtreme_studio/>
+- **Manual web:** <https://envidia1972-create.github.io/xtreme_studio/manual.html>
+- **Manual PDF:** <https://envidia1972-create.github.io/xtreme_studio/assets/xtreme-studio-manual.pdf>
+- **Comentarios y sugerencias:** <https://github.com/envidia1972-create/xtreme_studio/issues>
+- **Discusiones:** <https://github.com/envidia1972-create/xtreme_studio/discussions>
+- **Apoyar el proyecto:** <https://www.paypal.com/donate/?hosted_button_id=URNUVG7CSFFFQ>
+
+<details>
+<summary><strong>Estado técnico y pruebas</strong></summary>
+
+Núcleo completo y **ejecutado y probado en Linux** (455 comprobaciones
+automáticas en once suites, más pruebas de widgets con `flutter test`, incluida
+una emisión real con FFmpeg + PulseAudio, otra en AAC-LC y una captura ALSA).
+Una sola captura alimenta el vúmetro y el codificador: mover la ganancia se
+aplica en vivo, sin reiniciar el micrófono ni cortar la emisión.
+
+La interfaz Flutter corre con runner Linux y verifica vúmetros, metadatos por la
+API de Icecast, grabación, reconexión y apagado. Los caminos de Windows (dshow)
+están cubiertos por pruebas de argumentos y detección; el `.exe` se compiló y
+arrancó en GitHub Actions (`windows-latest`, Flutter 3.47.8 + MSVC). Falta
+probar audio real con un micrófono Windows. ALSA se probó con captura real sobre
+el PCM `null`.
+
+Si retomás el proyecto, leé [`ESTADO.md`](ESTADO.md): ahí está el punto exacto
+donde se detuvo el trabajo y qué queda pendiente.
+
+</details>
 
 ---
 
@@ -101,7 +119,7 @@ compran funciones ni soporte prioritario.
 | **Soundboard de 8 pads** con mezcla en vivo y cue local | Listo (fase 1) |
 | Teclas **1-8 / F1-F8**, ducking, loop, volumen master y por pad | Listo |
 | **Monitoreo completo de la mezcla** por auriculares | Pendiente (fase siguiente) |
-| **Actualizacion desde GitHub Releases** con aviso y un clic | Windows; verificacion SHA-256 |
+| **Actualizacion desde GitHub Releases** con aviso y un clic | Windows y Linux; verificacion SHA-256 |
 | Actualizacion automatica en Linux | Lista (paquete portable) |
 | Notificaciones push y panel web | Pendiente (fases siguientes) |
 

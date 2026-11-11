@@ -389,3 +389,14 @@ code { font-family: var(--mono); font-size: .92em; color: #d8deea; background: r
   .linux-actions { width: 100%; }
   .linux-actions .btn { width: 100%; }
 }
+.star-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 22px;
+  margin-top: 18px; padding: 18px 24px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--bg-soft);
+}
+.star-cta span { color: var(--muted); font-size: 12px; }
+.star-cta strong { color: var(--text); }
+.star-cta .text-link { flex: none; }
+@media (max-width: 620px) {
+  .star-cta { flex-direction: column; align-items: flex-start; gap: 10px; }
+}
