@@ -37,8 +37,10 @@ la mezcla queda para la fase siguiente.
 La ronda 22 agrega la **invitacion y el boton de donaciones** en Ajustes y en
 la barra lateral. Usa el enlace permanente de PayPal (`hosted_button_id`) y
 abre el navegador del sistema; no interrumpe la emision ni muestra el correo de
-la cuenta. Se publico la release **v0.1.2** (ZIP de Windows) y la web muestra
-la donacion, el manual PDF y las instrucciones de AAC+.
+la cuenta. Se publico la release **v0.1.3** con paquete Windows y Linux; Linux
+ya se actualiza desde la app reemplazando el bundle portable y conservando
+`~/.xtreme_studio`. La web muestra la donacion, ambos paquetes, el manual PDF y
+las instrucciones de AAC+.
 
 La ronda 21 agrega el **actualizador**: comprueba GitHub Releases al arrancar y
 cada seis horas, muestra un aviso, descarga el ZIP de Windows, verifica el

@@ -436,16 +436,17 @@ flutter build windows --release \
 
 1. Subir la version en `pubspec.yaml`:
    ```yaml
-   version: 0.1.2+2
+   version: 0.1.4+1
    ```
 2. Commit y push.
 3. Crear y subir la etiqueta:
    ```bash
-   git tag v0.1.2
-   git push origin v0.1.2
+   git tag v0.1.4
+   git push origin v0.1.4
    ```
 4. `.github/workflows/windows.yml` compila, crea:
-   - `XtremeStudio-0.1.2-windows-x64.zip`
+   - `XtremeStudio-0.1.4-windows-x64.zip`
+   - `XtremeStudio-0.1.4-linux-x64.tar.gz`
    - `checksums.txt`
    y publica la GitHub Release.
 5. Cualquier app con actualizador (0.1.0 en adelante) ve el aviso y ofrece
@@ -453,13 +454,14 @@ flutter build windows --release \
 
 El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
 
-### Ultima release: v0.1.2
+### Ultima release: v0.1.3
 
-- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.2>
-- ZIP: `XtremeStudio-0.1.2-windows-x64.zip`
-- Tamano: **149.983.394 bytes**
-- SHA-256: `de203a7ddc376ed6cbe2d4224429f577dbbecbf9bcf3ef58a61c2d04007ee883`
-- Incluye el boton **Donar con PayPal** en Ajustes y en la barra lateral.
+- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3>
+- Windows: `XtremeStudio-0.1.3-windows-x64.zip` (146.006.119 bytes,
+  SHA-256 `976435868f956c587bca97c343a321a1b934d21b7b67c2b2fc4be704ef10c5f8`)
+- Linux: `XtremeStudio-0.1.3-linux-x64.tar.gz` (80.248.923 bytes,
+  SHA-256 `85b70d156778fb15df623fd1dc3d310c4477fd0f0190909a8237ae7be611a89c`)
+- Incluye el actualizador automatico de Linux y el boton **Donar con PayPal**.
 
 ### Primera instalacion: v0.1.1
 
