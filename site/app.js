@@ -3,9 +3,6 @@
   const SITE = {
     repo: 'envidia1972-create/xtreme_studio',
     youtube: 'https://www.youtube.com/@XtremeStudio',
-    // Enlace PERMANENTE de PayPal (hosted_button_id o PayPal.me).
-    // No usar enlaces con `token=`: expiran en pocas horas.
-    paypal: '',
   };
 
   const $ = (selector, root = document) => root.querySelector(selector);
@@ -29,15 +26,6 @@
   $$('[data-youtube]').forEach((link) => {
     if (SITE.youtube) link.href = SITE.youtube;
   });
-
-  // PayPal: solo se muestra si hay un enlace permanente configurado.
-  const paypalButton = $('[data-paypal]');
-  const paypalPending = $('#paypal-pending');
-  if (paypalButton && SITE.paypal) {
-    paypalButton.href = SITE.paypal;
-    paypalButton.hidden = false;
-    if (paypalPending) paypalPending.hidden = true;
-  }
 
   // Header con borde al hacer scroll.
   const header = $('.site-header');

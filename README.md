@@ -49,11 +49,14 @@ del canal de YouTube, editar `SITE.youtube` en `site/app.js` y los `href` con
 
 Xtreme Studio es independiente. Si te sirve y querés ayudar a mantenerlo:
 
-El enlace permanente de PayPal esta pendiente de generar. Los enlaces con
-`token=` son temporales y dejan de funcionar en pocas horas. Cuando exista el
-boton definitivo (`hosted_button_id` o PayPal.me), se agrega a la web.
+- **PayPal:** <https://www.paypal.com/donate/?hosted_button_id=URNUVG7CSFFFQ>
 
-No se publica el correo de la cuenta en la app ni en este documento.
+El boton de PayPal identifica la cuenta de donaciones. No se publica el correo
+de la cuenta en la app ni en este documento.
+
+La app incluye la misma invitacion en **Ajustes → Apoya el proyecto** y un
+acceso **Apoyar el proyecto** al pie de la barra lateral. El boton abre el
+navegador; no se cobra nada dentro de la app.
 
 El boton de PayPal tambien permite pagar con tarjeta de credito o debito en
 muchos paises, sin crear una cuenta. Las donaciones son voluntarias y no
@@ -69,6 +72,7 @@ compran funciones ni soporte prioritario.
 | Protocolos **Icecast 2**, **Shoutcast v1** y **v2** | Listo |
 | Credenciales con **DPAPI** en Windows y archivo privado `0600` en Linux/macOS | Listo |
 | Boton **PROBAR CONEXION** con diagnostico legible (401, 403, 404...) | Listo |
+| Invitacion y boton **Donar con PayPal** en Ajustes y barra lateral | Listo |
 | **ENTRAR / SALIR DEL AIRE** en un clic, con color inequivoco | Listo |
 | Vumetros de pico y RMS con escala en dBFS | Listo |
 | Campo **"suena ahora"** con metadatos en vivo | Listo |

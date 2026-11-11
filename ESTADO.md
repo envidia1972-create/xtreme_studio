@@ -34,6 +34,11 @@ antes del vúmetro/codificador, ducking, loop, teclas 1-8/F1-F8, persistencia y
 **cue local** por FFmpeg (Linux) o `ffplay` (Windows). El monitoreo completo de
 la mezcla queda para la fase siguiente.
 
+La ronda 22 agrega la **invitacion y el boton de donaciones** en Ajustes y en
+la barra lateral. Usa el enlace permanente de PayPal (`hosted_button_id`) y
+abre el navegador del sistema; no interrumpe la emision ni muestra el correo de
+la cuenta.
+
 La ronda 21 agrega el **actualizador**: comprueba GitHub Releases al arrancar y
 cada seis horas, muestra un aviso, descarga el ZIP de Windows, verifica el
 SHA-256 y lanza un actualizador que reemplaza la carpeta portable y reabre la

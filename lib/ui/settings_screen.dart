@@ -21,6 +21,7 @@ class SettingsScreen extends StatefulWidget {
     required this.onRefreshDevices,
     required this.onMessage,
     this.update,
+    this.onSupport,
   });
 
   final AppSettings settings;
@@ -38,6 +39,10 @@ class SettingsScreen extends StatefulWidget {
   /// Controlador opcional de actualizaciones. Se omite en las pruebas de
   /// layout para no depender de la red.
   final UpdateController? update;
+
+  /// Abre la pagina de donaciones del proyecto. Se omite en las pruebas de
+  /// layout y en contextos donde no se quiere mostrar la invitacion.
+  final VoidCallback? onSupport;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -505,6 +510,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
+          if (widget.onSupport != null) ...[
+            const SizedBox(height: 16),
+            _supportCard(),
+          ],
           const SizedBox(height: 16),
 
           // --- Informacion ---
@@ -540,6 +549,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Invitacion a sostener el proyecto. Va en Ajustes, no interrumpe la
+  /// emision y no se repite como popup: quien la ve es porque entro a
+  /// configurar la app.
+  Widget _supportCard() {
+    return SizedBox(
+      width: double.infinity,
+      child: Material(
+        color: AppColors.surface,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: AppColors.onAir.withValues(alpha: 0.35)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: AppColors.onAir.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      color: AppColors.onAir,
+                      size: 19,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  const Text(
+                    'Apoya el proyecto',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Xtreme Studio es gratis, sin anuncios y sin cuentas. Detras no '
+                'hay una empresa: hay horas de desarrollo, pruebas en Windows y '
+                'Linux y builds que se publican para que las uses.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Si la app te sirve para salir al aire, tu aporte ayuda a '
+                'mantenerla independiente y a que siga creciendo. Cada '
+                'donacion, grande o chica, cuenta. Tambien podes ayudar '
+                'compartiendola con otra radio o reportando un error.',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.onAir,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: widget.onSupport,
+                icon: const Icon(Icons.favorite_rounded, size: 17),
+                label: const Text('Donar con PayPal'),
+              ),
+              const SizedBox(height: 9),
+              const Text(
+                'Se abre en tu navegador. La app no cobra nada ni pide datos '
+                'de pago.',
+                style: TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 11,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

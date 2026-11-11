@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'core/audio/broadcast_engine.dart';
 import 'core/audio/ffmpeg_capture.dart';
 import 'core/diagnostic_log.dart';
+import 'core/donation.dart';
 import 'core/net/stream_health.dart';
 import 'core/profile_store.dart';
 import 'core/server_profile.dart';
@@ -750,6 +751,19 @@ class _StudioHomeState extends State<StudioHome> {
     }
   }
 
+  /// Abre la pagina de donaciones desde la barra lateral o desde Ajustes.
+  Future<void> _openDonation() async {
+    final opened = await openDonationPage();
+    if (!mounted) return;
+    if (!opened) {
+      _showMessage(
+        'No se pudo abrir el navegador. Visita '
+        'paypal.com/donate/?hosted_button_id=URNUVG7CSFFFQ',
+        isError: true,
+      );
+    }
+  }
+
   void _showMessage(String message, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -885,6 +899,7 @@ class _StudioHomeState extends State<StudioHome> {
                   index: _tabIndex,
                   locked: isLive,
                   onSelect: (i) => setState(() => _tabIndex = i),
+                  onSupport: _openDonation,
                 ),
                 Expanded(
                   child: IndexedStack(
@@ -944,6 +959,7 @@ class _StudioHomeState extends State<StudioHome> {
                         onRefreshDevices: refreshDevices,
                         onMessage: _showMessage,
                         update: _update,
+                        onSupport: _openDonation,
                       ),
                       SoundboardScreen(
                         controller: _soundboard,
@@ -1080,11 +1096,13 @@ class _SideNav extends StatelessWidget {
     required this.index,
     required this.locked,
     required this.onSelect,
+    required this.onSupport,
   });
 
   final int index;
   final bool locked;
   final ValueChanged<int> onSelect;
+  final VoidCallback onSupport;
 
   @override
   Widget build(BuildContext context) {
@@ -1114,8 +1132,54 @@ class _SideNav extends StatelessWidget {
               onTap: () => onSelect(i),
             ),
           const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+            child: Material(
+              color: AppColors.surfaceAlt.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: onSupport,
+                borderRadius: BorderRadius.circular(10),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.favorite_rounded,
+                        color: AppColors.onAir,
+                        size: 18,
+                      ),
+                      SizedBox(width: 9),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Apoyar el proyecto',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 1),
+                            Text(
+                              'Mantenela gratis',
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 10.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
           const Padding(
-            padding: EdgeInsets.all(16),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
               'El audio va directo de tu PC a tu servidor. '
               'Xtreme Studio no lo reenvia ni lo almacena.',
