@@ -156,7 +156,12 @@ Future<void> main() async {
       detail: preview.split(' ').first,
     );
     check(
-      preview.contains('"Micrófono (Realtek(R) Audio)"'),
+      // El nombre del dispositivo va citado porque tiene espacios y
+      // parentesis. En Windows ademas lleva el prefijo `audio=` (como lo espera
+      // dshow), asi que aqui solo se comprueba que el nombre quede entre
+      // comillas: el prefijo lo verifica la asercion siguiente.
+      preview.contains('"') &&
+          preview.contains('Micrófono (Realtek(R) Audio)"'),
       'cita el argumento del dispositivo (tiene espacios y parentesis)',
       detail: preview.split(' ').take(12).join(' '),
     );

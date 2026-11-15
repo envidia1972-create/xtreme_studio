@@ -7,6 +7,7 @@
 /// falla y arranca la app de nuevo.
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'update_models.dart';
@@ -45,15 +46,25 @@ class UpdateInstaller {
     }
   }
 
-  /// Lanza el actualizador de Windows y devuelve cuando el proceso fue creado.
+  /// Lanza el actualizador de Windows y **confirma que arranco**.
   ///
-  /// El llamador debe cerrar la app inmediatamente despues. El script espera el
-  /// PID, reemplaza los archivos y vuelve a abrir el ejecutable.
+  /// El llamador debe cerrar la app despues de que este metodo vuelva. El script
+  /// espera el PID, reemplaza los archivos y vuelve a abrir el ejecutable.
+  ///
+  /// Dos cosas se aprendieron de una actualizacion que fallaba en silencio:
+  ///
+  /// 1. El script se lanza con `cmd /c start`, que lo desacopla del proceso de
+  ///    la app. Lanzarlo con `Process.start`/detached y cerrar de inmediato
+  ///    dejaba un hijo que no llegaba a inicializarse.
+  /// 2. No se cierra la app a ciegas: se espera a que el script escriba su
+  ///    marcador. Si no aparece, se lanza [UpdateException] y la app **sigue
+  ///    abierta** mostrando el error, en lugar de cerrarse y no volver.
   static Future<void> launchWindowsUpdater({
     required File archive,
     required UpdateInfo info,
     required int processId,
     Directory? destination,
+    Duration startTimeout = const Duration(seconds: 8),
   }) async {
     if (!Platform.isWindows) {
       throw UpdateException(
@@ -67,12 +78,31 @@ class UpdateInstaller {
     final dest = destination ?? installDirectory;
     await ensureWritable(dest);
 
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final temp = Directory.systemTemp.path;
     final script = File(
-      '${Directory.systemTemp.path}${Platform.pathSeparator}'
-      'xtreme-update-${DateTime.now().microsecondsSinceEpoch}.ps1',
+      '$temp${Platform.pathSeparator}xtreme-update-$stamp.ps1',
     );
+    final marker = File(
+      '$temp${Platform.pathSeparator}xtreme-update-$stamp.started',
+    );
+
     await script.writeAsString(buildWindowsUpdaterScript(), flush: true);
-    await Process.start('powershell.exe', [
+    if (marker.existsSync()) {
+      try {
+        await marker.delete();
+      } catch (_) {}
+    }
+
+    // `start` recibe primero el titulo de la ventana. Se pasa uno explicito (y
+    // no una cadena vacia) porque un argumento vacio se puede perder al armar
+    // la linea de comandos, y entonces `start` tomaria a `powershell.exe` como
+    // titulo en lugar de como programa.
+    await Process.start('cmd', [
+      '/c',
+      'start',
+      'Xtreme Studio Update',
+      'powershell.exe',
       '-NoProfile',
       '-ExecutionPolicy',
       'Bypass',
@@ -83,7 +113,26 @@ class UpdateInstaller {
       '$processId',
       archive.path,
       dest.path,
+      marker.path,
     ], mode: ProcessStartMode.detached);
+
+    // Se espera la confirmacion de que PowerShell tomo el script.
+    final deadline = DateTime.now().add(startTimeout);
+    while (DateTime.now().isBefore(deadline)) {
+      if (marker.existsSync()) {
+        try {
+          await marker.delete();
+        } catch (_) {}
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+    }
+
+    throw UpdateException(
+      'El actualizador no arranco. La aplicacion no se cerro para no dejarte '
+      'sin nada. Proba de nuevo; si vuelve a pasar, cerra la app y descomprimi '
+      'la actualizacion a mano en ${dest.path}.',
+    );
   }
 
   /// Lanza el actualizador de Linux y devuelve cuando el proceso fue creado.
@@ -220,14 +269,23 @@ exit 0
 
   /// Script que se ejecuta fuera de la app. Se expone para poder verificarlo
   /// sin reemplazar archivos reales.
+  ///
+  /// Escribe un **marcador** apenas arranca: la app espera ese archivo antes de
+  /// cerrarse. Sin el, si el proceso hijo no llegaba a inicializarse, la app se
+  /// cerraba igual y la actualizacion no se aplicaba nunca, sin decir nada.
   static String buildWindowsUpdaterScript() {
     return r'''
 param(
     [Parameter(Mandatory=$true)][int]$AppPid,
     [Parameter(Mandatory=$true)][string]$Zip,
-    [Parameter(Mandatory=$true)][string]$Dest
+    [Parameter(Mandatory=$true)][string]$Dest,
+    [Parameter(Mandatory=$true)][string]$Marker
 )
 $ErrorActionPreference = 'Stop'
+# Primer paso, antes de cualquier otra cosa: avisar que el script esta vivo.
+try {
+    Set-Content -LiteralPath $Marker -Value $PID -Force
+} catch { }
 $log = Join-Path $env:TEMP 'xtreme-update.log'
 function Write-Log([string]$Message) {
     try {

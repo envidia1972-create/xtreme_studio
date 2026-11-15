@@ -171,7 +171,10 @@ class UpdateController extends ChangeNotifier {
       _phase = UpdatePhase.installing;
       _progress = 1;
       notifyListeners();
-      await beforeRestart();
+
+      // Primero se lanza el actualizador y se confirma que arranco. Solo
+      // despues se desarma la app: si el actualizador no llega a iniciarse, la
+      // aplicacion tiene que quedar usable, no con la captura ya cerrada.
       if (Platform.isWindows) {
         await UpdateInstaller.launchWindowsUpdater(
           archive: archive,
@@ -190,8 +193,10 @@ class UpdateController extends ChangeNotifier {
           'plataforma.',
         );
       }
+
       // El actualizador espera este PID. Cerrar ahora libera el ejecutable y
       // las bibliotecas del bundle.
+      await beforeRestart();
       exit(0);
     } catch (e) {
       final message = e is UpdateException ? e.message : e.toString();

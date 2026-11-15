@@ -61,9 +61,23 @@ jobs:
       - name: Pruebas de actualizaciones
         run: dart run tool/verify_update.dart
 
+      # Lanza de verdad el actualizador (cmd /c start + marcador) y comprueba
+      # que reemplaza archivos. Existe porque este circuito fallo en silencio en
+      # una release: la app cerraba antes de que el script arrancara y la
+      # actualizacion no se aplicaba nunca.
+      - name: Lanzamiento real del actualizador
+        run: dart run tool/verify_updater_launch.dart
+
       - name: Compilar
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tool/build_windows.ps1
+
+      # Comprueba que el binario lleve la version de pubspec y que app.so no sea
+      # mas viejo que el fuente. Un paquete mal armado abre y funciona, pero con
+      # codigo viejo o pidiendo actualizar para siempre.
+      - name: Verificar el paquete compilado
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File tool/verificar_compilacion.ps1
 
       - name: Publicar artifact Windows
         uses: actions/upload-artifact@v4
