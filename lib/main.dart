@@ -116,6 +116,15 @@ class _StudioHomeState extends State<StudioHome> {
     final settings = await _store.loadSettings();
     final profiles = await _store.load();
     final ffmpeg = await ProfileStore.findFfmpeg(settings.ffmpegPath);
+    // Si la build con AAC+ esta en la carpeta fija, se guarda esa ruta para que
+    // no dependa de una ruta dentro del bundle que la proxima actualizacion
+    // reemplaza.
+    if (ffmpeg.isNotEmpty &&
+        ProfileStore.isAacFfmpegPath(ffmpeg) &&
+        settings.ffmpegPath != ffmpeg) {
+      settings.ffmpegPath = ffmpeg;
+      await _store.saveSettings(settings);
+    }
     final codecs = ffmpeg.isEmpty
         ? const {AudioCodec.mp3}
         : await FfmpegLocator(ffmpeg).availableCodecs();

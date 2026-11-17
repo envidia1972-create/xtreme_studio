@@ -104,6 +104,37 @@ class ProfileStore {
     return Directory('$home${Platform.pathSeparator}.xtreme_studio');
   }
 
+  /// Carpeta fija para el FFmpeg con AAC+ (`libfdk_aac`).
+  ///
+  /// Queda fuera del bundle portable a proposito: las actualizaciones
+  /// reemplazan la carpeta de la app, pero no los datos del usuario. Asi el
+  /// FFmpeg nonfree no se pierde en cada actualizacion.
+  static Directory get aacFfmpegDirectory => Directory(
+    '${_defaultBaseDirectory().path}${Platform.pathSeparator}ffmpeg-aac',
+  );
+
+  /// Ruta exacta que busca la app dentro de [aacFfmpegDirectory].
+  static String get aacFfmpegPath =>
+      '${aacFfmpegDirectory.path}${Platform.pathSeparator}'
+      '${Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg'}';
+
+  /// Crea la carpeta fija si no existe y la devuelve.
+  static Future<Directory> ensureAacFfmpegDirectory() async {
+    final dir = aacFfmpegDirectory;
+    if (!dir.existsSync()) await dir.create(recursive: true);
+    return dir;
+  }
+
+  /// Indica si una ruta es la del FFmpeg fijo para AAC+.
+  static bool isAacFfmpegPath(String path) {
+    if (path.trim().isEmpty) return false;
+    try {
+      return File(path).absolute.path == File(aacFfmpegPath).absolute.path;
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   File get profilesFile =>
       File('${base.path}${Platform.pathSeparator}profiles.json');
   File get settingsFile =>
@@ -125,6 +156,7 @@ class ProfileStore {
   Future<void> ensureDirectories() async {
     if (!base.existsSync()) await base.create(recursive: true);
     if (!secretsDir.existsSync()) await secretsDir.create(recursive: true);
+    await ensureAacFfmpegDirectory();
   }
 
   /// Genera un identificador nuevo para un perfil.
@@ -373,6 +405,11 @@ class ProfileStore {
     if (candidate.isNotEmpty && File(candidate).existsSync()) {
       return candidate;
     }
+
+    // Carpeta fija para AAC+ (fuera del bundle portable). Se revisa antes que
+    // el FFmpeg empaquetado: si el usuario instalo una build con libfdk_aac,
+    // esa es la que debe usar la app.
+    if (File(aacFfmpegPath).existsSync()) return aacFfmpegPath;
 
     final exe = Platform.isWindows ? 'ffmpeg.exe' : 'ffmpeg';
 

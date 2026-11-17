@@ -84,7 +84,7 @@
       <p>Radio directa, sin intermediarios. Guía completa para instalar, configurar y emitir con Icecast2 o Shoutcast.</p>
     </div>
     <div class="meta">
-      <span>Versión 0.1.3</span>
+      <span>Versión 0.1.5</span>
       <span>Windows 10/11 · Linux</span>
       <span>2026</span>
     </div>
@@ -123,8 +123,8 @@
 
     <h2 id="instalar">2. Instalar en Windows</h2>
     <ol class="steps">
-      <li>Descargá <code>XtremeStudio-0.1.3-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3">página de releases</a>.</li>
-      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.3-windows-x64.zip</code>.</li>
+      <li>Descargá <code>XtremeStudio-0.1.5-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.5">página de releases</a>.</li>
+      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.5-windows-x64.zip</code>.</li>
       <li>Extraélo en una carpeta tuya, por ejemplo <code>C:\XtremeStudio</code>. No lo ejecutes desde el ZIP, Descargas, OneDrive ni una carpeta de red.</li>
       <li>Ejecutá <code>xtreme_studio.exe</code>.</li>
     </ol>
@@ -132,9 +132,9 @@
     <div class="ok"><strong>Datos personales:</strong> el instalador no requiere registro y no recopila tus emisoras ni tus contraseñas.</div>
 
     <h2 id="linux">3. Instalar en Linux</h2>
-    <p>Descargá el paquete portable <code>XtremeStudio-0.1.3-linux-x64.tar.gz</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3">página de releases</a>.</p>
+    <p>Descargá el paquete portable <code>XtremeStudio-0.1.5-linux-x64.tar.gz</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.5">página de releases</a>.</p>
     <pre><code>mkdir -p ~/.local/opt
-tar -xzf XtremeStudio-0.1.3-linux-x64.tar.gz -C ~/.local/opt
+tar -xzf XtremeStudio-0.1.5-linux-x64.tar.gz -C ~/.local/opt
 cd ~/.local/opt/bundle
 ./xtreme_studio</code></pre>
     <p>No hace falta <code>sudo</code>. La app se actualiza desde la propia interfaz cuando hay una versión nueva: descarga el <code>.tar.gz</code>, verifica el SHA-256, reemplaza el bundle y se vuelve a abrir. Los datos de usuario quedan en <code>~/.xtreme_studio</code>.</p>
@@ -203,13 +203,14 @@ tool/build_linux.sh
     <h3>Windows</h3>
     <ol class="steps">
       <li>Descargá la build nonfree win64 desde <a href="https://github.com/AnimMouse/ffmpeg-autobuild/releases/latest">AnimMouse/ffmpeg-autobuild</a> (archivo <code>ffmpeg-...-win64-nonfree.7z</code>).</li>
-      <li>Extraé el archivo con 7-Zip y copiá <code>ffmpeg.exe</code> a una carpeta propia, por ejemplo <code>C:\ffmpeg-fdk</code>.</li>
-      <li>En Xtreme Studio: <strong>Ajustes → Ruta a ffmpeg</strong>, pegá <code>C:\ffmpeg-fdk\ffmpeg.exe</code> y pulsá <strong>Comprobar</strong>.</li>
-      <li>Verificá en una terminal:<br><code>&amp; C:\ffmpeg-fdk\ffmpeg.exe -hide_banner -encoders | findstr libfdk_aac</code></li>
+      <li>Extraé el archivo con 7-Zip y copiá <code>ffmpeg.exe</code> a la carpeta fija de la app: <code>%APPDATA%\XtremeStudio\ffmpeg-aac\ffmpeg.exe</code>. En <strong>Ajustes → Carpeta fija para AAC+</strong> está el botón <strong>Abrir carpeta</strong>.</li>
+      <li>No la pongas dentro de la carpeta portable: las actualizaciones reemplazan el bundle y el FFmpeg se perdería.</li>
+      <li>En Xtreme Studio: <strong>Ajustes → Motor de audio (FFmpeg)</strong>, pulsá <strong>Autodetectar</strong>. La app busca primero el FFmpeg fijo de AAC+.</li>
+      <li>Verificá en una terminal:<br><code>&amp; "$env:APPDATA\XtremeStudio\ffmpeg-aac\ffmpeg.exe" -hide_banner -encoders | findstr libfdk_aac</code></li>
       <li>En la emisora, elegí <strong>AAC+ (HE-AAC)</strong> y el bitrate.</li>
     </ol>
     <h3>Linux</h3>
-    <p>Compilá FFmpeg con <code>--enable-libfdk-aac --enable-nonfree</code>. Guía: <a href="https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu">CompilationGuide/Ubuntu</a>. Código de <code>libfdk_aac</code>: <a href="https://github.com/mstorsjo/fdk-aac">mstorsjo/fdk-aac</a>. Luego elegí ese binario en Ajustes.</p>
+    <p>Compilá FFmpeg con <code>--enable-libfdk-aac --enable-nonfree</code>. Guía: <a href="https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu">CompilationGuide/Ubuntu</a>. Código de <code>libfdk_aac</code>: <a href="https://github.com/mstorsjo/fdk-aac">mstorsjo/fdk-aac</a>. Copiá el binario a <code>~/.xtreme_studio/ffmpeg-aac/ffmpeg</code>; la app lo busca primero y la ruta sobrevive a las actualizaciones. Usá <strong>Ajustes → Carpeta fija para AAC+</strong> para abrirla.</p>
     <div class="note"><strong>Licencia:</strong> la build nonfree no se puede redistribuir junto con Xtreme Studio sin cumplir las licencias de sus componentes. La app solo la usa si el usuario la instala por separado.</div>
 
     <h2 id="actualizar">10. Actualizaciones</h2>
@@ -245,7 +246,7 @@ tool/build_linux.sh
     <p>Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus respectivos titulares. Xtreme Studio no está afiliado a ellos.</p>
 
     <div class="footer-manual">
-      <span>Xtreme Studio · Manual de usuario · Versión 0.1.3</span>
+      <span>Xtreme Studio · Manual de usuario · Versión 0.1.5</span>
       <span>Hecho con Flutter y FFmpeg.</span>
     </div>
   </main>

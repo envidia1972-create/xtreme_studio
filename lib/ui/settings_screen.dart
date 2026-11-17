@@ -120,6 +120,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _useFfmpegPath(found);
   }
 
+  /// Abre la carpeta fija donde debe vivir el FFmpeg con AAC+.
+  Future<void> _openAacFolder() async {
+    final dir = await ProfileStore.ensureAacFfmpegDirectory();
+    try {
+      if (Platform.isWindows) {
+        await Process.run('explorer.exe', [dir.path]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [dir.path]);
+      } else {
+        await Process.run('xdg-open', [dir.path]);
+      }
+    } catch (e) {
+      widget.onMessage('No se pudo abrir la carpeta: $e', isError: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = widget.settings;
@@ -194,6 +210,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? 'Detectado en ${widget.ffmpegPath}'
                         : _ffmpegVersion,
                   ),
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Carpeta fija para AAC+',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Si usas una build de FFmpeg con libfdk_aac, guardala '
+                        'en esta carpeta. Queda fuera de la carpeta portable y '
+                        'sobrevive a las actualizaciones:',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11.5,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      SelectableText(
+                        ProfileStore.aacFfmpegPath,
+                        style: AppTheme.mono.copyWith(
+                          fontSize: 10.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _openAacFolder,
+                            icon: const Icon(Icons.folder_open, size: 16),
+                            label: const Text('Abrir carpeta'),
+                          ),
+                          if (File(ProfileStore.aacFfmpegPath).existsSync())
+                            TextButton.icon(
+                              onPressed: () async {
+                                await _useFfmpegPath(
+                                  ProfileStore.aacFfmpegPath,
+                                );
+                                if (mounted) {
+                                  _ffmpegController.text =
+                                      ProfileStore.aacFfmpegPath;
+                                }
+                              },
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text('Usar este FFmpeg'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

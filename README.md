@@ -254,16 +254,20 @@ ejecutable.
    (archivo `ffmpeg-...-win64-nonfree.7z`).
 2. Extraé el `.7z` con 7-Zip. Adentro estan `ffmpeg.exe`, `ffprobe.exe` y
    `ffplay.exe`.
-3. Copiá `ffmpeg.exe` a una carpeta propia, por ejemplo:
+3. Copiá `ffmpeg.exe` a la **carpeta fija** que usa la app para AAC+:
    ```text
-   C:\ffmpeg-fdk\ffmpeg.exe
+   %APPDATA%\XtremeStudio\ffmpeg-aac\ffmpeg.exe
    ```
-4. En Xtreme Studio: **Ajustes → Motor de audio (FFmpeg) → Ruta a ffmpeg**,
-   pegá esa ruta y pulsá **Comprobar**.
+   En **Ajustes → Carpeta fija para AAC+** está el botón **Abrir carpeta**,
+   que crea y abre esa ruta. **No la pongas dentro de la carpeta portable**:
+   las actualizaciones reemplazan el bundle y el FFmpeg se perdería.
+4. En Xtreme Studio: **Ajustes → Motor de audio (FFmpeg)**, pulsá
+   **Autodetectar**. La app busca primero el FFmpeg fijo de AAC+ y guarda esa
+   ruta fuera del portable.
 5. Verificá que la deteccion diga que `libfdk_aac` esta disponible. Si no,
    abrí una terminal y comprobá:
    ```powershell
-   & C:\ffmpeg-fdk\ffmpeg.exe -hide_banner -encoders | findstr libfdk_aac
+   & "$env:APPDATA\XtremeStudio\ffmpeg-aac\ffmpeg.exe" -hide_banner -encoders | findstr libfdk_aac
    ```
 6. En **Emisoras → Editar → Calidad de audio**, elegi **AAC+ (HE-AAC)** y el
    bitrate.
@@ -283,8 +287,15 @@ Guia de compilacion:
 Codigo de `libfdk_aac`:
 **<https://github.com/mstorsjo/fdk-aac>**
 
-Despues se indica la ruta del `ffmpeg` compilado en Ajustes, igual que en
-Windows.
+Copiá el binario compilado a la carpeta fija:
+
+```text
+~/.xtreme_studio/ffmpeg-aac/ffmpeg
+```
+
+La app la busca primero y la ruta queda fuera del bundle portable, asi que
+sobrevive a las actualizaciones. En **Ajustes → Carpeta fija para AAC+** hay un
+botón para abrirla.
 
 #### Licencia
 

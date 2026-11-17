@@ -49,6 +49,29 @@ Future<void> main() async {
   }
 
   try {
+    section('Carpeta fija para AAC+');
+    final fixedPath = ProfileStore.aacFfmpegPath;
+    check(
+      fixedPath.contains('ffmpeg-aac'),
+      'la ruta fija vive en la carpeta de datos ffmpeg-aac',
+      detail: fixedPath,
+    );
+    check(
+      !fixedPath.contains(
+        '${Platform.pathSeparator}build${Platform.pathSeparator}',
+      ),
+      'la ruta fija no esta dentro de la carpeta portable build/',
+      detail: fixedPath,
+    );
+    check(
+      ProfileStore.isAacFfmpegPath(fixedPath),
+      'reconoce la ruta fija como la de AAC+',
+    );
+    check(
+      !ProfileStore.isAacFfmpegPath(''),
+      'una ruta vacia no se confunde con la carpeta fija',
+    );
+
     section('Ubicaciones buscadas');
 
     // 1) Ruta preferida por el usuario: prioridad absoluta.
@@ -78,11 +101,19 @@ Future<void> main() async {
       'la autodeteccion encuentra FFmpeg en tools/',
       detail: auto.isEmpty ? 'no lo encontro' : auto,
     );
-    check(
-      auto.toLowerCase().contains('tools'),
-      'la ruta encontrada es la del proyecto',
-      detail: auto,
-    );
+    if (File(fixedPath).existsSync()) {
+      check(
+        auto == fixedPath,
+        'si existe el FFmpeg fijo de AAC+, tiene prioridad',
+        detail: auto,
+      );
+    } else {
+      check(
+        auto.toLowerCase().contains('tools'),
+        'la ruta encontrada es la del proyecto',
+        detail: auto,
+      );
+    }
     check(
       File(auto).existsSync(),
       'la ruta devuelta existe de verdad en disco',
