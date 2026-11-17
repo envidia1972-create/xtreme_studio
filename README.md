@@ -483,14 +483,14 @@ flutter build windows --release \
 
 El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
 
-### Ultima release: v0.1.3
+### Ultima release: v0.1.5
 
-- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.3>
-- Windows: `XtremeStudio-0.1.3-windows-x64.zip` (146.006.119 bytes,
-  SHA-256 `976435868f956c587bca97c343a321a1b934d21b7b67c2b2fc4be704ef10c5f8`)
-- Linux: `XtremeStudio-0.1.3-linux-x64.tar.gz` (80.248.923 bytes,
-  SHA-256 `85b70d156778fb15df623fd1dc3d310c4477fd0f0190909a8237ae7be611a89c`)
-- Incluye el actualizador automatico de Linux y el boton **Donar con PayPal**.
+- Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.5>
+- Windows: `XtremeStudio-0.1.5-windows-x64.zip` (146.063.506 bytes,
+  SHA-256 `bc00fceb2e7a706dad8719ccf54730f6206d10852e432f79225af448619686f6`)
+- Linux: `XtremeStudio-0.1.5-linux-x64.tar.gz` (80.342.097 bytes,
+  SHA-256 `31d2621ce983da48786eb8ee023916a73146884be327cfa183b2106348ee75f4`)
+- Incluye la carpeta fija para AAC+ y el actualizador automatico de Linux.
 
 ### Primera instalacion: v0.1.1
 
