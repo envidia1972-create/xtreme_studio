@@ -15,6 +15,10 @@ servidor de streaming: **sin nube, sin cuentas y sin intermediarios**.
 
 ![Xtreme Studio al aire en Linux](docs/screenshots/linux-al-aire.png)
 
+▶ **[Ver el video demo](docs/video/xtreme-studio-demo-1080p.mp4)** ·
+[Guion de voz en off](docs/video/guion-voz-en-off.md) ·
+[Subtítulos](docs/video/xtreme-studio-demo.srt)
+
 ## Descargar
 
 | Plataforma | Paquete | Actualización |

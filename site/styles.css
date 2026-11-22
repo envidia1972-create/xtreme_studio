@@ -400,3 +400,15 @@ code { font-family: var(--mono); font-size: .92em; color: #d8deea; background: r
 @media (max-width: 620px) {
   .star-cta { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
+
+/* Video demo */
+.demo-section { padding-top: 0; }
+.demo-wrap { display: grid; grid-template-columns: .75fr 1.25fr; gap: 42px; align-items: center; }
+.demo-copy h2 { margin: 0 0 12px; font-size: clamp(30px, 3.5vw, 44px); letter-spacing: -.035em; line-height: 1.1; }
+.demo-copy > p:not(.eyebrow) { color: var(--muted); font-size: 14px; }
+.demo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 22px; }
+.demo-player { border: 1px solid var(--line-strong); border-radius: 16px; overflow: hidden; background: #000; box-shadow: 0 24px 60px rgba(0,0,0,.4); }
+.demo-player video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; }
+@media (max-width: 880px) {
+  .demo-wrap { grid-template-columns: 1fr; gap: 24px; }
+}

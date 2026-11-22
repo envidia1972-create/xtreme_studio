@@ -1,0 +1,21 @@
+Título:
+Xtreme Studio: tu radio desde la PC, sin intermediarios
+
+Descripción:
+Xtreme Studio es una consola de radio para Windows y Linux. Emití a tu servidor Icecast2 o Shoutcast, administrá varias emisoras, usá el soundboard y grabá tus programas sin depender de una nube.
+
+Descarga: https://envidia1972-create.github.io/xtreme_studio/
+GitHub: https://github.com/envidia1972-create/xtreme_studio
+Manual: https://envidia1972-create.github.io/xtreme_studio/manual.html
+
+Capítulos:
+00:00 Presentación
+00:14 Emisión
+00:40 Emisoras
+01:00 Audio
+01:20 Calidad y códecs
+01:41 Soundboard
+02:00 Actualizaciones
+02:22 Cierre
+
+#radio #streaming #icecast #shoutcast #softwarelibre

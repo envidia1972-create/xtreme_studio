@@ -1,0 +1,68 @@
+1
+00:00:00,350 --> 00:00:05,510
+Xtreme Studio es una consola de radio para Windows y Linux.
+
+2
+00:00:05,630 --> 00:00:13,214
+En este video te muestro cómo salir al aire, administrar tus emisoras y usar el soundboard.
+
+3
+00:00:14,234 --> 00:00:22,922
+Esta es la pantalla de emisión. Elegís tu emisora, hablás por el micrófono y ves el nivel en tiempo real.
+
+4
+00:00:23,042 --> 00:00:30,482
+El vúmetro funciona incluso antes de salir al aire. Cuando estés listo, pulsás Entrar al aire.
+
+5
+00:00:30,602 --> 00:00:39,530
+El estado cambia a AL AIRE, empieza el tiempo de emisión, y desde acá actualizás el título que ven tus oyentes.
+
+6
+00:00:40,550 --> 00:00:49,454
+En Emisoras guardás todas tus radios. Cada perfil tiene host, puerto, mount y calidad de audio.
+
+7
+00:00:49,574 --> 00:00:59,606
+Es compatible con Icecast2 y Shoutcast. Antes de emitir, Probá conexión y la app te dice si el servidor responde.
+
+8
+00:01:00,626 --> 00:01:08,546
+En Ajustes elegís el micrófono o la consola. La app no abre ninguna entrada hasta que vos la elegís.
+
+9
+00:01:08,666 --> 00:01:19,898
+También podés ajustar la ganancia en vivo, sin cortar la emisión, y activar la grabación local para guardar una copia de lo que escuchan tus oyentes.
+
+10
+00:01:20,918 --> 00:01:29,750
+Cada emisora puede usar su propio códec y bitrate: MP3, AAC-LC o AAC+.
+
+11
+00:01:29,870 --> 00:01:40,406
+La app detecta los encoders de FFmpeg y te avisa si falta alguno. Así elegís la calidad justa para tu conexión.
+
+12
+00:01:41,426 --> 00:01:46,898
+El soundboard tiene ocho pads para jingles, cortinas y efectos.
+
+13
+00:01:47,018 --> 00:01:59,378
+Podés dispararlos con las teclas uno a ocho, escucharlos solo en tu equipo con cue local, o mezclarlos al aire con ducking automático para que no tapen tu voz.
+
+14
+00:02:00,398 --> 00:02:13,238
+Xtreme Studio también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola.
+
+15
+00:02:13,358 --> 00:02:21,302
+Tus emisoras, claves y soundboard quedan en tu carpeta de usuario, separados de la aplicación.
+
+16
+00:02:22,322 --> 00:02:31,514
+Xtreme Studio es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub.
+
+17
+00:02:31,634 --> 00:02:38,498
+Si te sirve, una estrella ayuda a que más radios lo encuentren. Nos vemos al aire.
+
