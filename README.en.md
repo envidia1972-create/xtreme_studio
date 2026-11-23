@@ -1,6 +1,6 @@
 # Xtreme Studio
 
-### Direct radio, no middlemen.
+### Broadcast your radio, without limits.
 
 [Español](README.md) · [Web](https://envidia1972-create.github.io/xtreme_studio/) · [Download](https://github.com/envidia1972-create/xtreme_studio/releases/latest) · [Manual](https://envidia1972-create.github.io/xtreme_studio/manual.html)
 
@@ -10,7 +10,7 @@
 
 **Multi-station radio broadcasting console.** Load your server credentials,
 pick your microphone and go live. Audio goes straight from your computer to
-your Icecast2 or Shoutcast server — no cloud, no account, no middleman.
+your Icecast2 or Shoutcast server — no cloud, no account, no limits.
 
 ![Xtreme Studio on air on Linux](docs/screenshots/linux-al-aire.png)
 

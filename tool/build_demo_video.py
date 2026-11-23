@@ -57,7 +57,7 @@ SCENES = [
     Scene(
         "intro",
         "DEMO · XTREME STUDIO",
-        "Radio directa,\nsin intermediarios.",
+        "Transmite tu radio,\nsin límites.",
         ["Windows + Linux", "Icecast2 + Shoutcast", "Soundboard y vúmetro"],
         [
             "Xtreme Studio es una consola de radio para Windows y Linux.",
@@ -231,7 +231,7 @@ def header(im: Image.Image, d: ImageDraw.ImageDraw, scene: Scene, idx: int) -> N
 def footer(im: Image.Image, d: ImageDraw.ImageDraw, idx: int) -> None:
     d.line((80, 1034, W - 80, 1034), fill=(35, 43, 56), width=1)
     f = font(FONT_REG, 12)
-    d.text((80, 1046), "XTREME STUDIO · RADIO DIRECTA, SIN INTERMEDIARIOS", font=f, fill=(100, 112, 133))
+    d.text((80, 1046), "XTREME STUDIO · TRANSMITE TU RADIO, SIN LÍMITES", font=f, fill=(100, 112, 133))
     d.text((W - 80 - d.textlength("DEMO 2026", font=f), 1046), "DEMO 2026", font=f, fill=(100, 112, 133))
     # Barra de progreso.
     d.rectangle((80, 1020, W - 80, 1023), fill=(28, 35, 46))
@@ -365,7 +365,7 @@ def outro_scene(scene: Scene, idx: int) -> Image.Image:
         d.text((80, y), line, font=f_title, fill=(243, 246, 251))
         y += 95
     f_sub = font(FONT_REG, 24)
-    d.text((80, y + 12), "Radio directa, sin intermediarios.", font=f_sub, fill=(168, 178, 194))
+    d.text((80, y + 12), "Transmite tu radio, sin límites.", font=f_sub, fill=(168, 178, 194))
     f_url = font(FONT_BOLD, 27)
     d.text((80, 700), "envidia1972-create.github.io/xtreme_studio", font=f_url, fill=(255, 255, 255))
     f_small = font(FONT_REG, 17)
@@ -529,7 +529,7 @@ def main() -> int:
             "-i", str(voice),
             "-t", f"{duration:.3f}",
             "-vf", vf,
-            "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
             "-c:a", "aac", "-b:a", "160k", "-ar", "48000",
             "-movflags", "+faststart",
             str(mp4),

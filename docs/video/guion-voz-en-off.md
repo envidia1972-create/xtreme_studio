@@ -1,6 +1,7 @@
 # Xtreme Studio — Guion de voz en off
 
 **Duración estimada:** 2 a 3 minutos.
+**Eslogan:** **Transmite tu radio, sin límites.**
 **Tono:** cercano, claro y tranquilo. Como si le explicaras la app a otro locutor, no como un aviso publicitario.
 **Idioma:** español neutro con pronunciación latinoamericana.
 **Velocidad:** pausada. Dejar respirar las frases y no pisar los cambios de pantalla.

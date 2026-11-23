@@ -1,0 +1,52 @@
+1
+00:00:00,300 --> 00:00:03,396
+Transmite tu radio, sin límites.
+
+2
+00:00:05,800 --> 00:00:09,664
+Elegís tu emisora, hablás y salís al aire.
+
+3
+00:00:09,764 --> 00:00:13,292
+Vúmetro en vivo y título para tus oyentes.
+
+4
+00:00:15,800 --> 00:00:18,824
+Todas tus radios, en un solo lugar.
+
+5
+00:00:18,924 --> 00:00:23,148
+Icecast2 y Shoutcast, con prueba de conexión.
+
+6
+00:00:24,800 --> 00:00:29,048
+Jingles con ocho pads, cue local y ducking.
+
+7
+00:00:29,148 --> 00:00:31,356
+Para que no tapen tu voz.
+
+8
+00:00:33,800 --> 00:00:37,712
+Micrófono, ganancia en vivo, grabación.
+
+9
+00:00:37,812 --> 00:00:41,004
+Y la calidad que elijas para tu conexión.
+
+10
+00:00:42,800 --> 00:00:46,208
+Se actualiza sola en Windows y Linux.
+
+11
+00:00:46,308 --> 00:00:49,092
+Tus datos quedan fuera del portable.
+
+12
+00:00:51,800 --> 00:00:54,968
+Descargala gratis en Xtreme Studio.
+
+13
+00:00:55,068 --> 00:00:57,012
+De tu PC al aire.
+

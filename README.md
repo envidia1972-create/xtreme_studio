@@ -1,6 +1,6 @@
 # Xtreme Studio
 
-### Radio directa, sin intermediarios.
+### Transmite tu radio, sin límites.
 
 [English](README.en.md) · [Web](https://envidia1972-create.github.io/xtreme_studio/) · [Manual](https://envidia1972-create.github.io/xtreme_studio/manual.html)
 
@@ -11,11 +11,12 @@
 
 **Consola de emisión multi-emisora para radio.** Cargá las credenciales de tu
 servidor, elegí el micrófono y salí al aire. El audio va directo de tu PC al
-servidor de streaming: **sin nube, sin cuentas y sin intermediarios**.
+servidor de streaming: **sin nube, sin cuentas y sin ataduras**.
 
 ![Xtreme Studio al aire en Linux](docs/screenshots/linux-al-aire.png)
 
 ▶ **[Ver el video demo](docs/video/xtreme-studio-demo-1080p.mp4)** ·
+[Versión vertical 60s](docs/video/xtreme-studio-vertical-60s.mp4) ·
 [Guion de voz en off](docs/video/guion-voz-en-off.md) ·
 [Subtítulos](docs/video/xtreme-studio-demo.srt)
 

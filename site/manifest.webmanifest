@@ -1,7 +1,7 @@
 {
   "name": "Xtreme Studio",
   "short_name": "Xtreme Studio",
-  "description": "Radio directa, sin intermediarios.",
+  "description": "Transmite tu radio, sin límites.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#07090e",

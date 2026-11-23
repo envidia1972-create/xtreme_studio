@@ -5,15 +5,18 @@ una publicación en redes.
 
 ## Archivos
 
-- `xtreme-studio-demo-1080p.mp4` — video final, 1920×1080, H.264 + AAC, 2:39.
-- `guion-voz-en-off.md` — guion completo para grabar una voz humana o adaptar
-  el texto.
-- `xtreme-studio-demo.srt` — subtítulos en español sincronizados.
+- `xtreme-studio-demo-1080p.mp4` — video horizontal, 1920×1080, H.264 + AAC, 2:39.
+- `xtreme-studio-vertical-60s.mp4` — versión vertical 1080×1920 para Reels, TikTok y Shorts.
+- `guion-voz-en-off.md` — guion completo del video horizontal.
+- `guion-vertical-60s.md` — guion y texto en pantalla del vertical.
+- `xtreme-studio-demo.srt` — subtítulos del horizontal.
+- `xtreme-studio-vertical-60s.srt` — subtítulos del vertical.
 - `thumbnail-youtube.png` — miniatura 1280×720 para YouTube.
-- `descripcion-youtube.txt` — título, descripción, capítulos y etiquetas listos
-  para copiar.
+- `thumbnail-vertical.png` — portada vertical 1080×1920 para redes.
+- `descripcion-youtube.txt` — título, descripción, capítulos y etiquetas del horizontal.
+- `descripcion-vertical.txt` — título, descripción y etiquetas del vertical.
 
-## Contenido
+## Contenido del horizontal
 
 1. Presentación de Xtreme Studio.
 2. Emisión: vúmetro, entrar/salir al aire y título para los oyentes.
@@ -24,9 +27,18 @@ una publicación en redes.
 7. Descarga y actualizaciones en Windows y Linux.
 8. Cierre con web, manual y GitHub.
 
+## Vertical de 60 segundos
+
+Pensado para Reels, TikTok y YouTube Shorts:
+
+- Hook: **Transmite tu radio, sin límites.**
+- Emisión, emisoras, soundboard, audio y actualizaciones.
+- Cierre con descarga y web.
+- Subtítulos y guion incluidos.
+
 ## Voz
 
-El video incluido usa una voz sintética en español. El guion está separado para
+Los videos incluidos usan una voz sintética en español. Los guiones están separados para
 que se pueda reemplazar por una voz humana sin rehacer la edición:
 
 1. Grabar cada bloque del `guion-voz-en-off.md`.
@@ -48,7 +60,7 @@ en `tools/ffmpeg`. Las capturas se toman de `docs/screenshots/`.
 **Título sugerido:**
 
 ```text
-Xtreme Studio: tu radio desde la PC, sin intermediarios
+Xtreme Studio: transmití tu radio, sin límites
 ```
 
 **Descripción sugerida:**

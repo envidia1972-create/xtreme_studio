@@ -1,5 +1,5 @@
 Título:
-Xtreme Studio: tu radio desde la PC, sin intermediarios
+Xtreme Studio: transmití tu radio, sin límites
 
 Descripción:
 Xtreme Studio es una consola de radio para Windows y Linux. Emití a tu servidor Icecast2 o Shoutcast, administrá varias emisoras, usá el soundboard y grabá tus programas sin depender de una nube.
