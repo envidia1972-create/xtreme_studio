@@ -204,7 +204,7 @@ jobs:
 
           (
             cd out
-            sha256sum XtremeStudio-* > checksums.txt
+            sha256sum XtremeStudioCast-* > checksums.txt
             cat checksums.txt
           )
 
