@@ -64,7 +64,7 @@ class UpdateInstaller {
     required UpdateInfo info,
     required int processId,
     Directory? destination,
-    Duration startTimeout = const Duration(seconds: 8),
+    Duration startTimeout = const Duration(seconds: 25),
   }) async {
     if (!Platform.isWindows) {
       throw UpdateException(

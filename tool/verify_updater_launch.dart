@@ -150,7 +150,7 @@ Future<void> main() async {
     section('Reemplazo de archivos');
 
     var replaced = false;
-    final waitUntil = DateTime.now().add(const Duration(seconds: 45));
+    final waitUntil = DateTime.now().add(const Duration(seconds: 90));
     while (DateTime.now().isBefore(waitUntil)) {
       if (destSo.readAsStringSync().trim() == 'NUEVO-0.1.3') {
         replaced = true;
@@ -166,7 +166,9 @@ Future<void> main() async {
     );
     if (!replaced) {
       stdout.writeln('  [diagnostico] systemTemp=${Directory.systemTemp.path}');
-      stdout.writeln('  [diagnostico] log=${log.path} exists=${log.existsSync()}');
+      stdout.writeln(
+        '  [diagnostico] log=${log.path} exists=${log.existsSync()}',
+      );
       if (log.existsSync()) {
         stdout.writeln(log.readAsStringSync());
       }
