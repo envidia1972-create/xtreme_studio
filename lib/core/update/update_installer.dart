@@ -101,7 +101,7 @@ class UpdateInstaller {
     await Process.start('cmd', [
       '/c',
       'start',
-      'XtremeStudioCastUpdate',
+      'Xtreme Studio Cast Update',
       'powershell.exe',
       '-NoProfile',
       '-ExecutionPolicy',
