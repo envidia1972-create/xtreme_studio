@@ -68,6 +68,14 @@ jobs:
       - name: Lanzamiento real del actualizador
         run: dart run tool/verify_updater_launch.dart
 
+      - name: Registro del actualizador
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-log
+          path: ${{ runner.temp }}\xtreme-update.log
+          if-no-files-found: ignore
+
       - name: Compilar
         shell: pwsh
         run: powershell -ExecutionPolicy Bypass -File tool/build_windows.ps1
