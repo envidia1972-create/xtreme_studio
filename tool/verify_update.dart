@@ -246,7 +246,7 @@ Future<void> main() async {
   section('Actualizador Windows');
   final script = UpdateInstaller.buildWindowsUpdaterScript();
   check(script.contains('Wait-Process'), 'espera a que cierre la app');
-  check(script.contains('Expand-Archive'), 'extrae el ZIP');
+  check(script.contains('ExtractToDirectory'), 'extrae el ZIP');
   check(script.contains('xtreme_studio.exe'), 'vuelve a abrir el ejecutable');
   check(script.contains('update-backup'), 'guarda copia de seguridad');
 

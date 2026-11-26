@@ -304,9 +304,11 @@ try {
     Write-Log "Esperando a que cierre la app PID $AppPid"
     Wait-Process -Id $AppPid -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 700
-    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     Write-Log "Extrayendo $Zip"
-    Expand-Archive -LiteralPath $Zip -DestinationPath $tmp -Force
+    # .NET ZipFile evita el fallo de Expand-Archive en algunos PowerShell
+    # recientes ("Cannot find an overload for ExtractToDirectory").
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip, $tmp)
     $src = $tmp
     if (-not (Test-Path -LiteralPath (Join-Path $src 'xtreme_studio.exe'))) {
         $child = Get-ChildItem -LiteralPath $tmp -Directory |
