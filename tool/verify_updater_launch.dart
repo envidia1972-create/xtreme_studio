@@ -164,6 +164,13 @@ Future<void> main() async {
       'el codigo nuevo reemplazo al anterior en el destino',
       detail: destSo.readAsStringSync().trim(),
     );
+    if (!replaced) {
+      stdout.writeln('  [diagnostico] systemTemp=${Directory.systemTemp.path}');
+      stdout.writeln('  [diagnostico] log=${log.path} exists=${log.existsSync()}');
+      if (log.existsSync()) {
+        stdout.writeln(log.readAsStringSync());
+      }
+    }
     check(
       File('${dest.path}${sep}xtreme_studio.exe').existsSync(),
       'el ejecutable sigue en su lugar',
