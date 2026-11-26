@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Genera el video demo de Xtreme Studio con voz en off y capturas reales.
+"""Genera el video demo de Xtreme Studio Cast con voz en off y capturas reales.
 
 El video resultante queda en docs/video/xtreme-studio-demo-1080p.mp4.
 La voz se sintetiza con el endpoint público de Google Translate; si no hay red,
@@ -60,7 +60,7 @@ SCENES = [
         "Transmite tu radio,\nsin límites.",
         ["Windows + Linux", "Icecast2 + Shoutcast", "Soundboard y vúmetro"],
         [
-            "Xtreme Studio es una consola de radio para Windows y Linux.",
+            "Xtreme Studio Cast es una consola de radio para Windows y Linux.",
             "En este video te muestro cómo salir al aire, administrar tus emisoras y usar el soundboard.",
         ],
         kind="intro",
@@ -127,7 +127,7 @@ SCENES = [
         "Se mantiene\nal día.",
         ["Windows y Linux", "Actualización automática", "SHA-256 y copia de seguridad", "Sin nube"],
         [
-            "Xtreme Studio también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola.",
+            "Xtreme Studio Cast también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola.",
             "Tus emisoras, claves y soundboard quedan en tu carpeta de usuario, separados de la aplicación.",
         ],
         kind="platforms",
@@ -138,7 +138,7 @@ SCENES = [
         "Nos vemos\nal aire.",
         ["Descarga gratuita", "Manual en PDF", "GitHub y comentarios"],
         [
-            "Xtreme Studio es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub.",
+            "Xtreme Studio Cast es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub.",
             "Si te sirve, una estrella ayuda a que más radios lo encuentren. Nos vemos al aire.",
         ],
         kind="outro",

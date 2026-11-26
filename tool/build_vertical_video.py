@@ -91,7 +91,7 @@ SCENES = [
     Scene(
         "cta", "XTREME STUDIO", "Descargala\ngratis.",
         ["Windows + Linux", "Manual y GitHub"],
-        ["Descargala gratis en Xtreme Studio.", "De tu PC al aire."],
+        ["Descargala gratis en Xtreme Studio Cast.", "De tu PC al aire."],
         8.5, kind="outro",
     ),
 ]

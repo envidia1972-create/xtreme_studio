@@ -1,4 +1,4 @@
-# Comprueba que este equipo puede compilar Xtreme Studio para Windows.
+# Comprueba que este equipo puede compilar Xtreme Studio Cast para Windows.
 #
 # Son las mismas comprobaciones que hace tool\build_windows.ps1 antes de
 # empezar, pero sin compilar nada: sirve para saber en segundos si falta algo.

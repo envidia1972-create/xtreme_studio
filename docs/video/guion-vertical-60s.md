@@ -1,4 +1,4 @@
-# Xtreme Studio — Guion vertical de 60 segundos
+# Xtreme Studio Cast — Guion vertical de 60 segundos
 
 **Formato:** 1080×1920, Reels / TikTok / YouTube Shorts.
 **Duración:** 60 segundos.
@@ -144,7 +144,7 @@ AL DÍA
 
 **Voz:**
 
-> Descargala gratis en Xtreme Studio.
+> Descargala gratis en Xtreme Studio Cast.
 > De tu PC al aire.
 
 **Texto en pantalla:**
@@ -172,7 +172,7 @@ Micrófono, ganancia en vivo, grabación. Y la calidad que elijas para tu conexi
 
 Se actualiza sola en Windows y Linux. Tus datos quedan fuera del portable.
 
-Descargala gratis en Xtreme Studio. De tu PC al aire.
+Descargala gratis en Xtreme Studio Cast. De tu PC al aire.
 
 ---
 
@@ -180,7 +180,7 @@ Descargala gratis en Xtreme Studio. De tu PC al aire.
 
 ```text
 Transmite tu radio, sin límites. 🎙️
-Xtreme Studio: consola de radio para Windows y Linux.
+Xtreme Studio Cast: consola de radio para Windows y Linux.
 Icecast2, Shoutcast, soundboard y actualización automática.
 
 Descarga: https://envidia1972-create.github.io/xtreme_studio/

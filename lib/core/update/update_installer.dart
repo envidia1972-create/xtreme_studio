@@ -35,9 +35,9 @@ class UpdateInstaller {
       await probe.delete();
     } on FileSystemException catch (e) {
       final hint = Platform.isWindows
-          ? 'Instala Xtreme Studio en una carpeta tuya (por ejemplo '
+          ? 'Instala Xtreme Studio Cast en una carpeta tuya (por ejemplo '
                 'C:\\XtremeStudio) o ejecuta como administrador.'
-          : 'Instala Xtreme Studio en una carpeta tuya, por ejemplo '
+          : 'Instala Xtreme Studio Cast en una carpeta tuya, por ejemplo '
                 '~/.local/opt/xtreme-studio. No se actualiza una instalacion '
                 'del sistema ni una carpeta de solo lectura.';
       throw UpdateException(
@@ -101,7 +101,7 @@ class UpdateInstaller {
     await Process.start('cmd', [
       '/c',
       'start',
-      'Xtreme Studio Update',
+      'Xtreme Studio Cast Update',
       'powershell.exe',
       '-NoProfile',
       '-ExecutionPolicy',
@@ -176,7 +176,7 @@ class UpdateInstaller {
   static String buildLinuxUpdaterScript() {
     return r'''
 #!/bin/sh
-# Actualizador portable de Xtreme Studio para Linux.
+# Actualizador portable de Xtreme Studio Cast para Linux.
 # Uso: xtreme-update.sh <pid> <tar.gz> <carpeta-bundle>
 set -u
 pid="$1"
@@ -240,7 +240,7 @@ else
   fi
 fi
 if [ -z "$src" ] || [ ! -x "$src/xtreme_studio" ] || [ ! -d "$src/data" ]; then
-  fail "El paquete no contiene un bundle valido de Xtreme Studio"
+  fail "El paquete no contiene un bundle valido de Xtreme Studio Cast"
 fi
 
 backup="${dest}.update-backup"

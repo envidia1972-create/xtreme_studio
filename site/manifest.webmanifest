@@ -1,6 +1,6 @@
 {
-  "name": "Xtreme Studio",
-  "short_name": "Xtreme Studio",
+  "name": "Xtreme Studio Cast",
+  "short_name": "Xtreme Studio Cast",
   "description": "Transmite tu radio, sin límites.",
   "start_url": "./",
   "display": "standalone",

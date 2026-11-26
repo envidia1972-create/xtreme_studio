@@ -162,6 +162,21 @@ class SoundboardController extends ChangeNotifier {
     return true;
   }
 
+  /// Alterna un pad: si ya esta sonando (al aire o por cue), lo detiene; si
+  /// esta detenido, lo reproduce. El segundo toque no afecta a otros pads.
+  Future<bool> togglePad(SoundboardPad pad) async {
+    if (!pad.assigned) {
+      _lastError = 'El pad no tiene un jingle asignado.';
+      notifyListeners();
+      return false;
+    }
+    if (mixer.activePads.contains(pad.id) || isCueing(pad.id)) {
+      await stopPad(pad);
+      return true;
+    }
+    return _live ? triggerPad(pad) : cuePad(pad);
+  }
+
   /// Reproduce el jingle solo en el equipo del DJ, sin enviarlo al servidor.
   Future<bool> cuePad(SoundboardPad pad) async {
     final cue = _cue;

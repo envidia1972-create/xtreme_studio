@@ -155,7 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _card(
             title: 'Motor de audio (FFmpeg)',
             subtitle:
-                'Xtreme Studio usa FFmpeg para capturar el audio del equipo y '
+                'Xtreme Studio Cast usa FFmpeg para capturar el audio del equipo y '
                 'codificarlo en MP3. Es la unica pieza externa que necesita.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -678,7 +678,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 12),
               const Text(
-                'Xtreme Studio es gratis, sin anuncios y sin cuentas. Detras no '
+                'Xtreme Studio Cast es gratis, sin anuncios y sin cuentas. Detras no '
                 'hay una empresa: hay horas de desarrollo, pruebas en Windows y '
                 'Linux y builds que se publican para que las uses.',
                 style: TextStyle(

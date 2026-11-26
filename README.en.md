@@ -1,4 +1,4 @@
-# Xtreme Studio
+# Xtreme Studio Cast
 
 ### Broadcast your radio, without limits.
 
@@ -12,7 +12,7 @@
 pick your microphone and go live. Audio goes straight from your computer to
 your Icecast2 or Shoutcast server — no cloud, no account, no limits.
 
-![Xtreme Studio on air on Linux](docs/screenshots/linux-al-aire.png)
+![Xtreme Studio Cast on air on Linux](docs/screenshots/linux-al-aire.png)
 
 ## Download
 
@@ -25,7 +25,7 @@ The website always shows the latest version, checksum and release notes:
 
 **<https://envidia1972-create.github.io/xtreme_studio/#descargar>**
 
-## Why Xtreme Studio
+## Why Xtreme Studio Cast
 
 - **Multi-station:** one app for all your radio stations.
 - **Icecast2 and Shoutcast v1/v2**, including AzuraCast and Zeno.fm.
@@ -40,7 +40,7 @@ that already run Icecast or Shoutcast.
 
 ## If it helps, leave a star
 
-Stars help other radio people find the project on GitHub. If Xtreme Studio
+Stars help other radio people find the project on GitHub. If Xtreme Studio Cast
 saves you time, a star or a share helps a lot.
 
 [⭐ **Star on GitHub**](https://github.com/envidia1972-create/xtreme_studio/stargazers) ·

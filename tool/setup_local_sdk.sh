@@ -51,7 +51,7 @@ mkdir -p "$ROOT/.tooling/home" \
          "$ROOT/.tooling/xdg-config"
 
 cat > "$ROOT/.tooling/env.sh" <<'ENV'
-# Entorno local de Xtreme Studio (generado por tool/setup_local_sdk.sh).
+# Entorno local de Xtreme Studio Cast (generado por tool/setup_local_sdk.sh).
 # Calcula la raiz desde este archivo para que siga funcionando si el proyecto
 # se mueve o se copia a otro disco.
 XS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

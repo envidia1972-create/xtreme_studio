@@ -1,4 +1,4 @@
-# Video demo de Xtreme Studio
+# Video demo de Xtreme Studio Cast
 
 Video de presentación de las funciones básicas, pensado para YouTube, la web o
 una publicación en redes.
@@ -18,7 +18,7 @@ una publicación en redes.
 
 ## Contenido del horizontal
 
-1. Presentación de Xtreme Studio.
+1. Presentación de Xtreme Studio Cast.
 2. Emisión: vúmetro, entrar/salir al aire y título para los oyentes.
 3. Emisoras: perfiles, Icecast2/Shoutcast y prueba de conexión.
 4. Audio: micrófono, ganancia en vivo y grabación local.
@@ -60,13 +60,13 @@ en `tools/ffmpeg`. Las capturas se toman de `docs/screenshots/`.
 **Título sugerido:**
 
 ```text
-Xtreme Studio: transmití tu radio, sin límites
+Xtreme Studio Cast: transmití tu radio, sin límites
 ```
 
 **Descripción sugerida:**
 
 ```text
-Xtreme Studio es una consola de radio para Windows y Linux. Emití a tu servidor
+Xtreme Studio Cast es una consola de radio para Windows y Linux. Emití a tu servidor
 Icecast2 o Shoutcast, administrá varias emisoras, usá el soundboard y grabá tus
 programas sin depender de una nube.
 

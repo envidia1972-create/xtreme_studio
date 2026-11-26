@@ -38,7 +38,7 @@ static void set_window_icon(GtkWindow* window) {
   g_autoptr(GError) error = nullptr;
   g_autoptr(GdkPixbuf) source = gdk_pixbuf_new_from_file(icon, &error);
   if (source == nullptr) {
-    g_printerr("Xtreme Studio: no se pudo cargar el icono %s: %s\n", icon,
+    g_printerr("Xtreme Studio Cast: no se pudo cargar el icono %s: %s\n", icon,
                error != nullptr ? error->message : "error desconocido");
     return;
   }
@@ -85,11 +85,11 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "Xtreme Studio");
+    gtk_header_bar_set_title(header_bar, "Xtreme Studio Cast");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "Xtreme Studio");
+    gtk_window_set_title(window, "Xtreme Studio Cast");
   }
 
   // La consola necesita ancho para la barra lateral y los vumetros. La ventana

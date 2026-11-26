@@ -140,7 +140,7 @@ jobs:
         run: |
           version="$(sed -n 's/^version:[[:space:]]*\([0-9][0-9.]*\).*/\1/p' pubspec.yaml | head -n1)"
           test -n "$version"
-          name="XtremeStudio-$version-linux-x64.tar.gz"
+          name="XtremeStudioCast-$version-linux-x64.tar.gz"
           tar -C build/linux/x64/release -czf "$name" bundle
           sha256sum "$name" > checksums-linux.txt
           echo "NAME=$name" >> "$GITHUB_ENV"
@@ -184,12 +184,12 @@ jobs:
           mkdir -p out
           (
             cd dist/xtreme_studio-windows-x64
-            zip -qr "$GITHUB_WORKSPACE/out/XtremeStudio-$version-windows-x64.zip" .
+            zip -qr "$GITHUB_WORKSPACE/out/XtremeStudioCast-$version-windows-x64.zip" .
           )
 
           linux_tar="$(find dist/xtreme_studio-linux-x64 -maxdepth 1 -name '*.tar.gz' | head -n1)"
           test -n "$linux_tar"
-          cp "$linux_tar" "out/XtremeStudio-$version-linux-x64.tar.gz"
+          cp "$linux_tar" "out/XtremeStudioCast-$version-linux-x64.tar.gz"
 
           (
             cd out
@@ -201,9 +201,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: Xtreme Studio ${{ github.ref_name }}
+          name: Xtreme Studio Cast ${{ github.ref_name }}
           files: |
-            out/XtremeStudio-${{ env.VERSION }}-windows-x64.zip
-            out/XtremeStudio-${{ env.VERSION }}-linux-x64.tar.gz
+            out/XtremeStudioCast-${{ env.VERSION }}-windows-x64.zip
+            out/XtremeStudioCast-${{ env.VERSION }}-linux-x64.tar.gz
             out/checksums.txt
           generate_release_notes: true

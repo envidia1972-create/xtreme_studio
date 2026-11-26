@@ -1,4 +1,4 @@
-/// Paleta e identidad visual de Xtreme Studio.
+/// Paleta e identidad visual de Xtreme Studio Cast.
 ///
 /// Pensada para cabina: fondo oscuro (menos fatiga y menos reflejo), un rojo
 /// inconfundible para "AL AIRE" y un verde claro para "conectado". Los estados

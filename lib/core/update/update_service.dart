@@ -1,4 +1,4 @@
-/// Consulta y descarga de releases de Xtreme Studio.
+/// Consulta y descarga de releases de Xtreme Studio Cast.
 ///
 /// Por defecto habla con la API publica de GitHub Releases. Tambien acepta un
 /// `latest.json` propio con la misma informacion basica, para no depender de
@@ -76,7 +76,7 @@ class UpdateService {
     final bytes = await _readBody(closed, maxBytes: 2 * 1024 * 1024);
     if (closed.statusCode == 404) {
       throw UpdateException(
-        'No se encontro una release publica de Xtreme Studio. Verifica que el '
+        'No se encontro una release publica de Xtreme Studio Cast. Verifica que el '
         'repositorio sea publico y que exista al menos una release.',
       );
     }

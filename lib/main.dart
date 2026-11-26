@@ -24,14 +24,14 @@ void main() {
   runApp(const XtremeStudioApp());
 }
 
-/// Aplicacion Xtreme Studio: consola de emision multi-emisora.
+/// Aplicacion Xtreme Studio Cast: consola de emision multi-emisora.
 class XtremeStudioApp extends StatelessWidget {
   const XtremeStudioApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Xtreme Studio',
+      title: 'Xtreme Studio Cast',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.build(),
       home: const StudioHome(),
@@ -110,7 +110,7 @@ class _StudioHomeState extends State<StudioHome> {
     // escrito. Nunca impide que la app funcione (si no se puede escribir, se
     // desactiva en silencio).
     await DiagnosticLog.open();
-    DiagnosticLog.instance?.write('app', 'iniciando Xtreme Studio');
+    DiagnosticLog.instance?.write('app', 'iniciando Xtreme Studio Cast');
 
     await _soundboard.init();
     final settings = await _store.loadSettings();
@@ -865,7 +865,7 @@ class _StudioHomeState extends State<StudioHome> {
       final numpad = _numpadKeys[pad.keyLabel];
       if (event.logicalKey == target ||
           (numpad != null && event.logicalKey == numpad)) {
-        unawaited(_soundboard.triggerPad(pad));
+        unawaited(_soundboard.togglePad(pad));
         return true;
       }
     }
@@ -1191,7 +1191,7 @@ class _SideNav extends StatelessWidget {
             padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
               'El audio va directo de tu PC a tu servidor. '
-              'Xtreme Studio no lo reenvia ni lo almacena.',
+              'Xtreme Studio Cast no lo reenvia ni lo almacena.',
               style: TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 11,

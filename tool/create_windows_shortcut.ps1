@@ -1,4 +1,4 @@
-# Crea un acceso directo de Xtreme Studio en el Escritorio, con su icono.
+# Crea un acceso directo de Xtreme Studio Cast en el Escritorio, con su icono.
 #
 # Uso:
 #   powershell -ExecutionPolicy Bypass -File tool\create_windows_shortcut.ps1
@@ -22,13 +22,13 @@ if (-not (Test-Path $exe)) {
 }
 
 $desktop = [Environment]::GetFolderPath('Desktop')
-$shortcutPath = Join-Path $desktop 'Xtreme Studio.lnk'
+$shortcutPath = Join-Path $desktop 'Xtreme Studio Cast.lnk'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $exe
 $shortcut.WorkingDirectory = Split-Path -Parent $exe
 $shortcut.IconLocation = "$exe,0"
-$shortcut.Description = 'Xtreme Studio - consola de emision para radio'
+$shortcut.Description = 'Xtreme Studio Cast - consola de emision para radio'
 $shortcut.Save()
 
 Write-Host "[ok] Acceso directo creado: $shortcutPath" -ForegroundColor Green

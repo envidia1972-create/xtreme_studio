@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compilacion de Xtreme Studio para Linux (escritorio GTK).
+# Compilacion de Xtreme Studio Cast para Linux (escritorio GTK).
 #
 # Deja el ejecutable en build/linux/x64/release/bundle/ y copia FFmpeg,
 # la licencia y la documentacion al lado, para que la carpeta se pueda entregar

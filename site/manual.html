@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Manual de Xtreme Studio</title>
-  <meta name="description" content="Manual de usuario de Xtreme Studio: instalación, emisoras, Icecast2, Shoutcast, audio, soundboard, AAC+ y actualizaciones.">
+  <title>Manual de Xtreme Studio Cast</title>
+  <meta name="description" content="Manual de usuario de Xtreme Studio Cast: instalación, emisoras, Icecast2, Shoutcast, audio, soundboard, AAC+ y actualizaciones.">
   <link rel="canonical" href="https://envidia1972-create.github.io/xtreme_studio/manual.html">
   <link rel="icon" href="assets/favicon.ico">
   <style>
@@ -72,19 +72,19 @@
 <body>
 <div class="manual-shell">
   <div class="screenbar no-print">
-    <a href="./">← Volver a Xtreme Studio</a>
+    <a href="./">← Volver a Xtreme Studio Cast</a>
     <div><a href="assets/xtreme-studio-manual.pdf" download>Descargar PDF</a> &nbsp; <a class="primary" href="assets/xtreme-studio-manual.pdf" download>Manual en PDF</a></div>
   </div>
 
   <section class="cover">
     <div>
-      <img src="assets/icon.png" alt="Xtreme Studio">
+      <img src="assets/icon.png" alt="Xtreme Studio Cast">
       <p class="kicker">Manual de usuario</p>
-      <h1>XTREME<br><span>STUDIO</span></h1>
+      <h1>XTREME<br><span>STUDIO CAST</span></h1>
       <p>Transmite tu radio, sin límites. Guía completa para instalar, configurar y emitir con Icecast2 o Shoutcast.</p>
     </div>
     <div class="meta">
-      <span>Versión 0.1.5</span>
+      <span>Versión 0.1.6</span>
       <span>Windows 10/11 · Linux</span>
       <span>2026</span>
     </div>
@@ -94,7 +94,7 @@
     <nav class="toc">
       <h2>Contenido</h2>
       <ol>
-        <li><a href="#intro">Qué es Xtreme Studio</a></li>
+        <li><a href="#intro">Qué es Xtreme Studio Cast</a></li>
         <li><a href="#instalar">Instalar en Windows</a></li>
         <li><a href="#linux">Compilar en Linux</a></li>
         <li><a href="#primer">Primer arranque</a></li>
@@ -109,8 +109,8 @@
       </ol>
     </nav>
 
-    <h2 id="intro">1. Qué es Xtreme Studio</h2>
-    <p>Xtreme Studio es una consola de escritorio para emitir radio por internet. El audio sale de tu computadora directamente al servidor de tu emisora: no pasa por un servidor intermedio de Xtreme Studio.</p>
+    <h2 id="intro">1. Qué es Xtreme Studio Cast</h2>
+    <p>Xtreme Studio Cast es una consola de escritorio para emitir radio por internet. El audio sale de tu computadora directamente al servidor de tu emisora: no pasa por un servidor intermedio de Xtreme Studio Cast.</p>
     <p>Permite administrar varias emisoras, elegir micrófono, medir el nivel, ajustar ganancia, reproducir jingles desde un soundboard, grabar la emisión y actualizar la app en Windows y Linux.</p>
     <h3>Requisitos</h3>
     <ul>
@@ -119,12 +119,12 @@
       <li>Los datos de tu servidor: host, puerto, contraseña y, en Icecast2, el mount.</li>
       <li>FFmpeg. El paquete de Windows ya lo incluye; en Linux se puede usar el del sistema o el que copia el script de compilación.</li>
     </ul>
-    <div class="note"><strong>Importante:</strong> no hace falta crear una cuenta en Xtreme Studio. Las emisoras y las claves se guardan en tu equipo.</div>
+    <div class="note"><strong>Importante:</strong> no hace falta crear una cuenta en Xtreme Studio Cast. Las emisoras y las claves se guardan en tu equipo.</div>
 
     <h2 id="instalar">2. Instalar en Windows</h2>
     <ol class="steps">
-      <li>Descargá <code>XtremeStudio-0.1.5-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.5">página de releases</a>.</li>
-      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudio-0.1.5-windows-x64.zip</code>.</li>
+      <li>Descargá <code>XtremeStudioCast-0.1.6-windows-x64.zip</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.6">página de releases</a>.</li>
+      <li>Desbloqueá el ZIP antes de extraerlo: clic derecho → Propiedades → <em>Desbloquear</em>, o en PowerShell:<br><code>Unblock-File .\XtremeStudioCast-0.1.6-windows-x64.zip</code>.</li>
       <li>Extraélo en una carpeta tuya, por ejemplo <code>C:\XtremeStudio</code>. No lo ejecutes desde el ZIP, Descargas, OneDrive ni una carpeta de red.</li>
       <li>Ejecutá <code>xtreme_studio.exe</code>.</li>
     </ol>
@@ -132,9 +132,9 @@
     <div class="ok"><strong>Datos personales:</strong> el instalador no requiere registro y no recopila tus emisoras ni tus contraseñas.</div>
 
     <h2 id="linux">3. Instalar en Linux</h2>
-    <p>Descargá el paquete portable <code>XtremeStudio-0.1.5-linux-x64.tar.gz</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.5">página de releases</a>.</p>
+    <p>Descargá el paquete portable <code>XtremeStudioCast-0.1.6-linux-x64.tar.gz</code> desde la <a href="https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.6">página de releases</a>.</p>
     <pre><code>mkdir -p ~/.local/opt
-tar -xzf XtremeStudio-0.1.5-linux-x64.tar.gz -C ~/.local/opt
+tar -xzf XtremeStudioCast-0.1.6-linux-x64.tar.gz -C ~/.local/opt
 cd ~/.local/opt/bundle
 ./xtreme_studio</code></pre>
     <p>No hace falta <code>sudo</code>. La app se actualiza desde la propia interfaz cuando hay una versión nueva: descarga el <code>.tar.gz</code>, verifica el SHA-256, reemplaza el bundle y se vuelve a abrir. Los datos de usuario quedan en <code>~/.xtreme_studio</code>.</p>
@@ -205,13 +205,13 @@ tool/build_linux.sh
       <li>Descargá la build nonfree win64 desde <a href="https://github.com/AnimMouse/ffmpeg-autobuild/releases/latest">AnimMouse/ffmpeg-autobuild</a> (archivo <code>ffmpeg-...-win64-nonfree.7z</code>).</li>
       <li>Extraé el archivo con 7-Zip y copiá <code>ffmpeg.exe</code> a la carpeta fija de la app: <code>%APPDATA%\XtremeStudio\ffmpeg-aac\ffmpeg.exe</code>. En <strong>Ajustes → Carpeta fija para AAC+</strong> está el botón <strong>Abrir carpeta</strong>.</li>
       <li>No la pongas dentro de la carpeta portable: las actualizaciones reemplazan el bundle y el FFmpeg se perdería.</li>
-      <li>En Xtreme Studio: <strong>Ajustes → Motor de audio (FFmpeg)</strong>, pulsá <strong>Autodetectar</strong>. La app busca primero el FFmpeg fijo de AAC+.</li>
+      <li>En Xtreme Studio Cast: <strong>Ajustes → Motor de audio (FFmpeg)</strong>, pulsá <strong>Autodetectar</strong>. La app busca primero el FFmpeg fijo de AAC+.</li>
       <li>Verificá en una terminal:<br><code>&amp; "$env:APPDATA\XtremeStudio\ffmpeg-aac\ffmpeg.exe" -hide_banner -encoders | findstr libfdk_aac</code></li>
       <li>En la emisora, elegí <strong>AAC+ (HE-AAC)</strong> y el bitrate.</li>
     </ol>
     <h3>Linux</h3>
     <p>Compilá FFmpeg con <code>--enable-libfdk-aac --enable-nonfree</code>. Guía: <a href="https://trac.ffmpeg.org/wiki/CompilationGuide/Ubuntu">CompilationGuide/Ubuntu</a>. Código de <code>libfdk_aac</code>: <a href="https://github.com/mstorsjo/fdk-aac">mstorsjo/fdk-aac</a>. Copiá el binario a <code>~/.xtreme_studio/ffmpeg-aac/ffmpeg</code>; la app lo busca primero y la ruta sobrevive a las actualizaciones. Usá <strong>Ajustes → Carpeta fija para AAC+</strong> para abrirla.</p>
-    <div class="note"><strong>Licencia:</strong> la build nonfree no se puede redistribuir junto con Xtreme Studio sin cumplir las licencias de sus componentes. La app solo la usa si el usuario la instala por separado.</div>
+    <div class="note"><strong>Licencia:</strong> la build nonfree no se puede redistribuir junto con Xtreme Studio Cast sin cumplir las licencias de sus componentes. La app solo la usa si el usuario la instala por separado.</div>
 
     <h2 id="actualizar">10. Actualizaciones</h2>
     <p>En Windows y Linux, la app comprueba GitHub Releases al arrancar y cada seis horas. Si hay una versión nueva, muestra un aviso. Al pulsar <strong>Actualizar</strong>:</p>
@@ -236,17 +236,17 @@ tool/build_linux.sh
 
     <h2 id="privacidad">12. Privacidad y enlaces</h2>
     <p>Las emisoras, las claves y el soundboard se guardan en tu equipo. En Windows las claves se cifran con DPAPI; en Linux se usa un archivo privado con permisos 0600. El audio va directo de tu PC al servidor de tu radio.</p>
-    <p>Xtreme Studio es gratis y no tiene anuncios ni cuentas. Si te sirve, en <strong>Ajustes → Apoya el proyecto</strong> hay un boton para donar con PayPal; tambien esta el acceso <strong>Apoyar el proyecto</strong> al pie de la barra lateral. La donacion se abre en el navegador y no se cobra nada dentro de la app.</p>
+    <p>Xtreme Studio Cast es gratis y no tiene anuncios ni cuentas. Si te sirve, en <strong>Ajustes → Apoya el proyecto</strong> hay un boton para donar con PayPal; tambien esta el acceso <strong>Apoyar el proyecto</strong> al pie de la barra lateral. La donacion se abre en el navegador y no se cobra nada dentro de la app.</p>
     <ul>
       <li>Web: <a href="https://envidia1972-create.github.io/xtreme_studio/">envidia1972-create.github.io/xtreme_studio</a></li>
       <li>Descargas: <a href="https://github.com/envidia1972-create/xtreme_studio/releases">GitHub Releases</a></li>
       <li>Comentarios y sugerencias: <a href="https://github.com/envidia1972-create/xtreme_studio/issues">GitHub Issues</a></li>
       <li>Apoyar el proyecto: ver la sección de donaciones en la <a href="https://envidia1972-create.github.io/xtreme_studio/#donar">web oficial</a>.</li>
     </ul>
-    <p>Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus respectivos titulares. Xtreme Studio no está afiliado a ellos.</p>
+    <p>Icecast, SHOUTcast, AzuraCast y Zeno.fm son marcas de sus respectivos titulares. Xtreme Studio Cast no está afiliado a ellos.</p>
 
     <div class="footer-manual">
-      <span>Xtreme Studio · Manual de usuario · Versión 0.1.5</span>
+      <span>Xtreme Studio Cast · Manual de usuario · Versión 0.1.6</span>
       <span>Hecho con Flutter y FFmpeg.</span>
     </div>
   </main>

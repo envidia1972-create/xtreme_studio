@@ -1,8 +1,8 @@
 Título:
-Transmite tu radio, sin límites | Xtreme Studio
+Transmite tu radio, sin límites | Xtreme Studio Cast
 
 Descripción:
-Transmite tu radio, sin límites. Xtreme Studio es una consola de radio para Windows y Linux: Icecast2, Shoutcast, soundboard, grabación y actualización automática.
+Transmite tu radio, sin límites. Xtreme Studio Cast es una consola de radio para Windows y Linux: Icecast2, Shoutcast, soundboard, grabación y actualización automática.
 
 Descarga: https://envidia1972-create.github.io/xtreme_studio/
 GitHub: https://github.com/envidia1972-create/xtreme_studio

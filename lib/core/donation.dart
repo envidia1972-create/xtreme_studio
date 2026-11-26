@@ -7,7 +7,7 @@ library;
 
 import 'dart:io';
 
-/// Cuenta de donaciones de Xtreme Studio.
+/// Cuenta de donaciones de Xtreme Studio Cast.
 const String donationUrl =
     'https://www.paypal.com/donate/?hosted_button_id=URNUVG7CSFFFQ';
 

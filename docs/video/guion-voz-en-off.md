@@ -1,4 +1,4 @@
-# Xtreme Studio — Guion de voz en off
+# Xtreme Studio Cast — Guion de voz en off
 
 **Duración estimada:** 2 a 3 minutos.
 **Eslogan:** **Transmite tu radio, sin límites.**
@@ -31,7 +31,7 @@ Duración total: **2:39**.
 
 **Voz en off:**
 
-> Xtreme Studio es una consola de radio para Windows y Linux.
+> Xtreme Studio Cast es una consola de radio para Windows y Linux.
 >
 > En este video te muestro cómo salir al aire, administrar tus emisoras y usar el soundboard.
 
@@ -117,7 +117,7 @@ Duración total: **2:39**.
 
 **Voz en off:**
 
-> Xtreme Studio también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola.
+> Xtreme Studio Cast también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola.
 >
 > Tus emisoras, claves y soundboard quedan en tu carpeta de usuario, separados de la aplicación.
 
@@ -131,7 +131,7 @@ Duración total: **2:39**.
 
 **Voz en off:**
 
-> Xtreme Studio es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub.
+> Xtreme Studio Cast es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub.
 >
 > Si te sirve, una estrella ayuda a que más radios lo encuentren. Nos vemos al aire.
 
@@ -141,7 +141,7 @@ Duración total: **2:39**.
 
 ## Versión corta para teleprompter
 
-Xtreme Studio es una consola de radio para Windows y Linux. En este video te muestro cómo salir al aire, administrar tus emisoras y usar el soundboard.
+Xtreme Studio Cast es una consola de radio para Windows y Linux. En este video te muestro cómo salir al aire, administrar tus emisoras y usar el soundboard.
 
 Esta es la pantalla de emisión. Elegís tu emisora, hablás por el micrófono y ves el nivel en tiempo real. El vúmetro funciona incluso antes de salir al aire. Cuando estés listo, pulsás Entrar al aire. El estado cambia a AL AIRE, empieza el tiempo de emisión, y desde acá actualizás el título que ven tus oyentes.
 
@@ -153,6 +153,6 @@ Cada emisora puede usar su propio códec y bitrate: MP3, AAC-LC o AAC+. La app d
 
 El soundboard tiene ocho pads para jingles, cortinas y efectos. Podés dispararlos con las teclas uno a ocho, escucharlos solo en tu equipo con cue local, o mezclarlos al aire con ducking automático para que no tapen tu voz.
 
-Xtreme Studio también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola. Tus emisoras, claves y soundboard quedan en tu carpeta de usuario, separados de la aplicación.
+Xtreme Studio Cast también se mantiene al día. En Windows y Linux comprueba si hay una versión nueva, verifica el SHA-256 y se actualiza sola. Tus emisoras, claves y soundboard quedan en tu carpeta de usuario, separados de la aplicación.
 
-Xtreme Studio es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub. Si te sirve, una estrella ayuda a que más radios lo encuentren. Nos vemos al aire.
+Xtreme Studio Cast es gratis y sin cuentas. Descargalo en la web, leé el manual y dejá tus comentarios en GitHub. Si te sirve, una estrella ayuda a que más radios lo encuentren. Nos vemos al aire.

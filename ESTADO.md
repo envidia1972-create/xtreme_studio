@@ -220,7 +220,7 @@ mount se libero y el monitor de entrada volvio a arrancar, sin FFmpeg huerfano.
 **Nota de este equipo:** el driver DRI3 de esta laptop a veces no entrega
 contexto GL. El proceso de la app sigue vivo pero la ventana queda sin mapear.
 Se lanza entonces con `LIBGL_ALWAYS_SOFTWARE=1` y funciona con llvmpipe; no es
-un fallo de Xtreme Studio. Con el compositor sano arranca con Impeller normal.
+un fallo de Xtreme Studio Cast. Con el compositor sano arranca con Impeller normal.
 
 ---
 
@@ -339,7 +339,7 @@ de forma intermitente. Ahora se espera al cierre del flujo
 
 - Se añadió el runner `linux/` con `flutter create --platforms=linux`.
 - Ventana inicial adaptada al area util del monitor (maximo 1280x800, margen
-  de 48 px, minimo 960x600), título "Xtreme Studio", fondo `#0D0F14`.
+  de 48 px, minimo 960x600), título "Xtreme Studio Cast", fondo `#0D0F14`.
 - **Ajustes** usa textos y rutas de Linux, abre el registro con `xdg-open`,
   muestra `pulse`/`alsa` y avisa de que en Linux no hay DPAPI (archivo `0600`).
 - Se retiraron los textos que decían "Windows" en la lista de dispositivos.

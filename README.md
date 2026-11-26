@@ -1,4 +1,4 @@
-# Xtreme Studio
+# Xtreme Studio Cast
 
 ### Transmite tu radio, sin límites.
 
@@ -13,7 +13,7 @@
 servidor, elegí el micrófono y salí al aire. El audio va directo de tu PC al
 servidor de streaming: **sin nube, sin cuentas y sin ataduras**.
 
-![Xtreme Studio al aire en Linux](docs/screenshots/linux-al-aire.png)
+![Xtreme Studio Cast al aire en Linux](docs/screenshots/linux-al-aire.png)
 
 ▶ **[Ver el video demo](docs/video/xtreme-studio-demo-1080p.mp4)** ·
 [Versión vertical 60s](docs/video/xtreme-studio-vertical-60s.mp4) ·
@@ -32,7 +32,7 @@ el checksum:
 
 **<https://envidia1972-create.github.io/xtreme_studio/#descargar>**
 
-## Por qué Xtreme Studio
+## Por qué Xtreme Studio Cast
 
 - **Multi-emisora:** una app, todas tus radios, sin duplicar instalaciones.
 - **Icecast2 y Shoutcast v1/v2**, incluidos AzuraCast y Zeno.fm.
@@ -48,7 +48,7 @@ cualquier emisora que ya tenga un servidor Icecast o Shoutcast.
 ## Si te sirve, dejá una estrella
 
 Las estrellas no son un trofeo: hacen que GitHub muestre el proyecto a otras
-radios que están buscando una herramienta así. Si Xtreme Studio te ahorra
+radios que están buscando una herramienta así. Si Xtreme Studio Cast te ahorra
 tiempo, ayudás mucho con una estrella o compartiéndolo.
 
 [⭐ **Dejar una estrella**](https://github.com/envidia1972-create/xtreme_studio/stargazers) ·
@@ -137,7 +137,7 @@ del monitor de un sink virtual de PulseAudio:
 
 Emision real con metadatos actualizados y el titulo que ven los oyentes:
 
-![Xtreme Studio al aire en Linux](docs/screenshots/linux-al-aire.png)
+![Xtreme Studio Cast al aire en Linux](docs/screenshots/linux-al-aire.png)
 
 Codigo, bitrate y frecuencia por emisora:
 
@@ -266,7 +266,7 @@ ejecutable.
    En **Ajustes → Carpeta fija para AAC+** está el botón **Abrir carpeta**,
    que crea y abre esa ruta. **No la pongas dentro de la carpeta portable**:
    las actualizaciones reemplazan el bundle y el FFmpeg se perdería.
-4. En Xtreme Studio: **Ajustes → Motor de audio (FFmpeg)**, pulsá
+4. En Xtreme Studio Cast: **Ajustes → Motor de audio (FFmpeg)**, pulsá
    **Autodetectar**. La app busca primero el FFmpeg fijo de AAC+ y guarda esa
    ruta fuera del portable.
 5. Verificá que la deteccion diga que `libfdk_aac` esta disponible. Si no,
@@ -304,7 +304,7 @@ botón para abrirla.
 
 #### Licencia
 
-La build nonfree de FFmpeg **no se puede redistribuir junto con Xtreme Studio**
+La build nonfree de FFmpeg **no se puede redistribuir junto con Xtreme Studio Cast**
 sin cumplir las licencias de sus componentes. La app solo la usa si el usuario
 la instala por separado. El enlace y las instrucciones tambien estan en el
 manual:
@@ -341,7 +341,7 @@ tool/install_linux_shortcut.sh
 
 Crea `~/.local/share/applications/xtreme-studio.desktop` y instala el icono en
 `~/.local/share/icons/hicolor/512x512/apps/xtreme-studio.png`. Despues busca
-**Xtreme Studio** en el menu de aplicaciones. No necesita `sudo`.
+**Xtreme Studio Cast** en el menu de aplicaciones. No necesita `sudo`.
 
 ### Acceso directo en Windows
 
@@ -438,7 +438,7 @@ Al pulsar **Actualizar**:
 4. cierra captura, codificador y soundboard;
 5. lanza un actualizador de PowerShell que espera el cierre;
 6. reemplaza la carpeta portable, conservando una copia de seguridad;
-7. vuelve a abrir Xtreme Studio.
+7. vuelve a abrir Xtreme Studio Cast.
 
 Los datos de `%APPDATA%\XtremeStudio` (emisoras, claves, soundboard) **no** se
 tocan: la actualizacion solo reemplaza los archivos de la aplicacion.
@@ -1187,7 +1187,7 @@ licencia, el `README.md` y `THIRD_PARTY.md` dentro de esa carpeta.
 Antes de distribuir:
 
 1. **Revisa `THIRD_PARTY.md`**: si usas una build GPL de FFmpeg hay obligaciones
-   que acompanan al binario (no al codigo de Xtreme Studio, que se ejecuta como
+   que acompanan al binario (no al codigo de Xtreme Studio Cast, que se ejecuta como
    proceso aparte). Para vender la app conviene una build **LGPL**.
 2. La app no necesita instalador: es una carpeta portatil. El DJ la descomprime,
    la abre y carga las credenciales de su servidor.

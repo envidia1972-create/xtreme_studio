@@ -1,4 +1,4 @@
-# Compila e instala Xtreme Studio en Windows.
+# Compila e instala Xtreme Studio Cast en Windows.
 #
 # Ejecutar desde la raiz del proyecto:
 #     powershell -ExecutionPolicy Bypass -File tool\build_windows.ps1
@@ -14,7 +14,7 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host ''
-Write-Host '=== Xtreme Studio - compilacion para Windows ===' -ForegroundColor Cyan
+Write-Host '=== Xtreme Studio Cast - compilacion para Windows ===' -ForegroundColor Cyan
 Write-Host ''
 
 # ---------------------------------------------------------------- Flutter SDK
@@ -328,7 +328,7 @@ if ($ffmpeg -and (Test-Path $outDir)) {
     if ($ffmpeg -match 'gpl|full') {
         Write-Host '[aviso] Estas usando una build GPL de FFmpeg.' -ForegroundColor Yellow
         Write-Host '        Si vas a distribuir la app, revisa THIRD_PARTY.md'
-        Write-Host '        (afecta solo a FFmpeg, no al codigo de Xtreme Studio).'
+        Write-Host '        (afecta solo a FFmpeg, no al codigo de Xtreme Studio Cast).'
     }
 }
 

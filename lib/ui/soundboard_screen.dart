@@ -33,7 +33,8 @@ class _SoundboardScreenState extends State<SoundboardScreen> {
       await _edit(pad);
       return;
     }
-    final ok = widget.live ? await c.triggerPad(pad) : await c.cuePad(pad);
+    // Un mismo pad alterna: el segundo toque detiene solo ese jingle.
+    final ok = await c.togglePad(pad);
     if (!ok && c.lastError != null) _error(c.lastError!);
   }
 
@@ -97,8 +98,9 @@ class _SoundboardScreenState extends State<SoundboardScreen> {
               _grid(),
               const SizedBox(height: 14),
               const Text(
-                'Teclas: 1-8 o F1-F8 con la app enfocada. El boton de '
-                'auriculares reproduce solo en este equipo (cue).',
+                'Teclas: 1-8 o F1-F8 con la app enfocada. Toca un pad para iniciarlo y '
+                'tocalo de nuevo para detenerlo. Los auriculares reproducen solo '
+                'en este equipo (cue).',
                 style: TextStyle(color: AppColors.textMuted, fontSize: 11.5),
               ),
             ],
@@ -285,9 +287,10 @@ class _SoundboardScreenState extends State<SoundboardScreen> {
             child: Text(
               live
                   ? 'AL AIRE: los pads se mezclan con el microfono y salen al '
-                        'stream. Los auriculares hacen cue local.'
+                        'stream. Tocalos de nuevo para detenerlos. Los auriculares '
+                        'hacen cue local.'
                   : 'FUERA DEL AIRE: tocar un pad lo reproduce por cue local; '
-                        'no se envia al servidor.',
+                        'tocalo de nuevo para detenerlo. No se envia al servidor.',
               style: TextStyle(
                 color: live ? AppColors.onAir : AppColors.textSecondary,
                 fontSize: 12,

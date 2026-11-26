@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Crea un lanzador de escritorio para Xtreme Studio con su icono.
+# Crea un lanzador de escritorio para Xtreme Studio Cast con su icono.
 #
 # Uso:
 #   tool/install_linux_shortcut.sh [ruta-al-bundle]
@@ -38,7 +38,7 @@ cat > "$DESKTOP" <<DESKTOP_ENTRY
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Xtreme Studio
+Name=Xtreme Studio Cast
 GenericName=Consola de emision
 Comment=Emision multi-emisora para radio (Icecast2/Shoutcast)
 Exec="$APP"
@@ -58,4 +58,4 @@ command -v gtk-update-icon-cache >/dev/null 2>&1 && \
 echo "Lanzador creado: $DESKTOP"
 echo "Icono: $ICON_DIR/xtreme-studio.png"
 echo "Ejecutable: $APP"
-echo "Busca 'Xtreme Studio' en el menu de aplicaciones."
+echo "Busca 'Xtreme Studio Cast' en el menu de aplicaciones."

@@ -58,7 +58,7 @@ class DiagnosticLog {
 
       final log = DiagnosticLog._(f);
       _instance = log;
-      log.write('sesion', 'Xtreme Studio: nueva sesion');
+      log.write('sesion', 'Xtreme Studio Cast: nueva sesion');
       return log;
     } catch (_) {
       // Sin registro se sigue funcionando: nunca es un fallo critico.

@@ -132,7 +132,7 @@ class ScreenGuard {
   static const List<(String, List<String>)> _holdCommands = [
     (
       'light-locker-command',
-      ['--inhibit', '-n', 'Xtreme Studio', '-r', 'Emision al aire'],
+      ['--inhibit', '-n', 'Xtreme Studio Cast', '-r', 'Emision al aire'],
     ),
     ('xfce4-screensaver-command', ['--inhibit']),
     ('kde-inhibit', ['--screenSaver', '--power', 'sleep', 'infinity']),
@@ -176,7 +176,7 @@ class ScreenGuard {
 
   /// Inhibicion por D-Bus en una sola llamada (ultimo recurso).
   Future<int?> _inhibitScreenSaverOnce() async {
-    const app = 'Xtreme Studio';
+    const app = 'Xtreme Studio Cast';
     const reason = 'Emision al aire';
 
     final viaGdbus = await _run('gdbus', [
@@ -239,7 +239,7 @@ class ScreenGuard {
     try {
       final process = await Process.start('systemd-inhibit', [
         '--what=idle:sleep',
-        '--who=Xtreme Studio',
+        '--who=Xtreme Studio Cast',
         '--why=Emision al aire',
         '--mode=block',
         'sleep',
