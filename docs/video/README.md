@@ -5,7 +5,7 @@ una publicación en redes.
 
 ## Archivos
 
-- `xtreme-studio-demo-1080p.mp4` — video horizontal, 1920×1080, H.264 + AAC, 2:39.
+- `xtreme-studio-demo-1080p.mp4` — video horizontal, 1920×1080, H.264 + AAC, 2:41.
 - `xtreme-studio-vertical-60s.mp4` — versión vertical 1080×1920 para Reels, TikTok y Shorts.
 - `guion-voz-en-off.md` — guion completo del video horizontal.
 - `guion-vertical-60s.md` — guion y texto en pantalla del vertical.
@@ -81,13 +81,13 @@ Manual: https://envidia1972-create.github.io/xtreme_studio/manual.html
 
 ```text
 00:00 Presentación
-00:14 Emisión
-00:40 Emisoras
-01:00 Audio
-01:20 Calidad y códecs
-01:41 Soundboard
-02:00 Actualizaciones
-02:22 Cierre
+00:15 Emisión
+00:41 Emisoras
+01:01 Audio
+01:21 Calidad y códecs
+01:42 Soundboard
+02:01 Actualizaciones
+02:23 Cierre
 ```
 
 Los subtítulos completos, con tiempos por frase, están en

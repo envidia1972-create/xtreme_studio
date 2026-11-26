@@ -50,7 +50,7 @@ class Scene:
 
 SCENES = [
     Scene(
-        "hook", "XTREME STUDIO", "Transmite tu radio,\nsin límites.",
+        "hook", "XTREME STUDIO CAST", "Transmite tu radio,\nsin límites.",
         ["Windows + Linux", "Icecast2 + Shoutcast"],
         ["Transmite tu radio, sin límites."], 5.5, kind="intro",
     ),
@@ -89,7 +89,7 @@ SCENES = [
         9.0, kind="platforms",
     ),
     Scene(
-        "cta", "XTREME STUDIO", "Descargala\ngratis.",
+        "cta", "XTREME STUDIO CAST", "Descargala\ngratis.",
         ["Windows + Linux", "Manual y GitHub"],
         ["Descargala gratis en Xtreme Studio Cast.", "De tu PC al aire."],
         8.5, kind="outro",
@@ -148,7 +148,7 @@ def header(im: Image.Image, d: ImageDraw.ImageDraw, idx: int) -> None:
     im.paste(icon, (50, 52), icon)
     f_brand = font(FONT_BOLD, 18)
     d.text((112, 62), "XTREME", font=f_brand, fill=(245, 247, 251))
-    d.text((112 + d.textlength("XTREME ", font=f_brand), 62), "STUDIO", font=f_brand, fill=(229, 57, 53))
+    d.text((112 + d.textlength("XTREME ", font=f_brand), 62), "STUDIO CAST", font=f_brand, fill=(229, 57, 53))
     f_num = font(FONT_MONO, 13)
     label = "60 SEGUNDOS" if idx == 0 else f"{idx:02d} / 07"
     d.text((W - 50 - d.textlength(label, font=f_num), 68), label, font=f_num, fill=(110, 122, 142))
@@ -157,7 +157,7 @@ def header(im: Image.Image, d: ImageDraw.ImageDraw, idx: int) -> None:
 def footer(im: Image.Image, d: ImageDraw.ImageDraw, idx: int) -> None:
     d.line((50, 1846, W - 50, 1846), fill=(35, 43, 56), width=1)
     f = font(FONT_REG, 12)
-    d.text((50, 1858), "XTREME STUDIO · TRANSMITE TU RADIO, SIN LÍMITES", font=f, fill=(100, 112, 133))
+    d.text((50, 1858), "XTREME STUDIO CAST · TRANSMITE TU RADIO, SIN LÍMITES", font=f, fill=(100, 112, 133))
     d.rectangle((50, 1834, W - 50, 1837), fill=(28, 35, 46))
     d.rectangle((50, 1834, 50 + int((W - 100) * (idx / 7)), 1837), fill=(229, 57, 53))
     # CTA permanente.
@@ -214,7 +214,7 @@ def screen_scene(scene: Scene, idx: int) -> Image.Image:
         for line in scene.quote.split("\n"):
             d.text((86, yy), line, font=f_q, fill=(243, 246, 251))
             yy += 48
-        d.text((86, qy + 208), "XTREME STUDIO · EN VIVO", font=font(FONT_MONO, 13), fill=(120, 132, 151))
+        d.text((86, qy + 208), "XTREME STUDIO CAST · EN VIVO", font=font(FONT_MONO, 13), fill=(120, 132, 151))
     footer(im, d, idx)
     return im
 
@@ -289,7 +289,7 @@ def outro_scene(scene: Scene, idx: int) -> Image.Image:
     icon = Image.open(ICON).convert("RGBA").resize((130, 130), Image.Resampling.LANCZOS)
     im.paste(icon, (50, 180), icon)
     f_kick = font(FONT_MONO, 17)
-    d.text((50, 340), "XTREME STUDIO", font=f_kick, fill=(229, 57, 53))
+    d.text((50, 340), "XTREME STUDIO CAST", font=f_kick, fill=(229, 57, 53))
     f_title = font(FONT_BOLD, 92)
     y = 390
     for line in scene.title.split("\n"):

@@ -56,7 +56,7 @@ class Scene:
 SCENES = [
     Scene(
         "intro",
-        "DEMO · XTREME STUDIO",
+        "DEMO · XTREME STUDIO CAST",
         "Transmite tu radio,\nsin límites.",
         ["Windows + Linux", "Icecast2 + Shoutcast", "Soundboard y vúmetro"],
         [
@@ -134,7 +134,7 @@ SCENES = [
     ),
     Scene(
         "outro",
-        "XTREME STUDIO",
+        "XTREME STUDIO CAST",
         "Nos vemos\nal aire.",
         ["Descarga gratuita", "Manual en PDF", "GitHub y comentarios"],
         [
@@ -222,7 +222,7 @@ def header(im: Image.Image, d: ImageDraw.ImageDraw, scene: Scene, idx: int) -> N
     im.paste(icon, (80, 46), icon)
     f_brand = font(FONT_BOLD, 17)
     d.text((136, 56), "XTREME", font=f_brand, fill=(245, 247, 251))
-    d.text((136 + d.textlength("XTREME ", font=f_brand), 56), "STUDIO", font=f_brand, fill=(229, 57, 53))
+    d.text((136 + d.textlength("XTREME ", font=f_brand), 56), "STUDIO CAST", font=f_brand, fill=(229, 57, 53))
     f_num = font(FONT_MONO, 14)
     d.text((W - 80 - d.textlength(f"{idx:02d} / {len(SCENES):02d}", font=f_num), 60),
            f"{idx:02d} / {len(SCENES):02d}", font=f_num, fill=(120, 132, 151))
@@ -231,7 +231,7 @@ def header(im: Image.Image, d: ImageDraw.ImageDraw, scene: Scene, idx: int) -> N
 def footer(im: Image.Image, d: ImageDraw.ImageDraw, idx: int) -> None:
     d.line((80, 1034, W - 80, 1034), fill=(35, 43, 56), width=1)
     f = font(FONT_REG, 12)
-    d.text((80, 1046), "XTREME STUDIO · TRANSMITE TU RADIO, SIN LÍMITES", font=f, fill=(100, 112, 133))
+    d.text((80, 1046), "XTREME STUDIO CAST · TRANSMITE TU RADIO, SIN LÍMITES", font=f, fill=(100, 112, 133))
     d.text((W - 80 - d.textlength("DEMO 2026", font=f), 1046), "DEMO 2026", font=f, fill=(100, 112, 133))
     # Barra de progreso.
     d.rectangle((80, 1020, W - 80, 1023), fill=(28, 35, 46))
@@ -277,7 +277,7 @@ def intro_scene(scene: Scene, idx: int) -> Image.Image:
     icon = Image.open(ICON).convert("RGBA").resize((150, 150), Image.Resampling.LANCZOS)
     im.paste(icon, ((W - 150) // 2, 160), icon)
     f_kick = font(FONT_MONO, 16)
-    kick = "DEMO · XTREME STUDIO"
+    kick = "DEMO · XTREME STUDIO CAST"
     d.text(((W - d.textlength(kick, font=f_kick)) / 2, 345), kick, font=f_kick, fill=(229, 57, 53))
     f_title = font(FONT_BOLD, 84)
     lines = scene.title.split("\n")
@@ -372,7 +372,7 @@ def outro_scene(scene: Scene, idx: int) -> Image.Image:
     d.text((80, 745), "Descarga · Manual · GitHub · Comentarios", font=f_small, fill=(168, 178, 194))
     # Marco de llamado a la acción.
     d.rounded_rectangle((80, 830, 760, 900), radius=12, fill=(229, 57, 53))
-    d.text((110, 849), "DESCARGAR XTREME STUDIO", font=font(FONT_BOLD, 19), fill=(255, 255, 255))
+    d.text((110, 849), "DESCARGAR XTREME STUDIO CAST", font=font(FONT_BOLD, 19), fill=(255, 255, 255))
     # Mini app shot a la derecha.
     shot = Image.open(ROOT / "docs/screenshots/linux-al-aire.png").convert("RGB")
     sw = 760

@@ -10,16 +10,16 @@
 
 ```text
 00:00  Intro
-00:14  Emisión
-00:40  Emisoras
-01:00  Audio
-01:20  Calidad y códecs
-01:41  Soundboard
-02:00  Actualizaciones
-02:22  Cierre
+00:15  Emisión
+00:41  Emisoras
+01:01  Audio
+01:21  Calidad y códecs
+01:42  Soundboard
+02:01  Actualizaciones
+02:23  Cierre
 ```
 
-Duración total: **2:39**.
+Duración total: **2:41**.
 
 > El video incluye una voz sintética generada automáticamente. Este guion sirve para reemplazarla por una voz humana, grabar una versión propia o adaptar el texto a otro idioma.
 

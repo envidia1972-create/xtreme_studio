@@ -43,10 +43,10 @@ Se actualiza sola en Windows y Linux.
 Tus datos quedan fuera del portable.
 
 12
-00:00:51,800 --> 00:00:54,968
-Descargala gratis en Xtreme Studio.
+00:00:51,800 --> 00:00:55,496
+Descargala gratis en Xtreme Studio Cast.
 
 13
-00:00:55,068 --> 00:00:57,012
+00:00:55,596 --> 00:00:57,540
 De tu PC al aire.
 
