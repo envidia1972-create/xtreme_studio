@@ -493,8 +493,8 @@ El tag **debe coincidir** con `pubspec.yaml`; el workflow falla si no coinciden.
 - Pagina: <https://github.com/envidia1972-create/xtreme_studio/releases/tag/v0.1.6>
 - Windows: `XtremeStudioCast-0.1.6-windows-x64.zip` (148.485.140 bytes,
   SHA-256 `11db6ca0c890716f008ddffb002362baf5829a2bb1a5dc39d74db247d60b9953`)
-- Linux: `XtremeStudioCast-0.1.6-linux-x64.tar.gz` (81.685.490 bytes,
-  SHA-256 `6d2dd0d677d6a4e1e53c110b302ea4d198d42ef9bba8d2fc0ebe2162d542f328`)
+- Linux: `XtremeStudioCast-0.1.6-linux-x64.tar.gz` (80.016.365 bytes,
+  SHA-256 `c53739bd4fcfb7d7583a637b96b1bedb8c61cb6d7e9bb950bf084513fea67c4f`)
 - Nombre visible **Xtreme Studio Cast** y pads con play/stop al segundo toque.
 
 ### Primera instalacion: v0.1.1
